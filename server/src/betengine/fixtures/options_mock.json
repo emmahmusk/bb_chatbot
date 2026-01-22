@@ -1,0 +1,174 @@
+{
+  "request_id": "mock-request-id-001",
+  "results": [
+    {
+      "break_even_price": 151.2,
+      "day": {
+        "change": 4.5,
+        "change_percent": 6.76,
+        "close": 120.73,
+        "high": 120.81,
+        "last_updated": 1605195918507251700,
+        "low": 118.9,
+        "open": 119.32,
+        "previous_close": 119.12,
+        "volume": 868,
+        "vwap": 119.31
+      },
+      "details": {
+        "contract_type": "call",
+        "exercise_style": "american",
+        "expiration_date": "2025-06-07",
+        "shares_per_contract": 100,
+        "strike_price": 150,
+        "ticker": "O:AAPL250607C00150000"
+      },
+      "fmv": 0.05,
+      "greeks": {
+        "delta": 1,
+        "gamma": 0,
+        "theta": 0.00229,
+        "vega": 0
+      },
+      "implied_volatility": 5,
+      "last_quote": {
+        "ask": 120.3,
+        "ask_size": 4,
+        "bid": 120.28,
+        "bid_size": 8,
+        "last_updated": 1605195918507251700,
+        "midpoint": 120.29,
+        "timeframe": "REAL-TIME"
+      },
+      "last_trade": {
+        "conditions": [209],
+        "exchange": 316,
+        "price": 0.05,
+        "sip_timestamp": 1675280958783136800,
+        "size": 2,
+        "timeframe": "REAL-TIME"
+      },
+      "open_interest": 1543,
+      "underlying_asset": {
+        "change_to_break_even": 4.2,
+        "last_updated": 1605195918507251700,
+        "price": 147,
+        "ticker": "AAPL",
+        "timeframe": "DELAYED"
+      }
+    },
+    {
+      "break_even_price": 810.0,
+      "day": {
+        "change": -6.3,
+        "change_percent": -0.78,
+        "close": 802.3,
+        "high": 810.0,
+        "last_updated": 1605195918507251700,
+        "low": 795.4,
+        "open": 798.0,
+        "previous_close": 808.6,
+        "volume": 2030,
+        "vwap": 800.2
+      },
+      "details": {
+        "contract_type": "call",
+        "exercise_style": "american",
+        "expiration_date": "2025-06-22",
+        "shares_per_contract": 100,
+        "strike_price": 800,
+        "ticker": "O:TSLA250622C00800000"
+      },
+      "fmv": 1.20,
+      "greeks": {
+        "delta": 0.72,
+        "gamma": 0.05,
+        "theta": -0.021,
+        "vega": 0.11
+      },
+      "implied_volatility": 48,
+      "last_quote": {
+        "ask": 10.5,
+        "ask_size": 2,
+        "bid": 10.3,
+        "bid_size": 3,
+        "last_updated": 1605195918507251700,
+        "midpoint": 10.4,
+        "timeframe": "REAL-TIME"
+      },
+      "last_trade": {
+        "conditions": [209],
+        "exchange": 318,
+        "price": 10.4,
+        "sip_timestamp": 1675280958783136800,
+        "size": 1,
+        "timeframe": "REAL-TIME"
+      },
+      "open_interest": 4298,
+      "underlying_asset": {
+        "change_to_break_even": -1.0,
+        "last_updated": 1605195918507251700,
+        "price": 811,
+        "ticker": "TSLA",
+        "timeframe": "DELAYED"
+      }
+    },
+    {
+      "break_even_price": 355.0,
+      "day": {
+        "change": 2.4,
+        "change_percent": 0.68,
+        "close": 352.0,
+        "high": 355.5,
+        "last_updated": 1605195918507251700,
+        "low": 349.2,
+        "open": 350.0,
+        "previous_close": 349.6,
+        "volume": 1150,
+        "vwap": 351.3
+      },
+      "details": {
+        "contract_type": "put",
+        "exercise_style": "american",
+        "expiration_date": "2025-07-07",
+        "shares_per_contract": 100,
+        "strike_price": 360,
+        "ticker": "O:MSFT250707P00360000"
+      },
+      "fmv": 2.15,
+      "greeks": {
+        "delta": -0.45,
+        "gamma": 0.03,
+        "theta": -0.01,
+        "vega": 0.09
+      },
+      "implied_volatility": 32,
+      "last_quote": {
+        "ask": 8.6,
+        "ask_size": 1,
+        "bid": 8.4,
+        "bid_size": 1,
+        "last_updated": 1605195918507251700,
+        "midpoint": 8.5,
+        "timeframe": "REAL-TIME"
+      },
+      "last_trade": {
+        "conditions": [209],
+        "exchange": 311,
+        "price": 8.5,
+        "sip_timestamp": 1675280958783136800,
+        "size": 2,
+        "timeframe": "REAL-TIME"
+      },
+      "open_interest": 992,
+      "underlying_asset": {
+        "change_to_break_even": 8.0,
+        "last_updated": 1605195918507251700,
+        "price": 352,
+        "ticker": "MSFT",
+        "timeframe": "DELAYED"
+      }
+    }
+  ],
+  "status": "OK"
+}

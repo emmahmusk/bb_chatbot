@@ -1,0 +1,483 @@
+# betting/serializers/bet.py
+import logging
+from datetime import date
+from decimal import Decimal
+from django.db import transaction
+
+import requests
+from rest_framework import serializers
+
+from betengine.utils import calculate_payout, convert_odds
+from mkt.serializers import StockSerializer
+
+from .models import Bet, Market, ParlayBet, Stock
+
+logger = logging.getLogger(__name__)
+
+
+def get_user_preference(request):
+    if request and request.user and request.user.is_authenticated:
+        # print("AUTH USER:", request.user)
+        # print("PROFILE:", getattr(request.user, "profile", None))
+        # print("PREFERENCE:", getattr(request.user.profile, "betting_preference", "decimal"))
+        return getattr(request.user.profile, "betting_preference", "decimal")
+    return "decimal"
+
+class MarketSerializer(serializers.ModelSerializer):
+    odds_over = serializers.SerializerMethodField(read_only=True)
+    odds_under = serializers.SerializerMethodField(read_only=True)
+    stock = StockSerializer()
+
+    class Meta:
+        model = Market
+        fields = [
+            "id",
+            "stock",
+            "target_price",
+            "expiry_date",
+            "outcome_type",
+            "implied_odds_over",
+            "implied_odds_under",
+            "is_active",
+            "odds_over",
+            "odds_under",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+            "odds_over",
+            "odds_under",
+        ]
+
+    def get_odds_over(self, obj):
+        return {
+            "american": obj.display_odds_over,
+            "decimal": str(obj.display_odds_over_decimal) if obj.display_odds_over_decimal is not None else None,
+            "fractional": obj.display_odds_over_fractional,
+        }
+
+    def get_odds_under(self, obj):
+        return {
+            "american": obj.display_odds_under,
+            "decimal": str(obj.display_odds_under_decimal) if obj.display_odds_under_decimal is not None else None,
+            "fractional": obj.display_odds_under_fractional,
+        }
+    
+class MarketOddsSerializer(serializers.ModelSerializer):
+    stock = StockSerializer()
+    expiry_date = serializers.SerializerMethodField()
+    odds_over = serializers.SerializerMethodField()
+    odds_under = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Market
+        fields = [
+            'id', 'stock', 'target_price', 'expiry_date', 'outcome_type',
+            'implied_odds_over', 'implied_odds_under', 'is_active',
+            'odds_over', 'odds_under'
+        ]
+
+    def get_expiry_date(self, obj):
+        return obj.expiry_date.strftime("%a, %d %b %Y")
+
+    def get_odds_over(self, obj):
+        return self._build_odds_object(
+            display_american=obj.display_odds_over,
+            display_decimal=(
+                f"{obj.display_odds_over_decimal:.2f}"
+                if obj.display_odds_over_decimal is not None else None
+            ),
+            display_fractional=obj.display_odds_over_fractional
+        )
+
+    def get_odds_under(self, obj):
+        return self._build_odds_object(
+            display_american=obj.display_odds_under,
+            display_decimal=(
+                f"{obj.display_odds_under_decimal:.2f}"
+                if obj.display_odds_under_decimal is not None else None
+            ),
+            display_fractional=obj.display_odds_under_fractional
+        )
+
+    def _build_odds_object(self, display_american, display_decimal, display_fractional):
+        request = self.context.get("request")
+        preference = get_user_preference(request) or "decimal"
+
+        # Safe fallback for nulls
+        american = display_american if display_american else None
+        decimal = str(display_decimal) if display_decimal else None
+        fractional = display_fractional if display_fractional else None
+
+        preferred_value = {
+            "decimal": decimal,
+            "american": american,
+            "fractional": fractional,
+        }.get(preference)
+
+        return {
+            "american": american,
+            "decimal": decimal,
+            "fractional": fractional,
+            "preferred": {
+                "format": preference,
+                "value": preferred_value
+            }
+        }
+    
+class BetSerializer(serializers.ModelSerializer):
+    market_details = MarketSerializer(source="market", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True)
+    potential_payout = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Bet
+        fields = [
+            "id",
+            "username",
+            "market_details",
+            "amount_wagered",
+            "odds_at_placement",
+            "chosen_outcome",
+            "status",
+            "payout_amount",
+            "potential_payout",
+            "is_parlay_leg",
+            "parlay_bet",
+            "created_at",
+        ]
+        read_only_fields = [
+            "status",
+            "payout_amount",
+            "potential_payout",
+            "is_parlay_leg",
+            "parlay_bet",
+            "created_at",
+        ]
+
+    def get_potential_payout(self, obj):
+        try:
+            return round(obj.get_potential_payout(), 2)
+        except Exception:
+            return None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+
+        # Determine preferred odds format
+        preference = get_user_preference(request)
+
+        # Convert using your existing utils function
+        data["odds_at_placement"] = convert_odds(
+            odds=instance.odds_at_placement,
+            to_format=preference
+        )
+        return data
+# class BetSerializer(serializers.ModelSerializer):
+#     market_details = MarketSerializer(source="market", read_only=True)
+#     username = serializers.CharField(source="user.username", read_only=True)
+#     potential_payout = serializers.SerializerMethodField()
+
+#     class Meta:
+#         model = Bet
+#         fields = [
+#             "id",
+#             "username",
+#             "market_details",
+#             "amount_wagered",
+#             "odds_at_placement",
+#             "chosen_outcome",
+#             "status",
+#             "payout_amount",
+#             "potential_payout",
+#             "is_parlay_leg",
+#             "parlay_bet",
+#             "created_at",
+#         ]
+#         read_only_fields = [
+#             "status",
+#             "payout_amount",
+#             "potential_payout",
+#             "is_parlay_leg",
+#             "parlay_bet",
+#             "created_at",
+#         ]
+
+#     def get_potential_payout(self, obj):
+#         try:
+#             return round(obj.get_potential_payout(), 2)
+#         except Exception:
+#             return None
+        
+class ParlayBetSerializer(serializers.ModelSerializer):
+    legs = BetSerializer(many=True, read_only=True)
+    potential_payout = serializers.SerializerMethodField()
+    combined_decimal_odds = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ParlayBet
+        fields = [
+            "id",
+            "user",
+            "amount_wagered",
+            "combined_odds",           # Optional: keep if still useful
+            "combined_decimal_odds",   # Newly calculated decimal odds
+            "status",
+            "payout_amount",
+            "potential_payout",
+            "legs",
+            "created_at",
+        ]
+        read_only_fields = [
+            "status",
+            "payout_amount",
+            "potential_payout",
+            "legs",
+            "created_at",
+            "combined_decimal_odds",
+        ]
+
+    def get_potential_payout(self, obj):
+        try:
+            return round(obj.get_potential_payout(), 2)
+        except Exception:
+            return None
+
+    def get_combined_decimal_odds(self, obj):
+        try:
+            return round(obj.get_combined_decimal_odds(), 2)
+        except Exception:
+            return None
+
+# betting/serializers/bet_response.py
+class BetResponseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Bet
+        fields = [
+            "id",
+            "status",
+            "odds",
+            "stake",
+            "target_price",
+            "bet_type",
+            "symbol",
+            "placed_at",
+        ]
+
+
+class BetPlacementSerializer(serializers.ModelSerializer):
+    # market_id is an input field representing the Market instance
+    market_id = serializers.PrimaryKeyRelatedField(
+        queryset=Market.objects.all(),  # Queryset to resolve ID to Market instance
+        source="market",  # Maps 'market_id' input to 'market' field on Bet model
+        write_only=True,  # This field is for input only
+        help_text="The ID of the market you are placing a bet on.",
+    )
+    # chosen_outcome is an input field
+    chosen_outcome = serializers.ChoiceField(
+        choices=[("over", "Over"), ("under", "Under")],
+        write_only=True,  # This field is for input only
+        help_text="Your chosen outcome ('over' or 'under').",
+    )
+    # amount_wagered is an input field
+    amount_wagered = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0.01"),  # Minimum bet amount
+        write_only=True,  # This field is for input only
+        help_text="The amount of money you want to wager on this bet.",
+    )
+
+    class Meta:
+        model = Bet
+        # Fields that will be sent in the POST request:
+        fields = [
+            "market_id",
+            "chosen_outcome",
+            "amount_wagered",
+            "id",
+            "odds_at_placement",
+            "payout_amount",
+            "status",
+            "created_at",
+        ]
+        # These fields are set internally, not directly by the user input
+        read_only_fields = [
+            "id",
+            "odds_at_placement",
+            "payout_amount",
+            "status",
+            "created_at",
+        ]
+
+    def validate(self, data):
+        """
+        Validates the input data and prepares additional data for Bet creation.
+        """
+        market = data.get("market")  # Resolved Market instance from market_id
+        chosen_outcome = data.get("chosen_outcome")
+        amount_wagered = data.get("amount_wagered")
+        user = self.context[
+            "request"
+        ].user  # Access the current user from the request context
+
+        # 1. Basic checks for required fields (though DRF's default validation often covers this)
+        if not market:
+            raise serializers.ValidationError({"market_id": "Market ID is required."})
+        if not chosen_outcome:
+            raise serializers.ValidationError(
+                {"chosen_outcome": "Chosen outcome is required."}
+            )
+        if (
+            amount_wagered is None
+        ):  # Use is None for DecimalField as 0 is a valid Decimal value
+            raise serializers.ValidationError(
+                {"amount_wagered": "Amount wagered is required."}
+            )
+        # 2. Validate Market state
+        if not market.is_active:
+            raise serializers.ValidationError(
+                {"market_id": "This market is currently not active for betting."}
+            )
+        # Ensure current time is considered for expiry
+        if market.expiry_date <= date.today():
+            raise serializers.ValidationError(
+                {"market_id": "This market has already expired."}
+            )
+
+        # 3. Determine the odds_at_placement
+        if chosen_outcome == "over":
+            odds_str = market.display_odds_over
+        elif chosen_outcome == "under":
+            odds_str = market.display_odds_under
+        else:
+            # Should be caught by ChoiceField, but a safeguard
+            raise serializers.ValidationError(
+                {"chosen_outcome": "Invalid outcome choice. Must be 'over' or 'under'."}
+            )
+
+        if not odds_str:
+            raise serializers.ValidationError(
+                f"Odds for '{chosen_outcome}' are not available for this market."
+            )
+
+        # Attach `odds_at_placement` to validated_data for Bet creation
+        data["odds_at_placement"] = odds_str
+
+        # 4. Calculate potential payout
+        payout = calculate_payout(amount_wagered, odds_str)
+        if payout <= Decimal("0.00"):
+            raise serializers.ValidationError(
+                {
+                    "amount_wagered": "Could not calculate a valid payout with the provided odds or amount."
+                }
+            )
+        # Attach `payout_amount` to validated_data for Bet creation
+        data["payout_amount"] = payout
+
+        # 5. User balance check (CRITICAL TODO: Implement real balance logic here)
+        # This is a placeholder. You would typically have a Wallet or Profile model
+        # associated with the User model, holding their balance.
+        # Example:
+        # if user.userprofile.balance < amount_wagered:
+        #     raise serializers.ValidationError({"amount_wagered": "Insufficient funds in your account."})
+
+        # Attach the user to validated_data for Bet creation
+        data["user"] = user
+
+        return data
+
+    def create(self, validated_data):
+        """
+        Create and return a new `Bet` instance, given the validated data.
+        This method will also handle fund deduction (placeholder).
+        """
+        # Extract fields needed for Bet creation.
+        # These are guaranteed to be present and valid by the validate() method.
+        user = validated_data["user"]
+        market = validated_data["market"]
+        amount_wagered = validated_data["amount_wagered"]
+        chosen_outcome = validated_data["chosen_outcome"]
+        odds_at_placement = validated_data["odds_at_placement"]
+        payout_amount = validated_data["payout_amount"]
+
+        # --- IMPORTANT: BEGIN ATOMIC TRANSACTION ---
+        # This ensures that either the bet is created AND funds are deducted, or neither happens.
+        with transaction.atomic():
+            # TODO: Actual fund deduction logic goes here.
+            # Example (assuming user has a related UserProfile with a 'balance' field):
+            # user_profile = user.userprofile
+            # if user_profile.balance < amount_wagered:
+            #    # This case should ideally be caught by serializer.validate(), but good to have
+            #    raise serializers.ValidationError("Insufficient balance for this bet.")
+            # user_profile.balance -= amount_wagered
+            # user_profile.save()
+            logger.info(
+                f"Deducting {amount_wagered} from user {user.username}'s balance. (Placeholder)"
+            )
+
+            # Create the Bet instance
+            bet = Bet.objects.create(
+                user=user,
+                market=market,
+                amount_wagered=amount_wagered,
+                chosen_outcome=chosen_outcome,
+                odds_at_placement=odds_at_placement,
+                payout_amount=payout_amount,
+                status="pending",  # Bets always start as pending
+                is_parlay_leg=False,  # Default for single bets
+                parlay_bet=None,  # Explicitly set to None for single bets
+            )
+        # --- END ATOMIC TRANSACTION ---
+
+        return bet
+
+
+# market_data/serializers.py (add this if it's not there)
+class BetResolutionSerializer(serializers.Serializer):
+    bet_id = serializers.IntegerField(help_text="The ID of the bet to resolve.")
+
+
+class ParlayBetResolutionSerializer(serializers.Serializer):
+    """
+    Serializer for the input to the ParlayBetResolutionAPIView.
+    """
+
+    parlay_bet_id = serializers.IntegerField(
+        help_text="The ID of the parlay bet to resolve."
+    )
+
+class StockAdminSerializer(serializers.ModelSerializer):
+    price = serializers.SerializerMethodField()
+    change = serializers.SerializerMethodField()
+    percent_change = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Stock
+        fields = [
+            "id",
+            "company_name",
+            "symbol",
+            "price",
+            "change",
+            "percent_change",
+            "market_status",
+            "auto_odds",
+            "url",
+        ]
+
+    def get_price(self, obj):
+        if obj.last_price:
+            return f"${obj.last_price:.2f}"
+        obj.get_current_price()  # fetch and cache
+        return f"${obj.last_price or 0:.2f}"
+
+    def get_change(self, obj):
+        return f"{obj.last_change or 0.00:.2f}"
+
+    def get_percent_change(self, obj):
+        return obj.last_percent_change or "0.00%"

@@ -1,0 +1,24 @@
+[
+    {
+      "model": "betengine.optioncontract",
+      "fields": {
+        "ticker": "AAPL250517C00180000",
+        "underlying_ticker": "AAPL",
+        "expiration_date": "2025-05-17",
+        "strike_price": 180.0,
+        "option_type": "call",
+        "implied_volatility": 0.32
+      }
+    },
+    {
+      "model": "betengine.optioncontract",
+      "fields": {
+        "ticker": "AAPL250517P00180000",
+        "underlying_ticker": "AAPL",
+        "expiration_date": "2025-05-17",
+        "strike_price": 180.0,
+        "option_type": "put",
+        "implied_volatility": 0.28
+      }
+    }
+]

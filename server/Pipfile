@@ -1,0 +1,36 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+django = "*"
+djangorestframework = "*"
+djangorestframework-simplejwt = "*"
+django-dotenv = "*"
+psycopg2-binary = "*"
+django-cors-headers = "*"
+gunicorn = "*"
+django-storages = "*"
+boto3 = "*"
+twilio = "*"
+pillow = "*"
+celery = "*"
+python-json-logger = "*"
+polygon-api-client = "*"
+py-vollib = "*"
+scipy = "*"
+numpy = "*"
+supabase = "*"
+setuptools = "*"
+django-q2 = "*"
+django-taggit = "*"
+
+[dev-packages]
+isort = "*"
+black = "*"
+autoflake = "*"
+mypy = "*"
+
+[requires]
+python_version = "3.13"

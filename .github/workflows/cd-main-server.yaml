@@ -1,0 +1,79 @@
+name: Build & Push Django API Docker Image to ECR and Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main # Your target branch name
+
+jobs:
+  build-and-push-and-deploy: # Renamed job for clarity, as it now handles deployment too
+    name: Build, Push to ECR & Deploy to EC2
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # REQUIRED for OIDC authentication with AWS (for configure-aws-credentials)
+      contents: read # Required to checkout the repository code
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Updated to latest v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4 # Updated to latest v4
+        with:
+          # IMPORTANT: Replace with your actual 12-digit AWS account ID and the exact role name.
+          # This is the ARN of the IAM role you created specifically for GitHub Actions to assume.
+          role-to-assume: arn:aws:iam::934556830320:role/github-actions-ecr-push-role
+          # IMPORTANT: Ensure this region matches where your ECR repository is located (e.g., 'eu-north-1').
+          aws-region: eu-north-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2 # Updated to latest v2
+
+      - name: Build, tag & push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: bullbear-django-api # IMPORTANT: Replace with your actual ECR repository name
+          IMAGE_TAG_SHA: ${{ github.sha }} # Tag with Git SHA for unique versions
+          IMAGE_TAG_LATEST: latest # Also tag as 'latest'
+        run: |
+          # Use your explicit build command as you prefer
+          docker build -f ./server/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA ./server
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_LATEST
+
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_LATEST
+
+      - name: Deploy to EC2 Instance
+        uses: appleboy/ssh-action@master # Action to connect to EC2 via SSH and execute commands
+        with:
+          host: ${{ secrets.EC2_HOST }} # Your EC2 instance's public IP or DNS (from GitHub Secret)
+          username: ubuntu # Common user for Amazon Linux AMIs. Change if you use a different OS/user.
+          key: ${{ secrets.SSH_PRIVATE_KEY }} # Your SSH private key content (from GitHub Secret)
+          script: |
+            # Define ECR details for the EC2 instance
+            ECR_REGISTRY_URI="${{ steps.login-ecr.outputs.registry }}" # Pass registry URI from previous step
+            ECR_REPOSITORY_NAME="bullbear-django-api" # IMPORTANT: Your ECR repository name
+            AWS_REGION="eu-north-1" # IMPORTANT: Your AWS region
+
+            echo "Logging into ECR on EC2 instance..."
+            # The EC2 instance needs an IAM Instance Profile with ECR pull permissions for this to work.
+            # This command leverages the IAM role already attached to your EC2 instance.
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY_URI
+
+            echo "Pulling latest Docker image from ECR..."
+            docker pull $ECR_REGISTRY_URI/$ECR_REPOSITORY_NAME:latest
+
+            echo "Stopping and removing old container (if exists)..."
+            docker stop bullbear-django-container || true
+            docker rm bullbear-django-container || true
+
+            echo "Running new container..."
+            # Adjust -p 80:8000 if your EC2 instance listens on a different port or Django runs on a different port
+            # --restart=unless-stopped ensures the container restarts if it crashes or the EC2 instance reboots
+            docker run -d --name bullbear-django-container -p 8000:8000 \
+              --restart=unless-stopped \
+              -e DJANGO_ENV=production \
+              $ECR_REGISTRY_URI/$ECR_REPOSITORY_NAME:latest
+
+            echo "Deployment to EC2 complete."

@@ -1,0 +1,35 @@
+[
+  {
+    "model": "betengine.odds",
+    "pk": 1,
+    "fields": {
+      "symbol": "AAPL",
+      "target_price": "150.00",
+      "over_odds": "1.75",
+      "under_odds": "2.10",
+      "last_updated": "2025-05-14T10:00:00Z"
+    }
+  },
+  {
+    "model": "betengine.odds",
+    "pk": 2,
+    "fields": {
+      "symbol": "GOOG",
+      "target_price": "2800.00",
+      "over_odds": "1.60",
+      "under_odds": "2.25",
+      "last_updated": "2025-05-14T11:00:00Z"
+    }
+  },
+  {
+    "model": "betengine.odds",
+    "pk": 3,
+    "fields": {
+      "symbol": "TSLA",
+      "target_price": "720.00",
+      "over_odds": "1.85",
+      "under_odds": "2.00",
+      "last_updated": "2025-05-14T12:00:00Z"
+    }
+  }
+]

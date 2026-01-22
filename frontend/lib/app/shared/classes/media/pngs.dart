@@ -1,0 +1,29 @@
+class Pngs {
+  static const bullbearLogo = 'assets/media/pngs/bullbear_logo.png';
+  static const moon = 'assets/media/pngs/moon.png';
+  static const search = 'assets/media/pngs/search.png';
+  static const eye = 'assets/media/pngs/eye.png';
+  static const eyeClosed = 'assets/media/pngs/eye-closed.png';
+  static const tesla = 'assets/media/pngs/tesla.png';
+  static const alphabet = 'assets/media/pngs/alphabet.png';
+  static const amazon = 'assets/media/pngs/amazon.png';
+  static const airbnb = 'assets/media/pngs/airbnb.png';
+  static const nvidia = 'assets/media/pngs/nvidia.png';
+  static const meta = 'assets/media/pngs/meta.png';
+  static const stkArrowDown = 'assets/media/pngs/stk_arrow_down.png';
+  static const stkArrowUp = 'assets/media/pngs/stk_arrow_up.png';
+  static const strikePrice = 'assets/media/pngs/strike_price.png';
+  static const frown = 'assets/media/pngs/frown.png';
+  static const wallet = 'assets/media/pngs/wallet.png';
+  static const help = 'assets/media/pngs/help.png';
+  static const settings = 'assets/media/pngs/settings.png';
+  static const logout = 'assets/media/pngs/log-out.png';
+  static const four0four = 'assets/media/pngs/404.png';
+  static const plus = 'assets/media/pngs/plus.png';
+  static const arrowUpRight = 'assets/media/pngs/arrow-up-right.png';
+  static const bankWithdrawal = 'assets/media/pngs/bank_withdrawal.png';
+  static const walletDeposit = 'assets/media/pngs/wallet_deposit.png';
+  static const checkCircle = 'assets/media/pngs/check-circle.png';
+  static const copy = 'assets/media/pngs/copy-02.png';
+  static const lock = 'assets/media/pngs/lock.png';
+}

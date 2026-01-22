@@ -1,0 +1,44 @@
+{
+  "supported_stocks": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "status": "active",
+      "type": "equity",
+      "sector": "Technology",
+      "industry": "Consumer Electronics"
+    },
+    {
+      "symbol": "TSLA",
+      "name": "Tesla Inc.",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "status": "active",
+      "type": "equity",
+      "sector": "Consumer Discretionary",
+      "industry": "Automotive"
+    },
+    {
+      "symbol": "MSFT",
+      "name": "Microsoft Corporation",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "status": "active",
+      "type": "equity",
+      "sector": "Technology",
+      "industry": "Software\u2014Infrastructure"
+    },
+    {
+      "symbol": "AMZN",
+      "name": "Amazon.com Inc.",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "status": "active",
+      "type": "equity",
+      "sector": "Consumer Cyclical",
+      "industry": "Internet Retail"
+    }
+  ]
+}

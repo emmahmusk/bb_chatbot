@@ -1,0 +1,312 @@
+[
+  {
+    "br_true_percent": 50,
+    "vig_7_0_percent": {"home": -115, "away": -115},
+    "vig_8_5_percent": {"home": -120, "away": -120},
+    "vig_9_0_percent": {"home": -120, "away": -120},
+    "vig_10_0_percent": {"home": -125, "away": -125},
+    "vig_11_0_percent": {"home": -125, "away": -125},
+    "vig_13_0_percent": {"home": -130, "away": -130},
+    "vig_15_0_percent": {"home": -130, "away": -130}
+  },
+  {
+    "br_true_percent": 51,
+    "vig_7_0_percent": {"home": -120, "away": -110},
+    "vig_8_5_percent": {"home": -125, "away": -115},
+    "vig_9_0_percent": {"home": -125, "away": -115},
+    "vig_10_0_percent": {"home": -130, "away": -110},
+    "vig_11_0_percent": {"home": -130, "away": -110},
+    "vig_13_0_percent": {"home": -135, "away": -105},
+    "vig_15_0_percent": {"home": -135, "away": -105}
+  },
+  {
+    "br_true_percent": 52,
+    "vig_7_0_percent": {"home": -125, "away": -105},
+    "vig_8_5_percent": {"home": -130, "away": -110},
+    "vig_9_0_percent": {"home": -130, "away": -110},
+    "vig_10_0_percent": {"home": -130, "away": -110},
+    "vig_11_0_percent": {"home": -135, "away": -105},
+    "vig_13_0_percent": {"home": -140, "away": -100},
+    "vig_15_0_percent": {"home": -140, "away": -100}
+  },
+  {
+    "br_true_percent": 53,
+    "vig_7_0_percent": {"home": -130, "away": -100},
+    "vig_8_5_percent": {"home": -130, "away": -105},
+    "vig_9_0_percent": {"home": -130, "away": -105},
+    "vig_10_0_percent": {"home": -135, "away": -105},
+    "vig_11_0_percent": {"home": -140, "away": -100},
+    "vig_13_0_percent": {"home": -145, "away": 100},
+    "vig_15_0_percent": {"home": -150, "away": 100}
+  },
+  {
+    "br_true_percent": 54,
+    "vig_7_0_percent": {"home": -135, "away": -100},
+    "vig_8_5_percent": {"home": -135, "away": -105},
+    "vig_9_0_percent": {"home": -135, "away": -105},
+    "vig_10_0_percent": {"home": -140, "away": -100},
+    "vig_11_0_percent": {"home": -145, "away": 100},
+    "vig_13_0_percent": {"home": -150, "away": 105},
+    "vig_15_0_percent": {"home": -155, "away": 105}
+  },
+  {
+    "br_true_percent": 55,
+    "vig_7_0_percent": {"home": -140, "away": 100},
+    "vig_8_5_percent": {"home": -140, "away": 100},
+    "vig_9_0_percent": {"home": -140, "away": 100},
+    "vig_10_0_percent": {"home": -145, "away": 100},
+    "vig_11_0_percent": {"home": -150, "away": 105},
+    "vig_13_0_percent": {"home": -155, "away": 105},
+    "vig_15_0_percent": {"home": -160, "away": 105}
+  },
+  {
+    "br_true_percent": 56,
+    "vig_7_0_percent": {"home": -150, "away": 105},
+    "vig_8_5_percent": {"home": -150, "away": 105},
+    "vig_9_0_percent": {"home": -150, "away": 105},
+    "vig_10_0_percent": {"home": -155, "away": 105},
+    "vig_11_0_percent": {"home": -160, "away": 105},
+    "vig_13_0_percent": {"home": -165, "away": 110},
+    "vig_15_0_percent": {"home": -170, "away": 110}
+  },
+  {
+    "br_true_percent": 57,
+    "vig_7_0_percent": {"home": -160, "away": 110},
+    "vig_8_5_percent": {"home": -160, "away": 110},
+    "vig_9_0_percent": {"home": -160, "away": 110},
+    "vig_10_0_percent": {"home": -165, "away": 110},
+    "vig_11_0_percent": {"home": -170, "away": 115},
+    "vig_13_0_percent": {"home": -175, "away": 120},
+    "vig_15_0_percent": {"home": -180, "away": 120}
+  },
+  {
+    "br_true_percent": 58,
+    "vig_7_0_percent": {"home": -165, "away": 115},
+    "vig_8_5_percent": {"home": -165, "away": 115},
+    "vig_9_0_percent": {"home": -165, "away": 115},
+    "vig_10_0_percent": {"home": -170, "away": 115},
+    "vig_11_0_percent": {"home": -175, "away": 120},
+    "vig_13_0_percent": {"home": -185, "away": 125},
+    "vig_15_0_percent": {"home": -190, "away": 125}
+  },
+  {
+    "br_true_percent": 59,
+    "vig_7_0_percent": {"home": -175, "away": 120},
+    "vig_8_5_percent": {"home": -175, "away": 120},
+    "vig_9_0_percent": {"home": -165, "away": 120},
+    "vig_10_0_percent": {"home": -175, "away": 120},
+    "vig_11_0_percent": {"home": -185, "away": 125},
+    "vig_13_0_percent": {"home": -190, "away": 130},
+    "vig_15_0_percent": {"home": -195, "away": 130}
+  },
+  {
+    "br_true_percent": 60,
+    "vig_7_0_percent": {"home": -180, "away": 125},
+    "vig_8_5_percent": {"home": -190, "away": 125},
+    "vig_9_0_percent": {"home": -175, "away": 125},
+    "vig_10_0_percent": {"home": -190, "away": 125},
+    "vig_11_0_percent": {"home": -190, "away": 130},
+    "vig_13_0_percent": {"home": -200, "away": 135},
+    "vig_15_0_percent": {"home": -205, "away": 140}
+  },
+  {
+    "br_true_percent": 61,
+    "vig_7_0_percent": {"home": -190, "away": 130},
+    "vig_8_5_percent": {"home": -190, "away": 130},
+    "vig_9_0_percent": {"home": -190, "away": 130},
+    "vig_10_0_percent": {"home": -200, "away": 130},
+    "vig_11_0_percent": {"home": -200, "away": 135},
+    "vig_13_0_percent": {"home": -210, "away": 140},
+    "vig_15_0_percent": {"home": -215, "away": 145}
+  },
+  {
+    "br_true_percent": 62,
+    "vig_7_0_percent": {"home": -200, "away": 135},
+    "vig_8_5_percent": {"home": -200, "away": 135},
+    "vig_9_0_percent": {"home": -200, "away": 135},
+    "vig_10_0_percent": {"home": -200, "away": 135},
+    "vig_11_0_percent": {"home": -215, "away": 140},
+    "vig_13_0_percent": {"home": -220, "away": 145},
+    "vig_15_0_percent": {"home": -225, "away": 150}
+  },
+  {
+    "br_true_percent": 63,
+    "vig_7_0_percent": {"home": -210, "away": 140},
+    "vig_8_5_percent": {"home": -215, "away": 140},
+    "vig_9_0_percent": {"home": -200, "away": 140},
+    "vig_10_0_percent": {"home": -215, "away": 140},
+    "vig_11_0_percent": {"home": -225, "away": 145},
+    "vig_13_0_percent": {"home": -230, "away": 150},
+    "vig_15_0_percent": {"home": -235, "away": 150}
+  },
+  {
+    "br_true_percent": 64,
+    "vig_7_0_percent": {"home": -215, "away": 145},
+    "vig_8_5_percent": {"home": -225, "away": 145},
+    "vig_9_0_percent": {"home": -215, "away": 145},
+    "vig_10_0_percent": {"home": -225, "away": 145},
+    "vig_11_0_percent": {"home": -240, "away": 150},
+    "vig_13_0_percent": {"home": -245, "away": 155},
+    "vig_15_0_percent": {"home": -250, "away": 160}
+  },
+  {
+    "br_true_percent": 65,
+    "vig_7_0_percent": {"home": -225, "away": 150},
+    "vig_8_5_percent": {"home": -235, "away": 150},
+    "vig_9_0_percent": {"home": -225, "away": 150},
+    "vig_10_0_percent": {"home": -235, "away": 150},
+    "vig_11_0_percent": {"home": -250, "away": 155},
+    "vig_13_0_percent": {"home": -255, "away": 160},
+    "vig_15_0_percent": {"home": -260, "away": 165}
+  },
+  {
+    "br_true_percent": 66,
+    "vig_7_0_percent": {"home": -235, "away": 160},
+    "vig_8_5_percent": {"home": -250, "away": 160},
+    "vig_9_0_percent": {"home": -225, "away": 160},
+    "vig_10_0_percent": {"home": -250, "away": 160},
+    "vig_11_0_percent": {"home": -260, "away": 165},
+    "vig_13_0_percent": {"home": -270, "away": 170},
+    "vig_15_0_percent": {"home": -275, "away": 175}
+  },
+  {
+    "br_true_percent": 67,
+    "vig_7_0_percent": {"home": -250, "away": 160},
+    "vig_8_5_percent": {"home": -250, "away": 165},
+    "vig_9_0_percent": {"home": -250, "away": 160},
+    "vig_10_0_percent": {"home": -250, "away": 165},
+    "vig_11_0_percent": {"home": -275, "away": 170},
+    "vig_13_0_percent": {"home": -275, "away": 175},
+    "vig_15_0_percent": {"home": -285, "away": 180}
+  },
+  {
+    "br_true_percent": 68,
+    "vig_7_0_percent": {"home": -275, "away": 170},
+    "vig_8_5_percent": {"home": -275, "away": 170},
+    "vig_9_0_percent": {"home": -275, "away": 170},
+    "vig_10_0_percent": {"home": -275, "away": 170},
+    "vig_11_0_percent": {"home": -280, "away": 175},
+    "vig_13_0_percent": {"home": -285, "away": 180},
+    "vig_15_0_percent": {"home": -290, "away": 185}
+  },
+  {
+    "br_true_percent": 69,
+    "vig_7_0_percent": {"home": -275, "away": 175},
+    "vig_8_5_percent": {"home": -275, "away": 180},
+    "vig_9_0_percent": {"home": -275, "away": 175},
+    "vig_10_0_percent": {"home": -285, "away": 180},
+    "vig_11_0_percent": {"home": -290, "away": 180},
+    "vig_13_0_percent": {"home": -295, "away": 185},
+    "vig_15_0_percent": {"home": -300, "away": 190}
+  },
+  {
+    "br_true_percent": 70,
+    "vig_7_0_percent": {"home": -285, "away": 180},
+    "vig_8_5_percent": {"home": -285, "away": 185},
+    "vig_9_0_percent": {"home": -275, "away": 185},
+    "vig_10_0_percent": {"home": -290, "away": 185},
+    "vig_11_0_percent": {"home": -300, "away": 190},
+    "vig_13_0_percent": {"home": -305, "away": 190},
+    "vig_15_0_percent": {"home": -310, "away": 200}
+  },
+  {
+    "br_true_percent": 90,
+    "vig_7_0_percent": {"home": -900, "away": 500},
+    "vig_8_5_percent": {"home": -1000, "away": 500},
+    "vig_9_0_percent": {"home": -1200, "away": 500},
+    "vig_10_0_percent": {"home": -1200, "away": 500},
+    "vig_11_0_percent": {"home": -1400, "away": 550},
+    "vig_13_0_percent": {"home": -1600, "away": 600},
+    "vig_15_0_percent": {"home": -1800, "away": 650}
+  },
+  {
+    "br_true_percent": 91,
+    "vig_7_0_percent": {"home": -1100, "away": 550},
+    "vig_8_5_percent": {"home": -1200, "away": 550},
+    "vig_9_0_percent": {"home": -1400, "away": 550},
+    "vig_10_0_percent": {"home": -1400, "away": 550},
+    "vig_11_0_percent": {"home": -1600, "away": 600},
+    "vig_13_0_percent": {"home": -1800, "away": 650},
+    "vig_15_0_percent": {"home": -2000, "away": 700}
+  },
+  {
+    "br_true_percent": 92,
+    "vig_7_0_percent": {"home": -1200, "away": 600},
+    "vig_8_5_percent": {"home": -1400, "away": 600},
+    "vig_9_0_percent": {"home": -1600, "away": 600},
+    "vig_10_0_percent": {"home": -1600, "away": 600},
+    "vig_11_0_percent": {"home": -1800, "away": 650},
+    "vig_13_0_percent": {"home": -2000, "away": 700},
+    "vig_15_0_percent": {"home": -2500, "away": 750}
+  },
+  {
+    "br_true_percent": 93,
+    "vig_7_0_percent": {"home": -1400, "away": 650},
+    "vig_8_5_percent": {"home": -1600, "away": 650},
+    "vig_9_0_percent": {"home": -2000, "away": 650},
+    "vig_10_0_percent": {"home": -2000, "away": 650},
+    "vig_11_0_percent": {"home": -2500, "away": 700},
+    "vig_13_0_percent": {"home": -3000, "away": 750},
+    "vig_15_0_percent": {"home": -3500, "away": 800}
+  },
+  {
+    "br_true_percent": 94,
+    "vig_7_0_percent": {"home": -1600, "away": 700},
+    "vig_8_5_percent": {"home": -2000, "away": 700},
+    "vig_9_0_percent": {"home": -2500, "away": 700},
+    "vig_10_0_percent": {"home": -2500, "away": 700},
+    "vig_11_0_percent": {"home": -3000, "away": 750},
+    "vig_13_0_percent": {"home": -3500, "away": 800},
+    "vig_15_0_percent": {"home": -4000, "away": 850}
+  },
+  {
+    "br_true_percent": 95,
+    "vig_7_0_percent": {"home": -2000, "away": 750},
+    "vig_8_5_percent": {"home": -2500, "away": 750},
+    "vig_9_0_percent": {"home": -3000, "away": 750},
+    "vig_10_0_percent": {"home": -3000, "away": 750},
+    "vig_11_0_percent": {"home": -3500, "away": 800},
+    "vig_13_0_percent": {"home": -4000, "away": 850},
+    "vig_15_0_percent": {"home": -5000, "away": 900}
+  },
+  {
+    "br_true_percent": 96,
+    "vig_7_0_percent": {"home": -2500, "away": 800},
+    "vig_8_5_percent": {"home": -3000, "away": 800},
+    "vig_9_0_percent": {"home": -3500, "away": 800},
+    "vig_10_0_percent": {"home": -3500, "away": 800},
+    "vig_11_0_percent": {"home": -4000, "away": 850},
+    "vig_13_0_percent": {"home": -5000, "away": 900},
+    "vig_15_0_percent": {"home": -6000, "away": 950}
+  },
+  {
+    "br_true_percent": 97,
+    "vig_7_0_percent": {"home": -3500, "away": 900},
+    "vig_8_5_percent": {"home": -4000, "away": 900},
+    "vig_9_0_percent": {"home": -5000, "away": 900},
+    "vig_10_0_percent": {"home": -5000, "away": 900},
+    "vig_11_0_percent": {"home": -6000, "away": 950},
+    "vig_13_0_percent": {"home": -8000, "away": 950},
+    "vig_15_0_percent": {"home": -10000, "away": 1000}
+  },
+  {
+    "br_true_percent": 98,
+    "vig_7_0_percent": {"home": -5000, "away": 1000},
+    "vig_8_5_percent": {"home": -6000, "away": 1000},
+    "vig_9_0_percent": {"home": -10000, "away": 900},
+    "vig_10_0_percent": {"home": -10000, "away": 1000},
+    "vig_11_0_percent": {"home": -10000, "away": 1000},
+    "vig_13_0_percent": {"home": -10000, "away": 1000},
+    "vig_15_0_percent": {"home": -10000, "away": 1000}
+  },
+  {
+    "br_true_percent": 99,
+    "vig_7_0_percent": {"home": -10000, "away": 2500},
+    "vig_8_5_percent": {"home": -20000, "away": 2500},
+    "vig_9_0_percent": {"home": -20000, "away": 2500},
+    "vig_10_0_percent": {"home": -20000, "away": 2500},
+    "vig_11_0_percent": {"home": -20000, "away": 2500},
+    "vig_13_0_percent": {"home": -20000, "away": 2500},
+    "vig_15_0_percent": {"home": -20000, "away": 2500}
+  }
+]

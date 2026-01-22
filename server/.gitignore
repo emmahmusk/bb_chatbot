@@ -1,0 +1,17 @@
+db.sqlite3
+__pycache__
+src/db.sqlite3
+staticfiles/
+src/logs
+media
+indexes
+src/keys/gs-data.json
+.pytest_cache
+events.json
+data
+.fleet/
+./data
+.env
+.env.template
+.history
+
