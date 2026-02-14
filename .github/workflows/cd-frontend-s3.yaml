@@ -1,0 +1,68 @@
+name: Deploy Flutter Web to S3 & CloudFront
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/cd-frontend-s3.yaml'
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Flutter Frontend
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # Required for OIDC authentication with AWS
+      contents: read    # Required to checkout code
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Get Flutter dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Build Flutter Web App (Release)
+        working-directory: frontend
+        run: flutter build web --release
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # IMPORTANT: Replace with your actual AWS account ID and role name
+          role-to-assume: arn:aws:iam::934556830320:role/github-actions-ecr-push-role
+          aws-region: eu-north-1
+
+      - name: Upload to S3
+        run: |
+          echo "🚀 Syncing Flutter web build to S3..."
+          # The --delete flag removes files from S3 that are no longer in the build
+          aws s3 sync frontend/build/web/ s3://bbbprediction.com --delete
+          echo "✅ S3 upload complete"
+
+      - name: Invalidate CloudFront Distribution
+        run: |
+          echo "🔄 Invalidating CloudFront cache..."
+          # Replace E261JV38AR2E58 with your actual CloudFront distribution ID
+          DISTRIBUTION_ID="E261JV38AR2E58"
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION_ID \
+            --paths "/*"
+          echo "✅ CloudFront invalidation triggered"
+
+      - name: Deployment Summary
+        run: |
+          echo "================================"
+          echo "✅ Frontend Deployment Complete!"
+          echo "================================"
+          echo "📦 Build artifacts synced to S3"
+          echo "🌐 CloudFront cache invalidated"
+          echo "🔗 Your site will be live shortly via HTTPS"
+          echo "================================"
