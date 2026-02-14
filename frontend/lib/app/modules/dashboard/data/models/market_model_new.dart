@@ -89,6 +89,11 @@ class MarketModel {
   factory MarketModel.fromJson(Map<String, dynamic> json) {
     final oddsOver = json['odds_over'] ?? {};
     final oddsUnder = json['odds_under'] ?? {};
+    
+    final impliedOver = json['implied_odds_over'] != null ? json['implied_odds_over'].toString() : '0';
+    final impliedUnder = json['implied_odds_under'] != null ? json['implied_odds_under'].toString() : '0';
+    
+    print('DEBUG MarketModel.fromJson: id=${json['id']}, implied_odds_over=$impliedOver, implied_odds_under=$impliedUnder');
 
     return MarketModel(
       id: json['id'],
@@ -96,8 +101,8 @@ class MarketModel {
       targetPrice: double.tryParse(json['target_price'].toString()) ?? 0.0,
       expiryDate: json['expiry_date'].toString(),
       outcomeType: json['outcome_type'].toString(),
-      impliedOddsOver: json['implied_odds_over'] != null ? json['implied_odds_over'].toString() : '0',
-      impliedOddsUnder: json['implied_odds_under'] != null ? json['implied_odds_under'].toString() : '0',
+      impliedOddsOver: impliedOver,
+      impliedOddsUnder: impliedUnder,
       isActive: json['is_active'] ?? false,
 
       oddsAOver: oddsOver['american']?.toString(),
