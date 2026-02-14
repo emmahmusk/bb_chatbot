@@ -712,11 +712,13 @@ String getOdds(Map<String, dynamic> oddsData, {double? impliedOdds}) {
       return oddsData['fractional']?.toString() ?? 'N/A';
     case 'P':
       // Convert implied probability to percentage and format
+      print('DEBUG stock_profile getOdds P: impliedOdds=$impliedOdds');
       if (impliedOdds != null && impliedOdds > 0) {
         final probability = impliedOdds * 100;
         return '${probability.toStringAsFixed(2)}%';
       }
-      return 'N/A';
+      // Fallback to decimal if implied odds not available
+      return oddsData['decimal']?.toString() ?? 'N/A';
     case 'D':
     default:
       return oddsData['decimal']?.toString() ?? 'N/A';

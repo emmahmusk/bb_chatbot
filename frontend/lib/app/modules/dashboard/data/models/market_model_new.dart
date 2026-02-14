@@ -60,7 +60,7 @@ class MarketModel {
   });
 
 
-   /// ✅ Add this static method at the end of your class
+  /// ✅ Add this static method at the end of your class
   static MarketModel empty() {
     return MarketModel(
       id: -1,
@@ -74,8 +74,8 @@ class MarketModel {
       targetPrice: 0.0,
       expiryDate: '',
       outcomeType: '',
-      impliedOddsOver: '',
-      impliedOddsUnder: '',
+      impliedOddsOver: '0',
+      impliedOddsUnder: '0',
       isActive: false,
       oddsAOver: null,
       oddsAUnder: null,
@@ -96,8 +96,8 @@ class MarketModel {
       targetPrice: double.tryParse(json['target_price'].toString()) ?? 0.0,
       expiryDate: json['expiry_date'].toString(),
       outcomeType: json['outcome_type'].toString(),
-      impliedOddsOver: json['implied_odds_over'].toString(),
-      impliedOddsUnder: json['implied_odds_under'].toString(),
+      impliedOddsOver: json['implied_odds_over'] != null ? json['implied_odds_over'].toString() : '0',
+      impliedOddsUnder: json['implied_odds_under'] != null ? json['implied_odds_under'].toString() : '0',
       isActive: json['is_active'] ?? false,
 
       oddsAOver: oddsOver['american']?.toString(),

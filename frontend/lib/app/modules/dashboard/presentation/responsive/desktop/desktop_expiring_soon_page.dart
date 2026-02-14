@@ -689,11 +689,13 @@ String getOdds(String? a, String? d, String? f, {double? impliedOdds}) {
       return f ?? 'N/A';
     case 'P':
       // Convert implied probability to percentage and format
+      print('DEBUG getOdds P: impliedOdds=$impliedOdds, a=$a, d=$d, f=$f');
       if (impliedOdds != null && impliedOdds > 0) {
         final probability = impliedOdds * 100;
         return '${probability.toStringAsFixed(2)}%';
       }
-      return 'N/A';
+      // Fallback to decimal if implied odds not available
+      return d ?? 'N/A';
     case 'D':
     default:
       return d ?? 'N/A';
