@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main # Your target branch name
+    paths:
+      - 'server/**'
+      - '.github/workflows/cd-main-server.yaml'
 
 jobs:
   build-and-push-and-deploy: # Renamed job for clarity, as it now handles deployment too
