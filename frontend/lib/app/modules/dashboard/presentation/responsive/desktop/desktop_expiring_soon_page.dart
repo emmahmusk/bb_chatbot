@@ -681,12 +681,19 @@ Future<void> loadPreferredOddsType() async {
   }
 }
 
-String getOdds(String? a, String? d, String? f) {
+String getOdds(String? a, String? d, String? f, {double? impliedOdds}) {
   switch (preferredOdds) {
     case 'A':
       return a ?? 'N/A';
     case 'F':
       return f ?? 'N/A';
+    case 'P':
+      // Convert implied probability to percentage and format
+      if (impliedOdds != null && impliedOdds > 0) {
+        final probability = impliedOdds * 100;
+        return '${probability.toStringAsFixed(2)}%';
+      }
+      return 'N/A';
     case 'D':
     default:
       return d ?? 'N/A';
@@ -732,10 +739,13 @@ Future<void> fetchAndReplaceMarket(
       print(updatedMarket.id.runtimeType);                  // prints the type of id (e.g., int)
       print(updatedMarket.stock.companyName.runtimeType);   // prints the type of companyName (e.g., String)
       if (updatedMarket.stock.companyName != null) {
-        // 🎯 Get odds
+        // 🎯 Get odds with implied probability
+        final impliedOdds = chosenOutcome == "over"
+            ? double.tryParse(updatedMarket.impliedOddsOver)
+            : double.tryParse(updatedMarket.impliedOddsUnder);
         final odds = chosenOutcome == "over"
-            ? getOdds(updatedMarket.oddsAOver, updatedMarket.oddsDOver, updatedMarket.oddsFOver)
-            : getOdds(updatedMarket.oddsAUnder, updatedMarket.oddsDUnder, updatedMarket.oddsFUnder);
+            ? getOdds(updatedMarket.oddsAOver, updatedMarket.oddsDOver, updatedMarket.oddsFOver, impliedOdds: impliedOdds)
+            : getOdds(updatedMarket.oddsAUnder, updatedMarket.oddsDUnder, updatedMarket.oddsFUnder, impliedOdds: impliedOdds);
 
         // ❌ If odds are null, exit
         if (odds == null) {
@@ -1062,7 +1072,7 @@ Future<void> fetchAndReplaceMarket(
                                                               ),
                                                               child: Center(
                                                                 child: Text(
-                                                                  getOdds(market.oddsAOver, market.oddsDOver, market.oddsFOver),
+                                                                  getOdds(market.oddsAOver, market.oddsDOver, market.oddsFOver, impliedOdds: double.tryParse(market.impliedOddsOver)),
                                                                   style:   TextStyle(
                                                                     color:isOverSelected?Color(0xFF1F242C): Colors.white,
                                                                     fontSize: 14,
@@ -1149,7 +1159,7 @@ Future<void> fetchAndReplaceMarket(
                                                                       ),
                                                                       child: Center(
                                                                         child: Text(
-                                                                          getOdds(market.oddsAUnder, market.oddsDUnder, market.oddsFUnder),
+                                                                          getOdds(market.oddsAUnder, market.oddsDUnder, market.oddsFUnder, impliedOdds: double.tryParse(market.impliedOddsUnder)),
                                                                           style:   TextStyle(
                                                                             color:isUnderSelected?Color(0xFF1F242C): Colors.white,
                                                                             fontSize: 14,

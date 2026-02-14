@@ -5,7 +5,7 @@ import 'package:frontend/app/shared/presentation/widgets/custom_divider.dart';
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum OddsType { decimal, american, fraction }
+enum OddsType { decimal, american, fraction, probability }
 
 class DesktopBettingPreferencePage extends ConsumerStatefulWidget {
   const DesktopBettingPreferencePage({super.key});
@@ -37,6 +37,9 @@ Future<void> _loadSelectedOddsType() async {
         break;
       case 'F':
         _selectedType = OddsType.fraction;
+        break;
+      case 'P':
+        _selectedType = OddsType.probability;
         break;
       case 'D':
       default:
@@ -119,6 +122,17 @@ Future<void> _loadSelectedOddsType() async {
                               textAlign: TextAlign.center,
                             ),
                           ),
+                          SizedBox(
+                            width: 80,
+                            child: Text(
+                              'Prob.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF9A9A9A),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -183,6 +197,19 @@ Future<void> _loadSelectedOddsType() async {
                               ),
                             ),
                           ),
+                          SizedBox(
+                            width: 80,
+                            child: Center(
+                              child: CustomCheckbox(
+                                value: _selectedType == OddsType.probability,
+                                onTap: () async {
+                                  setState(() => _selectedType = OddsType.probability);
+                                  final prefs = await SharedPreferences.getInstance();
+                                  prefs.setString('odds_type', 'P');
+                                },
+                              ),
+                            ),
+                          ),
                         ],
                       ),
 
@@ -212,6 +239,11 @@ Future<void> _loadSelectedOddsType() async {
                   title: 'Fraction Odd',
                   subtitle:
                       'Literally as it sounds but counter intuitive, the denominator is essentially (x-1) in the sense a 33% would be 1/2 instead of 1/3. Ex. 1/1 (50% or +100 or 2.00), 1/2, 1/3, 4/1, 6/1, 9/1',
+                ),
+                OddDescriptionText(
+                  title: 'Probability',
+                  subtitle:
+                      'Displays the probability of the outcome as a percentage. Ex. 50%, 33.33%, 66.67%, 85%',
                 ),
               ],
             ),
