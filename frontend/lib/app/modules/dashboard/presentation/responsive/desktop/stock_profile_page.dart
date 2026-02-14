@@ -360,8 +360,8 @@ Future<void> handleOverUnderTap(String outcomeType) async {
       targetPrice: double.tryParse(market['target_price'].toString()) ?? 0.0,
       expiryDate: market['expiry_date'].toString(),
       decimalOdds: outcomeType == "over"
-          ? market['odds_over']?['decimal']?.toString()
-          : market['odds_under']?['decimal']?.toString(),
+          ? (market['odds_over'] != null ? market['odds_over']['decimal']?.toString() : null)
+          : (market['odds_under'] != null ? market['odds_under']['decimal']?.toString() : null),
     );
 
     ref.read(selectedStockProvider.notifier).insertOrUpdate(stock);
