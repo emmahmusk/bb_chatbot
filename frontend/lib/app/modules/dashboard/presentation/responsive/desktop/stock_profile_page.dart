@@ -316,15 +316,21 @@ Future<void> handleOverUnderTap(String outcomeType) async {
   if (alreadySelected) {
     ref.read(selectedStockProvider.notifier).remove(market['id']);
   } else {
+    final impliedOdds = outcomeType == "over"
+        ? double.tryParse(market['implied_odds_over']?.toString() ?? '0')
+        : double.tryParse(market['implied_odds_under']?.toString() ?? '0');
+
     final odds = outcomeType == "over"
         ? getOdds(
           
-            market['odds_d_over'],
+            market['odds_over'],
+            impliedOdds: impliedOdds,
            
           )
         : getOdds(
              
-            market['odds_d_under'],
+            market['odds_under'],
+            impliedOdds: impliedOdds,
             
           );
 
@@ -545,9 +551,16 @@ Future<void> handleOverUnderTap(String outcomeType) async {
                                   child: ListView(
                                     children: strikes.map((sp) {
                                       final double targetPrice = double.tryParse(sp['target_price'].toString()) ?? 0.0;
-                                       var odds_over;
-                                        var odds_under;
-                                        if(saved=='A'){
+                                      
+                                      // Extract implied odds
+                                      final impliedOddsOver = double.tryParse(sp['implied_odds_over']?.toString() ?? '0') ?? 0.0;
+                                      final impliedOddsUnder = double.tryParse(sp['implied_odds_under']?.toString() ?? '0') ?? 0.0;
+                                      
+                                      // Get formatted odds based on preference
+                                      var odds_over;
+                                      var odds_under;
+                                      
+                                      if(saved=='A'){
                                             odds_over=sp['odds_over']['american'];
                                             odds_under=sp['odds_under']['american'];
                                         }else if(saved =='D'){
@@ -556,6 +569,10 @@ Future<void> handleOverUnderTap(String outcomeType) async {
                                         }else if(saved =='F'){
                                           odds_over=sp['odds_over']['fractional'];
                                             odds_under=sp['odds_under']['fractional'];
+                                        }else if(saved =='P'){
+                                          // Calculate probability percentage
+                                          odds_over = impliedOddsOver > 0 ? '${(impliedOddsOver * 100).toStringAsFixed(2)}%' : 'N/A';
+                                          odds_under = impliedOddsUnder > 0 ? '${(impliedOddsUnder * 100).toStringAsFixed(2)}%' : 'N/A';
                                         }else{
                                           odds_over=sp['odds_over']['decimal'];
                                           odds_under=sp['odds_under']['decimal'];
@@ -687,12 +704,19 @@ Future<void> handleOverUnderTap(String outcomeType) async {
 }
 
 
-String getOdds(Map<String, dynamic> oddsData) {
+String getOdds(Map<String, dynamic> oddsData, {double? impliedOdds}) {
   switch (preferredOdds) {
     case 'A':
       return oddsData['american']?.toString() ?? 'N/A';
     case 'F':
       return oddsData['fractional']?.toString() ?? 'N/A';
+    case 'P':
+      // Convert implied probability to percentage and format
+      if (impliedOdds != null && impliedOdds > 0) {
+        final probability = impliedOdds * 100;
+        return '${probability.toStringAsFixed(2)}%';
+      }
+      return 'N/A';
     case 'D':
     default:
       return oddsData['decimal']?.toString() ?? 'N/A';
@@ -1143,7 +1167,10 @@ Future<void> _showFullScreenGraph() async {
                       ),
                       child: Center(
                         child: Text(
-                         getOdds(market['odds_over'])  ,
+                         getOdds(
+                           market['odds_over'],
+                           impliedOdds: double.tryParse(market['implied_odds_over']?.toString() ?? '0'),
+                         ),
                           style: TextStyle(
                             color: isOverSelected ? const Color(0xFF1F242C) : Colors.white,
                             fontSize: 14,
@@ -1233,7 +1260,10 @@ Future<void> _showFullScreenGraph() async {
                       ),
                       child: Center(
                         child: Text(
-                          getOdds(market['odds_under']),
+                          getOdds(
+                            market['odds_under'],
+                            impliedOdds: double.tryParse(market['implied_odds_under']?.toString() ?? '0'),
+                          ),
                           style: TextStyle(
                             color: isUnderSelected ? const Color(0xFF1F242C) : Colors.white,
                             fontSize: 14,
