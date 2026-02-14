@@ -835,6 +835,9 @@ Future<void> fetchAndReplaceMarket(
           logoUrl: updatedMarket.stock.logoUrl ?? '',
           targetPrice: updatedMarket.targetPrice,
           expiryDate: updatedMarket.expiryDate,
+          decimalOdds: chosenOutcome == "over"
+              ? updatedMarket.oddsDOver
+              : updatedMarket.oddsDUnder,
         );
 
         ref.read(selectedStockProvider.notifier).insertOrUpdate(stock);

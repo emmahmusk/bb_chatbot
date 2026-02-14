@@ -359,6 +359,9 @@ Future<void> handleOverUnderTap(String outcomeType) async {
       logoUrl: market['stock']['url'] ?? '',
       targetPrice: double.tryParse(market['target_price'].toString()) ?? 0.0,
       expiryDate: market['expiry_date'].toString(),
+      decimalOdds: outcomeType == "over"
+          ? market['odds_over']?['decimal']?.toString()
+          : market['odds_under']?['decimal']?.toString(),
     );
 
     ref.read(selectedStockProvider.notifier).insertOrUpdate(stock);
@@ -1159,6 +1162,7 @@ Future<void> _showFullScreenGraph() async {
                           logoUrl: market['stock']['url'] ?? '',
                           targetPrice: double.tryParse(market['target_price'].toString()) ?? 0.0,
                           expiryDate: market['expiry_date'].toString(),
+                          decimalOdds: market['odds_over']['decimal']?.toString(),
                         );
                         ref.read(selectedStockProvider.notifier).insertOrUpdate(stock);
                       }
@@ -1252,6 +1256,7 @@ Future<void> _showFullScreenGraph() async {
                           logoUrl: market['stock']['url'] ?? '',
                           targetPrice: double.tryParse(market['target_price'].toString()) ?? 0.0,
                           expiryDate: market['expiry_date'].toString(),
+                          decimalOdds: market['odds_under']['decimal']?.toString(),
                         );
                         ref.read(selectedStockProvider.notifier).insertOrUpdate(stock);
                       }

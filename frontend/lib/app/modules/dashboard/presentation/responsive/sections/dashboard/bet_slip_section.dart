@@ -707,11 +707,18 @@ Key wagerFieldKey = UniqueKey();
   double getCumulativeOdds(List selectedList) {
     if (selectedList.isEmpty) return 0.0;
     if (selectedList.length == 1) {
-      return double.tryParse(selectedList.first.odds.toString()) ?? 1.0;
+      // Use decimal odds for calculation, fallback to displayed odds if not available
+      final item = selectedList.first;
+      final decimalOddsStr = item.decimalOdds ?? item.odds;
+      return double.tryParse(decimalOddsStr?.toString() ?? '') ?? 1.0;
     }
 
     return selectedList
-        .map((item) => double.tryParse(item.odds.toString()) ?? 1.0)
+        .map((item) {
+          // Use decimal odds for calculation, fallback to displayed odds if not available
+          final decimalOddsStr = item.decimalOdds ?? item.odds;
+          return double.tryParse(decimalOddsStr?.toString() ?? '') ?? 1.0;
+        })
         .fold(1.0, (product, odd) => product * odd);
   }
 
