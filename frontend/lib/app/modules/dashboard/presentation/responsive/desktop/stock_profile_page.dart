@@ -107,14 +107,17 @@ void hideBullBearDialog(BuildContext context) {
   Future<void> loadPreferredOddsType() async {
   final prefs = await SharedPreferences.getInstance();
   final saved = prefs.getString('odds_type');
-  if (saved != null && ['A', 'D', 'F'].contains(saved)) {
+  print('DEBUG: Loaded odds_type from SharedPrefs: $saved');
+  if (saved != null && ['A', 'D', 'F', 'P'].contains(saved)) {
     setState(() {
       preferredOdds = saved;
       isOddsLoaded = true;
+      print('DEBUG: preferredOdds set to: $preferredOdds');
     });
   } else {
     setState(() {
       isOddsLoaded = true;
+      print('DEBUG: Odds type not found or invalid, using default D. Saved value: $saved');
     });
   }
 }
@@ -705,6 +708,7 @@ Future<void> handleOverUnderTap(String outcomeType) async {
 
 
 String getOdds(Map<String, dynamic> oddsData, {double? impliedOdds}) {
+  print('DEBUG stock_profile getOdds called: preferredOdds=$preferredOdds, impliedOdds=$impliedOdds');
   switch (preferredOdds) {
     case 'A':
       return oddsData['american']?.toString() ?? 'N/A';
@@ -712,12 +716,14 @@ String getOdds(Map<String, dynamic> oddsData, {double? impliedOdds}) {
       return oddsData['fractional']?.toString() ?? 'N/A';
     case 'P':
       // Convert implied probability to percentage and format
-      print('DEBUG stock_profile getOdds P: impliedOdds=$impliedOdds');
+      print('DEBUG stock_profile getOdds P branch: impliedOdds=$impliedOdds');
       if (impliedOdds != null && impliedOdds > 0) {
         final probability = impliedOdds * 100;
+        print('DEBUG stock_profile getOdds P: calculated probability=$probability%');
         return '${probability.toStringAsFixed(2)}%';
       }
       // Fallback to decimal if implied odds not available
+      print('DEBUG stock_profile getOdds P: impliedOdds is null or 0, falling back to decimal');
       return oddsData['decimal']?.toString() ?? 'N/A';
     case 'D':
     default:

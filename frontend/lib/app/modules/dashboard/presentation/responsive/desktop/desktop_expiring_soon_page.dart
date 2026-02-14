@@ -674,14 +674,19 @@ String preferredOdds = 'D'; // Default to Decimal
 Future<void> loadPreferredOddsType() async {
   final prefs = await SharedPreferences.getInstance();
   final saved = prefs.getString('odds_type');
-  if (saved != null && ['A', 'D', 'F'].contains(saved)) {
+  print('DEBUG: Loaded odds_type from SharedPrefs: $saved');
+  if (saved != null && ['A', 'D', 'F', 'P'].contains(saved)) {
     setState(() {
       preferredOdds = saved;
+      print('DEBUG: preferredOdds set to: $preferredOdds');
     });
+  } else {
+    print('DEBUG: Odds type not found or invalid, using default D. Saved value: $saved');
   }
 }
 
 String getOdds(String? a, String? d, String? f, {double? impliedOdds}) {
+  print('DEBUG getOdds called: preferredOdds=$preferredOdds, impliedOdds=$impliedOdds, a=$a, d=$d, f=$f');
   switch (preferredOdds) {
     case 'A':
       return a ?? 'N/A';
@@ -689,12 +694,14 @@ String getOdds(String? a, String? d, String? f, {double? impliedOdds}) {
       return f ?? 'N/A';
     case 'P':
       // Convert implied probability to percentage and format
-      print('DEBUG getOdds P: impliedOdds=$impliedOdds, a=$a, d=$d, f=$f');
+      print('DEBUG getOdds P branch: impliedOdds=$impliedOdds');
       if (impliedOdds != null && impliedOdds > 0) {
         final probability = impliedOdds * 100;
+        print('DEBUG getOdds P: calculated probability=$probability%');
         return '${probability.toStringAsFixed(2)}%';
       }
       // Fallback to decimal if implied odds not available
+      print('DEBUG getOdds P: impliedOdds is null or 0, falling back to decimal: $d');
       return d ?? 'N/A';
     case 'D':
     default:
