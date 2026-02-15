@@ -3,7 +3,7 @@ name: Build & Push Django API Docker Image to ECR and Deploy to EC2
 on:
   push:
     branches:
-      - main # Your target branch name
+      - main
     paths:
       - 'server/**'
       - '.github/workflows/cd-main-server.yaml'
