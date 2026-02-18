@@ -76,9 +76,8 @@ class _VerifyAccountDialogState extends ConsumerState<VerifyAccountDialog> {
         children: [
           Center(
             child: TitleSubtitle(
-              title: 'Verify Account',
-              subtitle:
-                  'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
+                title: 'Verify Account',
+                subtitle: 'Enter the 6-digit code sent to your email to verify.',
             ),
           ),
           const SizedBox(height: 42),

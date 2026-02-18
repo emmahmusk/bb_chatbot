@@ -82,7 +82,7 @@ class _TransactionDetailsDialogState
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Lorem ipsum dolor sit amet, consectetur adipiscing elit,',
+                      'Details about this transaction.',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,

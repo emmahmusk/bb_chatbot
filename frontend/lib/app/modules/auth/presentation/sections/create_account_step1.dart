@@ -50,9 +50,9 @@ class _CreateAccountStep1State extends ConsumerState<CreateAccountStep1> {
         children: [
           Center(
             child: TitleSubtitle(
-              title: 'Create Account',
-              subtitle:
-                  'Lorem ipsum dolor sit amet, consectetur adipiscing elit,',
+                title: 'Create Account',
+                subtitle:
+                  'Enter your personal details to create your account.',
             ),
           ),
           const SizedBox(height: 44),
