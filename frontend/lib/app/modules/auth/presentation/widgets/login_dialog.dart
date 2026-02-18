@@ -32,9 +32,8 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
         children: [
           Center(
             child: TitleSubtitle(
-              title: 'Welcome Back',
-              subtitle:
-                  'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
+                title: 'Welcome Back',
+                subtitle: 'Sign in to your account.',
             ),
           ),
           const SizedBox(height: 42),

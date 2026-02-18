@@ -25,6 +25,7 @@ supabase = "*"
 setuptools = "*"
 django-q2 = "*"
 django-taggit = "*"
+pytz = "*"
 
 [dev-packages]
 isort = "*"

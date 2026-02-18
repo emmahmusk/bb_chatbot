@@ -83,16 +83,17 @@ class _CreateAccountStep2State extends ConsumerState<CreateAccountStep2> {
     final dto = ref.watch(signupDtoProvider);
     final notifier = ref.read(signupDtoProvider.notifier);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Center(
-          child: TitleSubtitle(
-            title: 'Contact Details',
-            subtitle:
-                'Lorem ipsum dolor sit amet, consectetur adipiscing elit,',
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: TitleSubtitle(
+              title: 'Contact Details',
+              subtitle: 'Provide contact details so we can reach you.',
+            ),
           ),
-        ),
         const SizedBox(height: 44),
         CustomTextField(
           headerText: 'Email address',
