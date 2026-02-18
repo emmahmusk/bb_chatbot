@@ -290,7 +290,8 @@ class _CreateAccountStep2State extends ConsumerState<CreateAccountStep2> {
         ),
         const SizedBox(height: 24),
       ],
-    );
+    ),
+  );
   }
 
   // Widget _buildSuggestionsDropdown(
