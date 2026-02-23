@@ -1004,56 +1004,96 @@ class AnalyticsUserDashboardAPIView(APIView):
 #             logger.warning("Failed to cache user analytics response: %s", e)
 
 #         return Response(response_data, status=status.HTTP_200_OK)
+
+
 class UpdatePlatformSettingsView(APIView):
-    permission_classes = [AllowAny]
+    """
+    Allows partial update of PlatformSettings.
+    Only fields provided in the request will be updated.
+    """
+
+    permission_classes = [AllowAny]  # ⚠️ Strongly consider IsAdminUser in production
 
     def get(self, request):
-        settings = PlatformSettings.get_instance()
+        settings_obj = PlatformSettings.get_instance()
         return Response(
             {
-                "base_exposure_limit": str(settings.base_exposure_limit),
-                "max_profit": str(settings.max_profit),
-                "max_crs": str(settings.max_crs),
-                "minimum_stake": str(settings.minimum_stake),
+                "base_exposure_limit": str(settings_obj.base_exposure_limit),
+                "max_profit": str(settings_obj.max_profit),
+                "max_crs": str(settings_obj.max_crs),
+                "minimum_stake": str(settings_obj.minimum_stake),
+                "max_risk_tolerance": str(settings_obj.max_risk_tolerance),
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
         )
 
-    def post(self, request):
-        settings = PlatformSettings.get_instance()
-        base_exposure_limit = request.data.get("base_exposure_limit")
-        max_profit = request.data.get("max_profit")
-        max_crs = request.data.get("max_crs")
-        minimum_stake = request.data.get("minimum_stake")
+    def patch(self, request):
+        """
+        Partial update — only updates fields present in request.
+        """
+        settings_obj = PlatformSettings.get_instance()
+
+        allowed_fields = {
+            "base_exposure_limit",
+            "max_profit",
+            "max_crs",
+            "minimum_stake",
+            "max_risk_tolerance",
+        }
+
+        updated_fields = []
 
         try:
-            if base_exposure_limit is not None:
-                settings.base_exposure_limit = Decimal(base_exposure_limit)
-            if max_profit is not None:
-                settings.max_profit = Decimal(max_profit)
-            if max_crs is not None:
-                settings.max_crs = Decimal(max_crs)
-            if minimum_stake is not None:
-                settings.minimum_stake = Decimal(minimum_stake)
+            for field in allowed_fields:
+                if field in request.data:
+                    value = request.data.get(field)
+
+                    if value is None or value == "":
+                        continue  # Skip empty values
+
+                    decimal_value = Decimal(str(value))
+
+                    if decimal_value < 0:
+                        return Response(
+                            {"success": False, "error": f"{field} cannot be negative."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    setattr(settings_obj, field, decimal_value)
+                    updated_fields.append(field)
+
         except (ValueError, TypeError, InvalidOperation):
             return Response(
                 {"success": False, "error": "All values must be valid decimal numbers."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        settings.save()
+        if not updated_fields:
+            return Response(
+                {"success": False, "error": "No valid fields provided for update."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        settings_obj.save(update_fields=updated_fields)
+
         return Response(
             {
                 "success": True,
+                "updated_fields": updated_fields,
                 "data": {
-                    "base_exposure_limit": str(settings.base_exposure_limit),
-                    "max_profit": str(settings.max_profit),
-                    "max_crs": str(settings.max_crs),
-                    "minimum_stake": str(settings.minimum_stake),
-                }
+                    "base_exposure_limit": str(settings_obj.base_exposure_limit),
+                    "max_profit": str(settings_obj.max_profit),
+                    "max_crs": str(settings_obj.max_crs),
+                    "minimum_stake": str(settings_obj.minimum_stake),
+                    "max_risk_tolerance": str(settings_obj.max_risk_tolerance),
+                },
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
         )
+
+    # Optional: keep POST for backward compatibility
+    def post(self, request):
+        return self.patch(request)
 
 class DeleteExpiringMarketsView(APIView):
     """
@@ -1081,7 +1121,7 @@ class DeleteExpiringMarketsView(APIView):
             {"message": f"Successfully deleted {count} markets expiring on or before {cutoff_date}."},
             status=status.HTTP_200_OK
         )
-    
+  
 class UpdateUserCRSView(APIView):
     """
     Admin endpoint to update a user's CRS risk score directly.
@@ -1157,3 +1197,72 @@ class UpdateUserCRSView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+    
+
+class AdminMarketOverrideAPIView(APIView):
+    """
+    Allows admin to manually reactivate a suspended market side.
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, market_id):
+        """
+        POST /admin/markets/{market_id}/override/
+        Optional body:
+        {
+            "over": true,
+            "under": true
+        }
+        If no body provided, both sides are reactivated.
+        """
+
+        try:
+            with transaction.atomic():
+                market = Market.objects.select_for_update().get(id=market_id)
+
+                override_over = request.data.get("over", True)
+                override_under = request.data.get("under", True)
+
+                updated_fields = []
+
+                if override_over:
+                    market.is_suspended_over = False
+                    updated_fields.append("is_suspended_over")
+
+                if override_under:
+                    market.is_suspended_under = False
+                    updated_fields.append("is_suspended_under")
+
+                if market.requires_admin_override:
+                    market.requires_admin_override = False
+                    updated_fields.append("requires_admin_override")
+
+                if updated_fields:
+                    market.save(update_fields=updated_fields)
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "Market override successful.",
+                    "data": {
+                        "market_id": market.id,
+                        "is_suspended_over": market.is_suspended_over,
+                        "is_suspended_under": market.is_suspended_under,
+                        "requires_admin_override": market.requires_admin_override,
+                    }
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Market.DoesNotExist:
+            return Response(
+                {"success": False, "error": "Market not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            logger.error(f"Admin override error: {e}", exc_info=True)
+            return Response(
+                {"success": False, "error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

@@ -136,18 +136,16 @@ class Market(models.Model):
     net_effective_nudge_over = models.SmallIntegerField(default=0, help_text="Net effective nudge for Over side")
     net_effective_nudge_under = models.SmallIntegerField(default=0, help_text="Net effective nudge for Under side")
 
-    baseline_prob_over = models.DecimalField(
-        max_digits=8,
-        decimal_places=4,
-        default=Decimal("0.00"),
-        help_text="Initial feed-based probability for over before any nudging",
-    )
-    baseline_prob_under = models.DecimalField(
-        max_digits=8,
-        decimal_places=4,
-        default=Decimal("0.00"),
-        help_text="Initial feed-based probability for under before any nudging",
-    )
+    baseline_prob_over = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0.00"), help_text="Initial feed-based probability for over before any nudging")
+    baseline_prob_under = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0.00"), help_text="Initial feed-based probability for under before any nudging")
+
+    # max_risk_tolerance = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Maximum allowed exposure per side for this market.")
+    exposure_over = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), help_text="Total liability exposure for Over side.")
+    exposure_under = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), help_text="Total liability exposure for Under side.")
+    is_suspended_over = models.BooleanField(default=False)
+    is_suspended_under = models.BooleanField(default=False)
+    requires_admin_override = models.BooleanField(default=False, help_text="True if market was auto-suspended due to max exposure.")
+    
     @property
     def display_odds_over_fractional(self):
         if self.display_odds_over:

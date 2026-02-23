@@ -7,7 +7,7 @@ from datetime import datetime, time
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from user.models import Wallet, Transaction
+from user.models import PlatformSettings, Wallet, Transaction
 from django.db.models import Sum, OuterRef, Subquery, IntegerField, Q, F, Value
 from django.db.models.functions import Coalesce, Abs
 from django.db.models import ProtectedError
@@ -597,7 +597,7 @@ def is_market_open(now=None):
 class PlaceSingleBetAPIView(APIView):
     """
     API View for users to place a single bet on a specific market.
-    Debits wallet immediately and logs transaction.
+    Debits wallet immediately, applies exposure guardrail, and logs transaction.
     """
 
     authentication_classes = [JWTAuthentication]
@@ -606,7 +606,7 @@ class PlaceSingleBetAPIView(APIView):
     def post(self, request, *args, **kwargs):
         user = request.user
 
-        # 🚫 --- KYC Rejection Check ---
+        # --- KYC Rejection Check ---
         try:
             kyc_profile = user.kyc_profile
             if kyc_profile.kyc_status == "rejected":
@@ -626,6 +626,7 @@ class PlaceSingleBetAPIView(APIView):
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
+
         market_id = request.data.get("market_id")
         amount_wagered = request.data.get("amount_wagered")
         chosen_outcome = request.data.get("chosen_outcome")
@@ -635,12 +636,7 @@ class PlaceSingleBetAPIView(APIView):
                 {"status": "error", "message": "Missing market_id, amount_wagered, or chosen_outcome."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        # 🚫 Market hours restriction
-        # if not is_market_open():
-        #     return Response(
-        #         {"status": "error", "message": "Bets can only be placed during US market hours (9:30am–4:00pm ET, Mon–Fri)."},
-        #         status=status.HTTP_403_FORBIDDEN,
-        #     )
+
         try:
             amount_wagered = Decimal(str(amount_wagered))
             if amount_wagered <= 0:
@@ -649,45 +645,90 @@ class PlaceSingleBetAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            market = Market.objects.get(id=market_id, is_active=True)
-
-            if chosen_outcome == "over":
-                odds_at_placement = market.display_odds_over
-            elif chosen_outcome == "under":
-                odds_at_placement = market.display_odds_under
-            else:
-                return Response(
-                    {"status": "error", "message": "Invalid chosen_outcome. Must be 'over' or 'under'."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            if not odds_at_placement:
-                return Response(
-                    {"status": "error", "message": "Odds not available for the chosen outcome."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            
-             # --- Check max stake against user's profile ---
-            odds_at_placement_decimal = american_to_decimal_odds(odds_at_placement)
-            profile = user.profile
-            max_stake_allowed = profile.calculate_max_stake(odds_at_placement_decimal)
-            print ("american odds:", odds_at_placement, "decimal odds:", odds_at_placement_decimal, "max stake:", max_stake_allowed)
-            if amount_wagered > max_stake_allowed:
-                return Response(
-                    {
-                        "status": "error",
-                        "message": f"Maximum allowed stake for this bet is {max_stake_allowed}. You attempted {amount_wagered}.",
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # --- Atomic Wallet Debit & Bet Creation ---
+            # --- Atomic section ---
             with transaction.atomic():
-                wallet = (
-                    Wallet.objects.select_for_update()
-                    .select_related("user")
-                    .get(user=user)
-                )
+
+                # Lock market row
+                market = Market.objects.select_for_update().get(id=market_id, is_active=True)
+
+                # Determine odds
+                if chosen_outcome == "over":
+                    odds_at_placement = market.display_odds_over
+                elif chosen_outcome == "under":
+                    odds_at_placement = market.display_odds_under
+                else:
+                    return Response(
+                        {"status": "error", "message": "Invalid chosen_outcome. Must be 'over' or 'under'."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                if not odds_at_placement:
+                    return Response(
+                        {"status": "error", "message": "Odds not available for the chosen outcome."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                odds_decimal = american_to_decimal_odds(odds_at_placement)
+
+                # --- User max stake check ---
+                profile = user.profile
+                max_stake_allowed = profile.calculate_max_stake(odds_decimal)
+                if amount_wagered > max_stake_allowed:
+                    return Response(
+                        {
+                            "status": "error",
+                            "message": f"Maximum allowed stake for this bet is {max_stake_allowed}. You attempted {amount_wagered}.",
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # --- Guardrail calculation ---
+                settings_obj = PlatformSettings.get_instance()
+                risk_limit = settings_obj.max_risk_tolerance
+
+                potential_payout = amount_wagered * odds_decimal
+                liability = potential_payout - amount_wagered
+
+                if chosen_outcome == "over":
+
+                    if market.is_suspended_over:
+                        return Response(
+                            {"status": "error", "message": "Over side temporarily suspended due to exposure limits."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    new_exposure = market.exposure_over + liability
+
+                    if new_exposure >= risk_limit:
+                        market.is_suspended_over = True
+                        market.requires_admin_override = True
+                        market.save(update_fields=["is_suspended_over", "requires_admin_override"])
+                        return Response(
+                            {"status": "error", "message": "Exposure limit reached for Over side."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                else:  # under
+
+                    if market.is_suspended_under:
+                        return Response(
+                            {"status": "error", "message": "Under side temporarily suspended due to exposure limits."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    new_exposure = market.exposure_under + liability
+
+                    if new_exposure >= risk_limit:
+                        market.is_suspended_under = True
+                        market.requires_admin_override = True
+                        market.save(update_fields=["is_suspended_under", "requires_admin_override"])
+                        return Response(
+                            {"status": "error", "message": "Exposure limit reached for Under side."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # --- Lock wallet ---
+                wallet = Wallet.objects.select_for_update().get(user=user)
 
                 if wallet.balance < amount_wagered:
                     return Response(
@@ -695,13 +736,13 @@ class PlaceSingleBetAPIView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-                # Deduct balance immediately
+                # Deduct wallet
                 wallet.balance -= amount_wagered
-                wallet.locked_balance += amount_wagered  # optional: lock funds until result
+                wallet.locked_balance += amount_wagered
                 wallet.save(update_fields=["balance", "locked_balance", "updated_at"])
+
                 reference = f"TRX-BET-DR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
-                # Create the bet record
                 bet = Bet.objects.create(
                     user=user,
                     market=market,
@@ -712,7 +753,6 @@ class PlaceSingleBetAPIView(APIView):
                     is_parlay_leg=False,
                 )
 
-                # Log Transaction
                 Transaction.objects.create(
                     wallet=wallet,
                     amount=amount_wagered,
@@ -720,6 +760,14 @@ class PlaceSingleBetAPIView(APIView):
                     description=f"placed bet @ id: #{bet.id} | {market.expiry_date} | {chosen_outcome.capitalize()} ${market.target_price}",
                     reference=reference,
                 )
+
+                # --- Update exposure ---
+                if chosen_outcome == "over":
+                    market.exposure_over += liability
+                else:
+                    market.exposure_under += liability
+
+                market.save(update_fields=["exposure_over", "exposure_under"])
 
             serializer = BetSerializer(bet)
             return Response(
@@ -756,7 +804,7 @@ class PlaceParlayBetAPIView(APIView):
     def post(self, request, *args, **kwargs):
         user = request.user
 
-        # --- KYC Rejection Check ---
+        # --- KYC Check ---
         try:
             kyc_profile = user.kyc_profile
             if kyc_profile.kyc_status == "rejected":
@@ -770,84 +818,34 @@ class PlaceParlayBetAPIView(APIView):
                 )
         except KYCProfile.DoesNotExist:
             return Response(
-                {
-                    "status": "error",
-                    "message": "KYC record not found. Please complete KYC verification before placing bets.",
-                },
+                {"status": "error", "message": "KYC record not found."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         amount_wagered = request.data.get("amount_wagered")
-        legs_data = request.data.get("legs")  # [{'market_id': X, 'chosen_outcome': Y}]
+        legs_data = request.data.get("legs")
 
-        if not all([amount_wagered, legs_data]) or not isinstance(legs_data, list) or not legs_data:
+        if not all([amount_wagered, legs_data]) or not isinstance(legs_data, list) or len(legs_data) < 2:
             return Response(
-                {"status": "error", "message": "Missing amount_wagered or invalid legs data."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if len(legs_data) < 2:
-            return Response(
-                {"status": "error", "message": "A parlay bet must have at least two legs."},
+                {"status": "error", "message": "Invalid parlay data."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             amount_wagered = Decimal(str(amount_wagered))
-            if amount_wagered <= Decimal("0.0"):
+            if amount_wagered <= 0:
                 return Response(
                     {"status": "error", "message": "Wager amount must be positive."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # --- Pre-check: Validate all legs and calculate combined decimal odds ---
+            settings_obj = PlatformSettings.get_instance()
+            risk_limit = settings_obj.max_risk_tolerance
+
             combined_decimal_odds = Decimal("1")
-            markets = []
-            for leg in legs_data:
-                market_id = leg.get("market_id")
-                chosen_outcome = leg.get("chosen_outcome")
-                if not all([market_id, chosen_outcome]):
-                    return Response(
-                        {"status": "error", "message": "Each parlay leg must include market_id and chosen_outcome."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                try:
-                    market = Market.objects.get(id=market_id, is_active=True)
-                except Market.DoesNotExist:
-                    return Response(
-                        {"status": "error", "message": f"Market {market_id} not found or inactive."},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
 
-                odds_at_placement_str = (
-                    market.display_odds_over if chosen_outcome == "over"
-                    else market.display_odds_under if chosen_outcome == "under"
-                    else None
-                )
-                if not odds_at_placement_str:
-                    return Response(
-                        {"status": "error", "message": f"No odds available for market {market_id} ({chosen_outcome})."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-                leg_decimal_odds = american_to_decimal_odds(odds_at_placement_str)
-                combined_decimal_odds *= leg_decimal_odds
-                markets.append((market, chosen_outcome, odds_at_placement_str, leg_decimal_odds))
-
-            # --- CRS / Max Stake Check ---
-            profile = user.profile
-            max_stake_allowed = profile.calculate_max_stake(combined_decimal_odds)
-            if amount_wagered > max_stake_allowed:
-                return Response(
-                    {
-                        "status": "error",
-                        "message": f"Maximum allowed stake for this parlay is {max_stake_allowed}. You attempted {amount_wagered}.",
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # --- Atomic Wallet Debit & Bet Creation ---
             with transaction.atomic():
+
                 wallet = Wallet.objects.select_for_update().get(user=user)
                 if wallet.balance < amount_wagered:
                     return Response(
@@ -855,13 +853,59 @@ class PlaceParlayBetAPIView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
+                markets_locked = []
+
+                # --- Lock and validate each leg ---
+                for leg in legs_data:
+                    market_id = leg.get("market_id")
+                    chosen_outcome = leg.get("chosen_outcome")
+
+                    market = Market.objects.select_for_update().get(id=market_id, is_active=True)
+
+                    odds_str = (
+                        market.display_odds_over if chosen_outcome == "over"
+                        else market.display_odds_under if chosen_outcome == "under"
+                        else None
+                    )
+
+                    if not odds_str:
+                        return Response(
+                            {"status": "error", "message": f"No odds available for market {market_id}."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    odds_decimal = american_to_decimal_odds(odds_str)
+                    combined_decimal_odds *= odds_decimal
+
+                    potential_payout = amount_wagered * odds_decimal
+                    liability = potential_payout - amount_wagered
+
+                    # Guardrail check
+                    if chosen_outcome == "over":
+
+                        if market.is_suspended_over or (market.exposure_over + liability >= risk_limit):
+                            return Response(
+                                {"status": "error", "message": f"Exposure limit reached for market {market_id} (Over)."},
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
+
+                    else:
+
+                        if market.is_suspended_under or (market.exposure_under + liability >= risk_limit):
+                            return Response(
+                                {"status": "error", "message": f"Exposure limit reached for market {market_id} (Under)."},
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
+
+                    markets_locked.append((market, chosen_outcome, odds_str, liability))
+
+                # --- Deduct wallet ---
                 wallet.balance -= amount_wagered
                 wallet.locked_balance += amount_wagered
                 wallet.save(update_fields=["balance", "locked_balance", "updated_at"])
 
                 reference = f"TRX-PBET-DR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
-                # Create ParlayBet entry
                 parlay_bet = ParlayBet.objects.create(
                     user=user,
                     amount_wagered=amount_wagered,
@@ -877,8 +921,9 @@ class PlaceParlayBetAPIView(APIView):
                     reference=reference,
                 )
 
-                # Create individual bet legs
-                for market, chosen_outcome, odds_str, leg_decimal_odds in markets:
+                # --- Create legs + update exposures ---
+                for market, chosen_outcome, odds_str, liability in markets_locked:
+
                     Bet.objects.create(
                         user=user,
                         market=market,
@@ -890,8 +935,14 @@ class PlaceParlayBetAPIView(APIView):
                         parlay_bet=parlay_bet,
                     )
 
-                final_combined_american_odds = decimal_to_american_odds(combined_decimal_odds)
-                parlay_bet.combined_odds = final_combined_american_odds
+                    if chosen_outcome == "over":
+                        market.exposure_over += liability
+                    else:
+                        market.exposure_under += liability
+
+                    market.save(update_fields=["exposure_over", "exposure_under"])
+
+                parlay_bet.combined_odds = decimal_to_american_odds(combined_decimal_odds)
                 parlay_bet.save()
 
             serializer = ParlayBetSerializer(parlay_bet)
@@ -904,18 +955,12 @@ class PlaceParlayBetAPIView(APIView):
                 status=status.HTTP_201_CREATED,
             )
 
-        except Wallet.DoesNotExist:
-            return Response(
-                {"status": "error", "message": "Wallet not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
         except Exception as e:
             logger.error(f"Error placing parlay bet: {e}", exc_info=True)
             return Response(
                 {"status": "error", "message": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
 
 class BetResolutionAPIView(APIView):
     """
@@ -1037,6 +1082,7 @@ class BetResolutionAPIView(APIView):
                 {"status": "error", "message": f"Unexpected error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 class ResolveExpiredMarketsAPIView(APIView):
     """
     Automatically resolves all expired markets based on the stock's last_price.
@@ -1044,19 +1090,25 @@ class ResolveExpiredMarketsAPIView(APIView):
       - Compares stock.last_price to market.target_price
       - Settles all pending bets in that market
       - Marks market as resolved
+      - Resets exposure & suspension flags
     """
 
     def post(self, request, *args, **kwargs):
         today = timezone.now().date()
         expired_markets = Market.objects.filter(expiry_date__lte=today, is_active=True)
+
         total_markets = expired_markets.count()
         resolved_bets = 0
         updated_markets = 0
 
         if not total_markets:
-            return Response({"message": "No expired markets found to resolve."}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "No expired markets found to resolve."},
+                status=status.HTTP_200_OK
+            )
 
         for market in expired_markets.select_related("stock"):
+
             stock_price = market.stock.last_price
             if stock_price is None:
                 continue  # skip if stock price unavailable
@@ -1064,19 +1116,45 @@ class ResolveExpiredMarketsAPIView(APIView):
             winning_side = "over" if stock_price > market.target_price else "under"
 
             with transaction.atomic():
+
+                # Lock market row for safety
+                market = Market.objects.select_for_update().get(id=market.id)
+
                 pending_bets = Bet.objects.filter(market=market, status="pending")
 
                 for bet in pending_bets:
                     bet.status = "won" if bet.chosen_outcome == winning_side else "lost"
-                    bet.payout_amount = bet.get_potential_payout() if bet.status == "won" else Decimal("0.00")
+                    bet.payout_amount = (
+                        bet.get_potential_payout()
+                        if bet.status == "won"
+                        else Decimal("0.00")
+                    )
                     bet.settled_at = timezone.now()
-                    # bet.save()
+
                     bet.save(update_fields=["status", "payout_amount", "settled_at"])
                     resolved_bets += 1
 
-                # mark market inactive after resolution
+                # --- Reset Guardrail Fields ---
+                market.exposure_over = Decimal("0.00")
+                market.exposure_under = Decimal("0.00")
+                market.is_suspended_over = False
+                market.is_suspended_under = False
+                market.requires_admin_override = False
+
+                # Mark market inactive
                 market.is_active = False
-                market.save(update_fields=["is_active"])
+
+                market.save(
+                    update_fields=[
+                        "exposure_over",
+                        "exposure_under",
+                        "is_suspended_over",
+                        "is_suspended_under",
+                        "requires_admin_override",
+                        "is_active",
+                    ]
+                )
+
                 updated_markets += 1
 
         return Response(
@@ -1087,6 +1165,7 @@ class ResolveExpiredMarketsAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+    
 class CreditWinningBetsAPIView(APIView):
     """
     Credits all users whose bets are won but not yet paid.

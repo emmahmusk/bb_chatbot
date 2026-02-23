@@ -8,7 +8,7 @@ from admin_panel.views.kyc import (
 from admin_panel.views.vig import BulkOverrideVigByIdsView, OverrideVigView
 from admin_panel.views.market import MarketOddsResetView, MarketOddsNudgeView, StockListView, StockToggleUpdateView, StockRefreshView, GroupedMarketView, MarketStatusUpdateAPIView
 from admin_panel.views.users import AlphaVantageVolumeView, BetVolumeAdminView, AdminBetSettlementView
-from admin_panel.api import UpdateUserCRSView, UpdatePlatformSettingsView, AnalyticsDashboardAPIView, AnalyticsUserDashboardAPIView, AdminAnalyticsAPIView, DeleteExpiringMarketsView, KYCFileReviewListAPIView, TotalGGRAPIView, AdminSettleBetView, AdminUserListView, SignupAPIView, LoginAPIView, AdminBetFeedView, AdminKYCViewSet, AdminUserListAPIView, AnalyticsDashboardAPIViewNew
+from admin_panel.api import AdminMarketOverrideAPIView, UpdateUserCRSView, UpdatePlatformSettingsView, AnalyticsDashboardAPIView, AnalyticsUserDashboardAPIView, AdminAnalyticsAPIView, DeleteExpiringMarketsView, KYCFileReviewListAPIView, TotalGGRAPIView, AdminSettleBetView, AdminUserListView, SignupAPIView, LoginAPIView, AdminBetFeedView, AdminKYCViewSet, AdminUserListAPIView, AnalyticsDashboardAPIViewNew
 
 urlpatterns = [
     path("login/", LoginAPIView.as_view(), name="login"),
@@ -32,6 +32,7 @@ urlpatterns = [
     path("market/delete-exp/", DeleteExpiringMarketsView.as_view(), name="delete-expiring-markets"),
     path("platform_settings/", UpdatePlatformSettingsView.as_view(), name="update-platform-settings"),
     path("crs/", UpdateUserCRSView.as_view(), name="update-crs-value"),
+    path("market/<int:market_id>/override/", AdminMarketOverrideAPIView.as_view(), name="market-override"),
 
     
 

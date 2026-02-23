@@ -39,6 +39,9 @@ class MarketSerializer(serializers.ModelSerializer):
             "implied_odds_over",
             "implied_odds_under",
             "is_active",
+            "exposure_over",
+            "exposure_under",
+            "requires_admin_override",
             "odds_over",
             "odds_under",
             "created_at",
@@ -77,6 +80,7 @@ class MarketOddsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'stock', 'target_price', 'expiry_date', 'outcome_type',
             'implied_odds_over', 'implied_odds_under', 'is_active',
+            'exposure_over', 'exposure_under', 'requires_admin_override',
             'odds_over', 'odds_under'
         ]
 
