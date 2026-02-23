@@ -13,6 +13,7 @@ import 'package:frontend/app/modules/auth/presentation/providers/recently_visite
 import 'package:frontend/app/modules/dashboard/data/models/visited_stock_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
+import 'package:frontend/app/shared/providers/preferences_provider.dart';
 
 
 class StockProfilePage extends ConsumerStatefulWidget {
@@ -45,11 +46,15 @@ final ScrollController _scrollController = ScrollController();
   @override
   void initState() {
     super.initState();
-    loadPreferredOddsType();
     fetchMarkets();
+    
+    // Listen for odds type changes from settings
+    ref.listen<String>(oddsTypeProvider, (previous, next) {
+      if (previous != next) {
+        setState(() => preferredOdds = next);
+      }
+    });
   }
-
-
 bool _isLoadingDialogOpen = false;
  
 void showBullBearLoadingDialog(BuildContext context, {String? message}) {
@@ -102,23 +107,6 @@ void hideBullBearDialog(BuildContext context) {
   if (_isLoadingDialogOpen) {
     Navigator.of(context, rootNavigator: true).pop();
     _isLoadingDialogOpen = false;
-  }
-}
-  Future<void> loadPreferredOddsType() async {
-  final prefs = await SharedPreferences.getInstance();
-  final saved = prefs.getString('odds_type');
-  print('DEBUG: Loaded odds_type from SharedPrefs: $saved');
-  if (saved != null && ['A', 'D', 'F', 'P'].contains(saved)) {
-    setState(() {
-      preferredOdds = saved;
-      isOddsLoaded = true;
-      print('DEBUG: preferredOdds set to: $preferredOdds');
-    });
-  } else {
-    setState(() {
-      isOddsLoaded = true;
-      print('DEBUG: Odds type not found or invalid, using default D. Saved value: $saved');
-    });
   }
 }
 

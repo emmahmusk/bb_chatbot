@@ -4,6 +4,7 @@ import 'package:frontend/app/shared/presentation/widgets/custom_checkbox.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_divider.dart';
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend/app/shared/providers/preferences_provider.dart';
 
 enum OddsType { decimal, american, fraction, probability }
 
@@ -91,6 +92,7 @@ Future<void> _loadSelectedOddsType() async {
                         children: const [
                           SizedBox(
                             width: 80,
+
                             child: Text(
                               'Decimal',
                               style: TextStyle(
@@ -167,6 +169,7 @@ Future<void> _loadSelectedOddsType() async {
                                   setState(() => _selectedType = OddsType.decimal);
                                   final prefs = await SharedPreferences.getInstance();
                                   prefs.setString('odds_type', 'D');
+                                  ref.read(oddsTypeProvider.notifier).state = 'D';
                                 },
                               ),
                             ),
@@ -180,6 +183,7 @@ Future<void> _loadSelectedOddsType() async {
                                   setState(() => _selectedType = OddsType.american);
                                   final prefs = await SharedPreferences.getInstance();
                                   prefs.setString('odds_type', 'A');
+                                  ref.read(oddsTypeProvider.notifier).state = 'A';
                                 },
                               ),
                             ),
@@ -193,6 +197,7 @@ Future<void> _loadSelectedOddsType() async {
                                   setState(() => _selectedType = OddsType.fraction);
                                   final prefs = await SharedPreferences.getInstance();
                                   prefs.setString('odds_type', 'F');
+                                  ref.read(oddsTypeProvider.notifier).state = 'F';
                                 },
                               ),
                             ),
@@ -206,6 +211,7 @@ Future<void> _loadSelectedOddsType() async {
                                   setState(() => _selectedType = OddsType.probability);
                                   final prefs = await SharedPreferences.getInstance();
                                   prefs.setString('odds_type', 'P');
+                                  ref.read(oddsTypeProvider.notifier).state = 'P';
                                 },
                               ),
                             ),

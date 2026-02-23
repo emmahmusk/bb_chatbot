@@ -10,6 +10,9 @@ class MarketModel {
   final String displayOddsOver;
   final String displayOddsUnder;
   final bool isActive;
+  final double? exposureOver;
+  final double? exposureUnder;
+  final bool requiresAdminOverride;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -23,6 +26,9 @@ class MarketModel {
     required this.displayOddsOver,
     required this.displayOddsUnder,
     required this.isActive,
+    this.exposureOver,
+    this.exposureUnder,
+    this.requiresAdminOverride = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -39,6 +45,9 @@ class MarketModel {
     String? displayOddsOver,
     String? displayOddsUnder,
     bool? isActive,
+    double? exposureOver,
+    double? exposureUnder,
+    bool? requiresAdminOverride,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -52,6 +61,9 @@ class MarketModel {
       displayOddsOver: displayOddsOver ?? this.displayOddsOver,
       displayOddsUnder: displayOddsUnder ?? this.displayOddsUnder,
       isActive: isActive ?? this.isActive,
+      exposureOver: exposureOver ?? this.exposureOver,
+      exposureUnder: exposureUnder ?? this.exposureUnder,
+      requiresAdminOverride: requiresAdminOverride ?? this.requiresAdminOverride,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -68,6 +80,9 @@ class MarketModel {
       displayOddsOver: json['display_odds_over'] as String,
       displayOddsUnder: json['display_odds_under'] as String,
       isActive: json['is_active'] as bool,
+      exposureOver: json['exposure_over'] != null ? double.tryParse(json['exposure_over'].toString()) : null,
+      exposureUnder: json['exposure_under'] != null ? double.tryParse(json['exposure_under'].toString()) : null,
+      requiresAdminOverride: json['requires_admin_override'] == true,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
@@ -83,6 +98,9 @@ class MarketModel {
         'display_odds_over': displayOddsOver,
         'display_odds_under': displayOddsUnder,
         'is_active': isActive,
+      'exposure_over': exposureOver,
+      'exposure_under': exposureUnder,
+      'requires_admin_override': requiresAdminOverride,
         'created_at': createdAt.toUtc().toIso8601String(),
         'updated_at': updatedAt.toUtc().toIso8601String(),
       };

@@ -14,6 +14,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend/app/shared/providers/preferences_provider.dart';
 
 import '../../providers/stock_selection_provider.dart'; 
 
@@ -115,7 +116,6 @@ void hideBullBearDialog(BuildContext context) {
     hideBullBearDialog(context); // Will only pop if dialog was open
   }
 }
-
 
 String formatExpiryDate(String input) {
   // Input includes day of week, so keep 'EEE' in the parser
@@ -757,7 +757,6 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
 
   
 
-
   @override
   void initState() {
     onInit(
@@ -766,8 +765,14 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
        ref.read(getMarketsProviderNew.notifier).get();
       },
     );
+    
+    // Listen for odds type changes from settings
+    ref.listen<String>(oddsTypeProvider, (previous, next) {
+      if (previous != next) {
+        setState(() => preferredOdds = next);
+      }
+    });
 
-    loadPreferredOddsType();
     super.initState();
   }
 
