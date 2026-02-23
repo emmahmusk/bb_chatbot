@@ -28,23 +28,39 @@ Future<void> perform<T>(
   String successMessage = "Successful",
 }) async {
   showLoadingDialog(context);
-  response.then(
-    (x) {
-      pop(context);
+  
+  try {
+    // ✅ AWAIT the response before proceeding
+    final result = await response;
+    
+    // ✅ Ensure we're still mounted before manipulating the UI
+    if (!context.mounted) return;
+    
+    // ✅ Close loading dialog
+    pop(context);
 
-      if (x.isRight()) {
-        onError?.call(x.right) ?? context.showError(x.right.message);
-        return;
-      }
-      if (popAfterSuccess) {
-        pop(context);
-      }
-      if (showSuccess) {
-        context.showSuccess(successMessage);
-      }
-      return onSuccess(x.left);
-    },
-  );
+    // ✅ Handle error case
+    if (result.isRight()) {
+      final error = result.right;
+      onError?.call(error) ?? context.showError(error.message);
+      return;
+    }
+    
+    // ✅ Handle success case
+    if (popAfterSuccess) {
+      pop(context);
+    }
+    if (showSuccess) {
+      context.showSuccess(successMessage);
+    }
+    
+    onSuccess(result.left);
+  } catch (e) {
+    // ✅ Handle unexpected errors
+    if (!context.mounted) return;
+    pop(context);
+    context.showError("An unexpected error occurred");
+  }
 }
 
 LoginResponseModel? getUser() {
