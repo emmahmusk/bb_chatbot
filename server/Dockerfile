@@ -1,6 +1,6 @@
-FROM python:3.13 as build-env
+FROM python:3.14 as build-env
 
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONUNBUFFERED=1
 
 RUN mkdir /app
 WORKDIR /app

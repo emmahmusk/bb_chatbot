@@ -51,14 +51,13 @@ Future<void> _hydrateSession() async {
   final prefs = await SharedPreferences.getInstance();
 
    // ✅ Set default only if not already set
-  final oddsType = prefs.getString('odds_type');
+  final oddsType = prefs.getString('odds_type') ?? 'D';
   
-  if (oddsType == null || oddsType.isEmpty) {
+  if (oddsType.isEmpty) {
     await prefs.setString('odds_type', 'D');
   }
-  print("Selected Odds type is: ");
-  var odd_type = prefs.getString("odds_type");
-  print(odd_type);
+  print("Selected Odds type is: $oddsType");
+  
   final userId = prefs.getInt('user_id');
   final profileId = prefs.getInt('profile_id');
   final emailVerified = prefs.getBool('email_verified');
@@ -85,8 +84,7 @@ Future<void> _hydrateSession() async {
     ref.read(currentUserProvider.notifier).state = profile;
   }
   // Initialize global odds preference provider from SharedPreferences
-  final odd_type = prefs.getString("odds_type") ?? 'D';
-  ref.read(oddsTypeProvider.notifier).state = odd_type;
+  ref.read(oddsTypeProvider.notifier).state = oddsType;
 }
 
 
