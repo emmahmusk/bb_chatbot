@@ -60,36 +60,35 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
           const SizedBox(height: 42),
           CustomButton(
             text: 'Next',
-            onPressed: () {
+            onPressed: () async {
               final repo = ref.read(authRepositoryProvider);
-              perform(
+              
+              // ✅ AWAIT the perform function to complete
+              await perform(
                 context,
                 response: repo.login(username: username, password: password),
-                onSuccess: (d)async {
-                   
+                onSuccess: (d) async {
                   ref.read(currentUserProvider.notifier).state = d.profile;
-                  // popAndShowCenterDialog(
-                  //   context,
-                  //   VerifyAccountDialog(),
-                  // );
+                  
                   // Save in SharedPreferences
-                    final prefs = await SharedPreferences.getInstance();
-                    prefs.setInt('user_id', d.profile.user);
-                    prefs.setBool('email_verified', d.profile.emailVerified);
-                    prefs.setInt('profile_id', d.profile.id);
-                    prefs.setString('access_token', d.access);
-                    prefs.setString('wallet_balance',d.profile.walletBalance);
-                    print("Chethan TOken");
-                    print(d.access);
-                    prefs.setString('refresh_token', d.refresh);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setInt('user_id', d.profile.user);
+                  await prefs.setBool('email_verified', d.profile.emailVerified);
+                  await prefs.setInt('profile_id', d.profile.id);
+                  await prefs.setString('access_token', d.access);
+                  await prefs.setString('wallet_balance', d.profile.walletBalance);
+                  print("Login Token: ${d.access}");
+                  await prefs.setString('refresh_token', d.refresh);
 
-                    // 🔽 Save additional profile fields
-                    prefs.setString('full_name', d.profile.fullName);
-                    prefs.setString('email', d.profile.email);
-                    prefs.setString('date_of_birth', d.profile.dateOfBirth);
-                    prefs.setString('phone_number', d.profile.phoneNumber);
-                    prefs.setString('physical_address', d.profile.physicalAddress);
-                  pop(context);
+                  // 🔽 Save additional profile fields
+                  await prefs.setString('full_name', d.profile.fullName);
+                  await prefs.setString('email', d.profile.email);
+                  await prefs.setString('date_of_birth', d.profile.dateOfBirth);
+                  await prefs.setString('phone_number', d.profile.phoneNumber);
+                  await prefs.setString('physical_address', d.profile.physicalAddress);
+                  
+                  // ✅ Pop login dialog after everything is saved
+                  if (context.mounted) pop(context);
                 },
               );
             },
