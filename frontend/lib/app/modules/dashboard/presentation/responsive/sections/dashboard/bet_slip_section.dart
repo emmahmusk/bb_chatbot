@@ -69,6 +69,17 @@ Key wagerFieldKey = UniqueKey();
     });
   }
 
+    // Also fetch exposures for any already-selected stocks (initial state)
+    final currentlySelected = ref.read(selectedStockProvider);
+    try {
+      for (var s in currentlySelected) {
+        final marketId = s.marketId;
+        if (!marketExposures.containsKey(marketId)) {
+          fetchMarketExposure(marketId);
+        }
+      }
+    } catch (_) {}
+
   Future<void> fetchPlatformSettings() async {
     try {
       final res = await http.get(Uri.parse('https://api.bbbprediction.com/admin/platform_settings/'));

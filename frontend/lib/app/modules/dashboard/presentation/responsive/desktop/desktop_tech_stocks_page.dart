@@ -773,6 +773,12 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
       }
     });
 
+    // Initialize preferredOdds from provider so the list shows the right format immediately
+    try {
+      final initial = ref.read(oddsTypeProvider);
+      setState(() => preferredOdds = initial);
+    } catch (_) {}
+
     super.initState();
   }
 

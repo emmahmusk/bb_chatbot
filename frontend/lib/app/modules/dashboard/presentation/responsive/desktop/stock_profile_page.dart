@@ -54,6 +54,11 @@ final ScrollController _scrollController = ScrollController();
         setState(() => preferredOdds = next);
       }
     });
+    // Initialize preferredOdds from provider so UI matches current setting immediately
+    try {
+      final initial = ref.read(oddsTypeProvider);
+      setState(() => preferredOdds = initial);
+    } catch (_) {}
   }
 bool _isLoadingDialogOpen = false;
  
