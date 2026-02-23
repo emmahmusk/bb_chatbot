@@ -47,6 +47,65 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
 String selectedMode = 'single';
 
 Key wagerFieldKey = UniqueKey();
+  double maxRiskTolerance = 3000.0; // default fallback
+  final Map<int, Map<String, double>> marketExposures = {}; // marketId -> {'over': x, 'under': y}
+
+  @override
+  void initState() {
+    super.initState();
+    // fetch platform settings and listen for selected stock changes
+    fetchPlatformSettings();
+    // Listen to selectedStockProvider to fetch market exposures when selections change
+    ref.listen<List>(selectedStockProvider, (prev, next) {
+      try {
+        for (var s in next) {
+          if (s is Map) continue; // defensive
+          final marketId = s.marketId;
+          if (!marketExposures.containsKey(marketId)) {
+            fetchMarketExposure(marketId);
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> fetchPlatformSettings() async {
+    try {
+      final res = await http.get(Uri.parse('https://api.bbbprediction.com/admin/platform_settings/'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final val = data['max_risk_tolerance'];
+        if (val != null) {
+          setState(() {
+            maxRiskTolerance = double.tryParse(val.toString()) ?? maxRiskTolerance;
+          });
+        }
+      }
+    } catch (e) {
+      // ignore - keep default
+    }
+  }
+
+  Future<void> fetchMarketExposure(int marketId) async {
+    try {
+      final res = await http.get(Uri.parse('https://api.bbbprediction.com/bet/markets/$marketId/'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final over = data['exposure_over'];
+        final under = data['exposure_under'];
+        final overrideFlag = data['requires_admin_override'] == true;
+        setState(() {
+          marketExposures[marketId] = {
+            'over': over != null ? double.tryParse(over.toString()) ?? 0.0 : 0.0,
+            'under': under != null ? double.tryParse(under.toString()) ?? 0.0 : 0.0,
+            'override': overrideFlag ? 1.0 : 0.0,
+          };
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
 
   
   double estimatePayout(double wager, int count) {
@@ -295,8 +354,35 @@ Key wagerFieldKey = UniqueKey();
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Text("Strike Price:",style: TextStyle(color: Colors.white),),
-                                          Text(item.chosenOutcome+" - "+"\$"+item.targetPrice.toString(),style: TextStyle(color: Colors.white),)
+                                                  Text("Strike Price:",style: TextStyle(color: Colors.white),),
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(item.chosenOutcome+" - "+"\$"+item.targetPrice.toString(),style: TextStyle(color: Colors.white),),
+                                                      const SizedBox(width: 8),
+                                                      // show padlock when that side is locked
+                                                      Builder(builder: (ctx) {
+                                                        final exposures = marketExposures[item.marketId];
+                                                        final side = (item.chosenOutcome ?? '').toString().toLowerCase();
+                                                        bool locked = false;
+                                                        if (exposures != null) {
+                                                          final val = side == 'over' ? exposures['over'] : exposures['under'];
+                                                          final overrideFlag = (exposures['override'] ?? 0.0) >= 1.0;
+                                                          if (overrideFlag || (val != null && val >= maxRiskTolerance)) locked = true;
+                                                        }
+                                                        return locked
+                                                            ? Tooltip(
+                                                                message: 'Side locked due to exposure',
+                                                                child: Icon(
+                                                                  Icons.lock,
+                                                                  size: 16,
+                                                                  color: Colors.redAccent,
+                                                                ),
+                                                              )
+                                                            : SizedBox.shrink();
+                                                      }),
+                                                    ],
+                                                  ),
                                         ],
                                       ),
                                 ),
@@ -461,11 +547,23 @@ Key wagerFieldKey = UniqueKey();
               ),
             ),
             selectedStocks.length!=0?  SizedBox(height: 24):SizedBox.shrink(),
-           selectedStocks.length!=0? Padding(
+            selectedStocks.length!=0? Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: CustomButton(
                   text: 'Place Bet',
-                 // validator: () => betList.isNotEmpty && wager.isNotEmpty,
+                  validator: () {
+                    // Disable if exposure >= maxRiskTolerance for any selected leg
+                    if (wager.isEmpty) return false;
+                    for (final s in selectedStocks) {
+                      final exposures = marketExposures[s.marketId];
+                      if (exposures != null) {
+                        final side = (s.chosenOutcome ?? '').toString().toLowerCase();
+                        final val = side == 'over' ? exposures['over'] : exposures['under'];
+                        if (val != null && val >= maxRiskTolerance) return false;
+                      }
+                    }
+                    return true;
+                  },
                   onPressed: () async {
                     if (!isAuthenticated()) {
                       showCenterDialog(context, child: const LoginDialog());

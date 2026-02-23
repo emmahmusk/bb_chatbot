@@ -10,6 +10,9 @@ class SelectedStockModel {
   final String logoUrl;
   final double? targetPrice;
   final String expiryDate;
+  final double? exposureOver;
+  final double? exposureUnder;
+  final bool requiresAdminOverride;
 
   SelectedStockModel({
     required this.marketId,
@@ -22,6 +25,9 @@ class SelectedStockModel {
     required this.targetPrice,
     required this.expiryDate,
     this.decimalOdds,
+    this.exposureOver,
+    this.exposureUnder,
+    this.requiresAdminOverride = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -31,6 +37,9 @@ class SelectedStockModel {
       'chosen_outcome': chosenOutcome,
       'odds': odds,
       'decimal_odds': decimalOdds,
+      'exposure_over': exposureOver,
+      'exposure_under': exposureUnder,
+      'requires_admin_override': requiresAdminOverride,
       'company_name': companyName,
       'company_symbol': companySymbol,
       'logo_url': logoUrl,
@@ -51,6 +60,13 @@ class SelectedStockModel {
       targetPrice: (json['target_price'] as num?)?.toDouble(),
       expiryDate: json['expiry_date'],
       decimalOdds: json['decimal_odds']?.toString(),
+      exposureOver: json['exposure_over'] != null
+          ? double.tryParse(json['exposure_over'].toString())
+          : null,
+      exposureUnder: json['exposure_under'] != null
+          ? double.tryParse(json['exposure_under'].toString())
+          : null,
+      requiresAdminOverride: json['requires_admin_override'] == true,
     );
   }
 }

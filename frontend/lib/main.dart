@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app/shared/classes/fonts/fonts.dart';
 import 'package:frontend/app/shared/classes/http/http.dart';
 import 'package:frontend/app/shared/classes/preferences/preferences.dart';
+import 'package:frontend/app/shared/providers/preferences_provider.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
 import 'package:frontend/core/env/config.dart';
 import 'package:frontend/core/navigation/router.dart';
@@ -83,6 +84,9 @@ Future<void> _hydrateSession() async {
 
     ref.read(currentUserProvider.notifier).state = profile;
   }
+  // Initialize global odds preference provider from SharedPreferences
+  final odd_type = prefs.getString("odds_type") ?? 'D';
+  ref.read(oddsTypeProvider.notifier).state = odd_type;
 }
 
 
