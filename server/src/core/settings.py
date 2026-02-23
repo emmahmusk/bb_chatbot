@@ -230,6 +230,18 @@ if DJANGO_ENV == "production":
         # In production, you might want to raise an error if not set
         CSRF_TRUSTED_ORIGINS = []
 
+    # CORS configuration for production
+    CORS_ALLOWED_ORIGINS_STRING = environ.get("CORS_ALLOWED_ORIGINS_STRING", "")
+    if CORS_ALLOWED_ORIGINS_STRING:
+        CORS_ALLOWED_ORIGINS = [
+            o.strip() for o in CORS_ALLOWED_ORIGINS_STRING.split(",") if o.strip()
+        ]
+    else:
+        # Fallback to allow all origins if not specified
+        CORS_ALLOWED_ORIGINS = ["https://www.bbbprediction.com", "https://bbbprediction.com"]
+    
+    CORS_ALLOW_ALL_ORIGINS = False  # Use explicit whitelist in production
+
     if all(
         [
             AWS_RDS_DB_NAME,
@@ -351,9 +363,7 @@ USE_I18N = True
 
 USE_TZ = True
 
-CORS_ALLOW_ALL_ORIGINS = (
-    True  # For simplicity during development/initial deployment. Review for production.
-)
+# CORS is configured per environment above (development vs production)
 
 # SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # SECURE_SSL_REDIRECT = (

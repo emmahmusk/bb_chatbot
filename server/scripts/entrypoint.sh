@@ -26,6 +26,7 @@ echo "Fetching and setting environment variables from Parameter Store..."
 export SECRET_KEY=$(get_ssm_parameter "${SSM_BASE_PATH}/django_secret_key")
 export ALLOWED_HOSTS_STRING=$(get_ssm_parameter "${SSM_BASE_PATH}/app/allowed_hosts")
 export CSRF_TRUSTED_ORIGINS_STRING=$(get_ssm_parameter "${SSM_BASE_PATH}/app/csrf_trusted_origins")
+export CORS_ALLOWED_ORIGINS_STRING=$(get_ssm_parameter "${SSM_BASE_PATH}/app/cors_allowed_origins")
 
 export DJANGO_ENV="production"
 export DEBUG="False"
