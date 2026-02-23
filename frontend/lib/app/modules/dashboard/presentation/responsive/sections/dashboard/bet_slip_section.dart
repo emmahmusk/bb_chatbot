@@ -61,9 +61,8 @@ Key wagerFieldKey = UniqueKey();
         for (var s in next) {
           if (s is Map) continue; // defensive
           final marketId = s.marketId;
-          if (!marketExposures.containsKey(marketId)) {
-            fetchMarketExposure(marketId);
-          }
+          // Always fetch to get fresh exposure data on selection change
+          fetchMarketExposure(marketId);
         }
       } catch (_) {}
     });
@@ -73,9 +72,8 @@ Key wagerFieldKey = UniqueKey();
       for (var s in currentlySelected) {
         if (s is Map) continue;
         final marketId = s.marketId;
-        if (!marketExposures.containsKey(marketId)) {
-          fetchMarketExposure(marketId);
-        }
+        // Fetch initial exposures
+        fetchMarketExposure(marketId);
       }
     } catch (_) {}
   }
