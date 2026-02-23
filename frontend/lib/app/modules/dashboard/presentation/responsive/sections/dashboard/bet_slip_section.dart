@@ -67,18 +67,18 @@ Key wagerFieldKey = UniqueKey();
         }
       } catch (_) {}
     });
-  }
-
     // Also fetch exposures for any already-selected stocks (initial state)
-    final currentlySelected = ref.read(selectedStockProvider);
     try {
+      final currentlySelected = ref.read(selectedStockProvider);
       for (var s in currentlySelected) {
+        if (s is Map) continue;
         final marketId = s.marketId;
         if (!marketExposures.containsKey(marketId)) {
           fetchMarketExposure(marketId);
         }
       }
     } catch (_) {}
+  }
 
   Future<void> fetchPlatformSettings() async {
     try {
