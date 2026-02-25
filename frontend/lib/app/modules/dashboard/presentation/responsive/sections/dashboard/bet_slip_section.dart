@@ -80,7 +80,7 @@ Key wagerFieldKey = UniqueKey();
 
   Future<void> fetchPlatformSettings() async {
     try {
-      final res = await http.get(Uri.parse('https://api.bbbprediction.com/admin/platform_settings/'));
+      final res = await http.get(Uri.parse('https://api.bbbprediction.com/admin_panel/platform_settings/'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final val = data['max_risk_tolerance'];
@@ -135,7 +135,7 @@ Key wagerFieldKey = UniqueKey();
 
     final selectedStocks = ref.watch(selectedStockProvider);
 
-      final double wagerAmount = double.tryParse(wager) ?? 0.0;
+    final double wagerAmount = double.tryParse(wager) ?? 0.0;
     final double payout = wagerAmount * getCumulativeOdds(selectedStocks);
 
     final colors = ref.watch(appThemeProvider).colors;
