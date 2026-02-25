@@ -683,6 +683,9 @@ class PlaceSingleBetAPIView(APIView):
                     )
 
                 # --- Guardrail calculation ---
+                # net_exposure = abs(exposure_over - exposure_under) represents unmatched (unhedged) positions.
+                # Users can hedge by betting the opposite side, which reduces net_exposure and may unlock markets.
+                # This is compared against PlatformSettings.max_risk_tolerance to ensure platform risk limits aren't exceeded.
                 settings_obj = PlatformSettings.get_instance()
                 risk_limit = settings_obj.max_risk_tolerance
 
@@ -690,42 +693,22 @@ class PlaceSingleBetAPIView(APIView):
                 liability = potential_payout - amount_wagered
 
                 if chosen_outcome == "over":
-
-                    if market.is_suspended_over:
-                        return Response(
-                            {"status": "error", "message": "Over side temporarily suspended due to exposure limits."},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-                    new_exposure = market.exposure_over + liability
-
-                    if new_exposure >= risk_limit:
-                        market.is_suspended_over = True
-                        market.requires_admin_override = True
-                        market.save(update_fields=["is_suspended_over", "requires_admin_override"])
-                        return Response(
-                            {"status": "error", "message": "Exposure limit reached for Over side."},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
+                    new_exposure_over = market.exposure_over + liability
+                    new_net_exposure = abs(new_exposure_over - market.exposure_under)
                 else:  # under
+                    new_exposure_under = market.exposure_under + liability
+                    new_net_exposure = abs(market.exposure_over - new_exposure_under)
 
-                    if market.is_suspended_under:
-                        return Response(
-                            {"status": "error", "message": "Under side temporarily suspended due to exposure limits."},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-                    new_exposure = market.exposure_under + liability
-
-                    if new_exposure >= risk_limit:
-                        market.is_suspended_under = True
-                        market.requires_admin_override = True
-                        market.save(update_fields=["is_suspended_under", "requires_admin_override"])
-                        return Response(
-                            {"status": "error", "message": "Exposure limit reached for Under side."},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
+                # Check net_exposure against platform risk tolerance yardstick
+                if new_net_exposure >= risk_limit:
+                    market.is_suspended_over = True
+                    market.is_suspended_under = True
+                    market.requires_admin_override = True
+                    market.save(update_fields=["is_suspended_over", "is_suspended_under", "requires_admin_override"])
+                    return Response(
+                        {"status": "error", "message": "Exposure limit reached for this market."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 # --- Lock wallet ---
                 wallet = Wallet.objects.select_for_update().get(user=user)
@@ -880,22 +863,21 @@ class PlaceParlayBetAPIView(APIView):
                     potential_payout = amount_wagered * odds_decimal
                     liability = potential_payout - amount_wagered
 
-                    # Guardrail check
+                    # Guardrail check - use net exposure (abs difference) against platform risk tolerance.
+                    # Hedging positions (betting opposite side) reduces net_exposure by offsetting exposures.
                     if chosen_outcome == "over":
-
-                        if market.is_suspended_over or (market.exposure_over + liability >= risk_limit):
-                            return Response(
-                                {"status": "error", "message": f"Exposure limit reached for market {market_id} (Over)."},
-                                status=status.HTTP_400_BAD_REQUEST,
-                            )
-
+                        new_exposure_over = market.exposure_over + liability
+                        new_net_exposure = abs(new_exposure_over - market.exposure_under)
                     else:
+                        new_exposure_under = market.exposure_under + liability
+                        new_net_exposure = abs(market.exposure_over - new_exposure_under)
 
-                        if market.is_suspended_under or (market.exposure_under + liability >= risk_limit):
-                            return Response(
-                                {"status": "error", "message": f"Exposure limit reached for market {market_id} (Under)."},
-                                status=status.HTTP_400_BAD_REQUEST,
-                            )
+                    # Validate net_exposure against PlatformSettings.max_risk_tolerance
+                    if new_net_exposure >= risk_limit:
+                        return Response(
+                            {"status": "error", "message": f"Exposure limit reached for market {market_id}."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                     markets_locked.append((market, chosen_outcome, odds_str, liability))
 
