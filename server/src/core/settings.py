@@ -238,7 +238,8 @@ if DJANGO_ENV == "production":
         ]
     else:
         # Fallback to allow all origins if not specified
-        CORS_ALLOWED_ORIGINS = ["https://www.bbbprediction.com", "https://bbbprediction.com"]
+        
+        CORS_ALLOWED_ORIGINS = ["https://www.bbbprediction.com", "https://bbbprediction.com", "http://admin.bbbprediction.com", "https://admin.bbbprediction.com", "admin.bbbprediction.com"]
     
     CORS_ALLOW_ALL_ORIGINS = False  # Use explicit whitelist in production
 
