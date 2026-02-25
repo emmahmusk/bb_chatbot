@@ -12,6 +12,7 @@ class MarketModel {
   final bool isActive;
   final double? exposureOver;
   final double? exposureUnder;
+  final double? netExposure;
   final bool requiresAdminOverride;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -28,12 +29,23 @@ class MarketModel {
     required this.isActive,
     this.exposureOver,
     this.exposureUnder,
+    this.netExposure,
     this.requiresAdminOverride = false,
     required this.createdAt,
     required this.updatedAt,
   });
 
   String get expiryDateFormatted => expiryDate.toShortDate();
+
+  // Calculate net exposure if not provided by API
+  double? get netExposureCalculated => netExposure ?? _calculateNetExposure();
+
+  double? _calculateNetExposure() {
+    if (exposureOver != null && exposureUnder != null) {
+      return (exposureOver! - exposureUnder!).abs();
+    }
+    return null;
+  }
 
   MarketModel copyWith({
     int? id,
@@ -47,6 +59,7 @@ class MarketModel {
     bool? isActive,
     double? exposureOver,
     double? exposureUnder,
+    double? netExposure,
     bool? requiresAdminOverride,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -63,6 +76,7 @@ class MarketModel {
       isActive: isActive ?? this.isActive,
       exposureOver: exposureOver ?? this.exposureOver,
       exposureUnder: exposureUnder ?? this.exposureUnder,
+      netExposure: netExposure ?? this.netExposure,
       requiresAdminOverride: requiresAdminOverride ?? this.requiresAdminOverride,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -82,6 +96,7 @@ class MarketModel {
       isActive: json['is_active'] as bool,
       exposureOver: json['exposure_over'] != null ? double.tryParse(json['exposure_over'].toString()) : null,
       exposureUnder: json['exposure_under'] != null ? double.tryParse(json['exposure_under'].toString()) : null,
+      netExposure: json['net_exposure'] != null ? double.tryParse(json['net_exposure'].toString()) : null,
       requiresAdminOverride: json['requires_admin_override'] == true,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -100,6 +115,7 @@ class MarketModel {
         'is_active': isActive,
       'exposure_over': exposureOver,
       'exposure_under': exposureUnder,
+      'net_exposure': netExposure,
       'requires_admin_override': requiresAdminOverride,
         'created_at': createdAt.toUtc().toIso8601String(),
         'updated_at': updatedAt.toUtc().toIso8601String(),

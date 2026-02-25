@@ -31,6 +31,7 @@ class _CreateAccountStep2State extends ConsumerState<CreateAccountStep2> {
   bool showSuggestions = false;
   final TextEditingController _addressController = TextEditingController();
   final FocusNode _addressFocusNode = FocusNode();
+  late ScrollController _scrollController;  // Add scroll controller
 
   final _debouncer = Debouncer(duration: const Duration(milliseconds: 300));
 
@@ -56,6 +57,16 @@ class _CreateAccountStep2State extends ConsumerState<CreateAccountStep2> {
   @override
   void initState() {
     super.initState();
+    // Initialize scroll controller
+    _scrollController = ScrollController();
+    
+    // Scroll to top after first frame is rendered
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0.0);
+      }
+    });
+    
     _addressFocusNode.addListener(() {
       if (!_addressFocusNode.hasFocus) {
         // Hide suggestions when focus is lost
@@ -74,6 +85,7 @@ class _CreateAccountStep2State extends ConsumerState<CreateAccountStep2> {
   void dispose() {
     _addressController.dispose();
     _addressFocusNode.dispose();
+    _scrollController.dispose();  // Dispose scroll controller
     super.dispose();
   }
 
@@ -84,6 +96,7 @@ class _CreateAccountStep2State extends ConsumerState<CreateAccountStep2> {
     final notifier = ref.read(signupDtoProvider.notifier);
 
     return SingleChildScrollView(
+      controller: _scrollController,  // Add scroll controller
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

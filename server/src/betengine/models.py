@@ -178,6 +178,15 @@ class Market(models.Model):
     def implied_odds_under_rounded(self):
         return round_two_places(self.implied_odds_under)
 
+    @property
+    def net_exposure(self):
+        """
+        Returns the net exposure as the absolute difference between over and under sides.
+        This allows hedging: high exposure on both sides = lower net risk due to offsetting positions.
+        Only one outcome can occur, so the net risk is the difference between unmatched exposures.
+        """
+        return abs(self.exposure_over - self.exposure_under)
+
     class Meta:
         unique_together = ("stock", "target_price", "expiry_date", "outcome_type")
         ordering = ["target_price", "-expiry_date", "stock__symbol"]

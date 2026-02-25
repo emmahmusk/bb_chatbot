@@ -26,6 +26,7 @@ def get_user_preference(request):
 class MarketSerializer(serializers.ModelSerializer):
     odds_over = serializers.SerializerMethodField(read_only=True)
     odds_under = serializers.SerializerMethodField(read_only=True)
+    net_exposure = serializers.SerializerMethodField(read_only=True)
     stock = StockSerializer()
 
     class Meta:
@@ -41,6 +42,7 @@ class MarketSerializer(serializers.ModelSerializer):
             "is_active",
             "exposure_over",
             "exposure_under",
+            "net_exposure",
             "requires_admin_override",
             "odds_over",
             "odds_under",
@@ -68,19 +70,23 @@ class MarketSerializer(serializers.ModelSerializer):
             "decimal": str(obj.display_odds_under_decimal) if obj.display_odds_under_decimal is not None else None,
             "fractional": obj.display_odds_under_fractional,
         }
+
+    def get_net_exposure(self, obj):
+        return str(obj.net_exposure)
     
 class MarketOddsSerializer(serializers.ModelSerializer):
     stock = StockSerializer()
     expiry_date = serializers.SerializerMethodField()
     odds_over = serializers.SerializerMethodField()
     odds_under = serializers.SerializerMethodField()
+    net_exposure = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Market
         fields = [
             'id', 'stock', 'target_price', 'expiry_date', 'outcome_type',
             'implied_odds_over', 'implied_odds_under', 'is_active',
-            'exposure_over', 'exposure_under', 'requires_admin_override',
+            'exposure_over', 'exposure_under', 'net_exposure', 'requires_admin_override',
             'odds_over', 'odds_under'
         ]
 
@@ -131,6 +137,9 @@ class MarketOddsSerializer(serializers.ModelSerializer):
                 "value": preferred_value
             }
         }
+
+    def get_net_exposure(self, obj):
+        return str(obj.net_exposure)
     
 class BetSerializer(serializers.ModelSerializer):
     market_details = MarketSerializer(source="market", read_only=True)

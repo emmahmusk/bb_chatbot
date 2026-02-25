@@ -48,7 +48,7 @@ String selectedMode = 'single';
 
 Key wagerFieldKey = UniqueKey();
   double maxRiskTolerance = 3000.0; // default fallback
-  final Map<int, Map<String, double>> marketExposures = {}; // marketId -> {'over': x, 'under': y}
+  final Map<int, Map<String, double>> marketExposures = {}; // marketId -> {'net': net_exposure, 'over': x, 'under': y, 'override': flag}
 
   @override
   void initState() {
@@ -102,11 +102,13 @@ Key wagerFieldKey = UniqueKey();
         final data = jsonDecode(res.body);
         final over = data['exposure_over'];
         final under = data['exposure_under'];
+        final net = data['net_exposure'];
         final overrideFlag = data['requires_admin_override'] == true;
         setState(() {
           marketExposures[marketId] = {
             'over': over != null ? double.tryParse(over.toString()) ?? 0.0 : 0.0,
             'under': under != null ? double.tryParse(under.toString()) ?? 0.0 : 0.0,
+            'net': net != null ? double.tryParse(net.toString()) ?? 0.0 : 0.0,
             'override': overrideFlag ? 1.0 : 0.0,
           };
         });
@@ -369,19 +371,19 @@ Key wagerFieldKey = UniqueKey();
                                                     children: [
                                                       Text(item.chosenOutcome+" - "+"\$"+item.targetPrice.toString(),style: TextStyle(color: Colors.white),),
                                                       const SizedBox(width: 8),
-                                                      // show padlock when that side is locked
+                                                      // show padlock when that side is locked based on net_exposure
                                                       Builder(builder: (ctx) {
                                                         final exposures = marketExposures[item.marketId];
-                                                        final side = (item.chosenOutcome ?? '').toString().toLowerCase();
                                                         bool locked = false;
                                                         if (exposures != null) {
-                                                          final val = side == 'over' ? exposures['over'] : exposures['under'];
+                                                          final netExposure = exposures['net'] ?? 0.0;
                                                           final overrideFlag = (exposures['override'] ?? 0.0) >= 1.0;
-                                                          if (overrideFlag || (val != null && val >= maxRiskTolerance)) locked = true;
+                                                          // Locked if net_exposure >= maxRiskTolerance or admin override
+                                                          if (overrideFlag || netExposure >= maxRiskTolerance) locked = true;
                                                         }
                                                         return locked
                                                             ? Tooltip(
-                                                                message: 'Side locked due to exposure',
+                                                                message: 'Market locked due to net exposure limit',
                                                                 child: Icon(
                                                                   Icons.lock,
                                                                   size: 16,
@@ -561,14 +563,13 @@ Key wagerFieldKey = UniqueKey();
               child: CustomButton(
                   text: 'Place Bet',
                   validator: () {
-                    // Disable if exposure >= maxRiskTolerance for any selected leg
+                    // Disable if net_exposure >= maxRiskTolerance for any selected leg
                     if (wager.isEmpty) return false;
                     for (final s in selectedStocks) {
                       final exposures = marketExposures[s.marketId];
                       if (exposures != null) {
-                        final side = (s.chosenOutcome ?? '').toString().toLowerCase();
-                        final val = side == 'over' ? exposures['over'] : exposures['under'];
-                        if (val != null && val >= maxRiskTolerance) return false;
+                        final netExposure = exposures['net'] ?? 0.0;
+                        if (netExposure >= maxRiskTolerance) return false;
                       }
                     }
                     return true;
