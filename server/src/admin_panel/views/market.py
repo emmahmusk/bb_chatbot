@@ -7,6 +7,7 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.core.management import call_command  # To run Django management commands
 from django.core.cache import cache
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny  # Or a more custom admin permission
 from rest_framework.response import Response
@@ -701,3 +702,61 @@ class AdminMarketUpdateOddsAPIView(APIView):
                 )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+from admin_panel.serializers import MarketCreateSerializer, MarketUpdateOddsSerializer, SuspendedMarketSerializer, SuspendedMarketUpdateSerializer
+
+
+class SuspendedMarketsView(APIView):
+    """List suspended markets. Admin-only."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        markets = (
+            Market.objects.select_related("stock")
+            .filter(Q(is_suspended_over=True) | Q(is_suspended_under=True))
+            .order_by("stock__symbol", "expiry_date")
+        )
+
+        serializer = SuspendedMarketSerializer(markets, many=True)
+        return Response({"suspended_markets": serializer.data}, status=status.HTTP_200_OK)
+
+
+class SuspendedMarketDetailView(APIView):
+    """Retrieve or update suspended state for a single market.
+
+    PATCH body accepts any of: `is_active`, `is_suspended_over`, `is_suspended_under`, `requires_admin_override`.
+    """
+    permission_classes = [IsAdminUser]
+
+    def get_object(self, market_id):
+        try:
+            return Market.objects.select_related("stock").get(id=market_id)
+        except Market.DoesNotExist:
+            return None
+
+    def get(self, request, market_id, *args, **kwargs):
+        market = self.get_object(market_id)
+        if not market:
+            return Response({"detail": "Market not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = SuspendedMarketSerializer(market)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, market_id, *args, **kwargs):
+        market = self.get_object(market_id)
+        if not market:
+            return Response({"detail": "Market not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SuspendedMarketUpdateSerializer(market, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer.save()
+
+        # Optionally clear grouped cache for the affected stock
+        try:
+            cache.delete(f"market_grouped_{market.stock.symbol}")
+        except Exception:
+            pass
+
+        return Response(SuspendedMarketSerializer(market).data, status=status.HTTP_200_OK)
