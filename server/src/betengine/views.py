@@ -16,6 +16,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.core.cache import cache
 
 from betengine.utils import (  # If you need to convert back/forth
     american_to_decimal_odds,
@@ -648,8 +649,26 @@ class PlaceSingleBetAPIView(APIView):
             # --- Atomic section ---
             with transaction.atomic():
 
-                # Lock market row
-                market = Market.objects.select_for_update().get(id=market_id, is_active=True)
+                # Lock market row (fetch then validate flags explicitly)
+                market = Market.objects.select_for_update().get(id=market_id)
+
+                if not market.is_active:
+                    return Response(
+                        {"status": "error", "message": "Betting market not active."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Disallow bets on a suspended side
+                if chosen_outcome == "over" and market.is_suspended_over:
+                    return Response(
+                        {"status": "error", "message": "Over side for this market is suspended."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if chosen_outcome == "under" and market.is_suspended_under:
+                    return Response(
+                        {"status": "error", "message": "Under side for this market is suspended."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 # Determine odds
                 if chosen_outcome == "over":
@@ -705,6 +724,10 @@ class PlaceSingleBetAPIView(APIView):
                     market.is_suspended_under = True
                     market.requires_admin_override = True
                     market.save(update_fields=["is_suspended_over", "is_suspended_under", "requires_admin_override"])
+                    try:
+                        cache.delete(f"market_grouped_{market.stock.symbol}")
+                    except Exception:
+                        pass
                     return Response(
                         {"status": "error", "message": "Exposure limit reached for this market."},
                         status=status.HTTP_400_BAD_REQUEST,
@@ -843,7 +866,25 @@ class PlaceParlayBetAPIView(APIView):
                     market_id = leg.get("market_id")
                     chosen_outcome = leg.get("chosen_outcome")
 
-                    market = Market.objects.select_for_update().get(id=market_id, is_active=True)
+                    market = Market.objects.select_for_update().get(id=market_id)
+
+                    if not market.is_active:
+                        return Response(
+                            {"status": "error", "message": f"Market {market_id} not active."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    # Disallow bets on suspended sides
+                    if chosen_outcome == "over" and market.is_suspended_over:
+                        return Response(
+                            {"status": "error", "message": f"Over side suspended for market {market_id}."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    if chosen_outcome == "under" and market.is_suspended_under:
+                        return Response(
+                            {"status": "error", "message": f"Under side suspended for market {market_id}."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                     odds_str = (
                         market.display_odds_over if chosen_outcome == "over"
@@ -874,6 +915,15 @@ class PlaceParlayBetAPIView(APIView):
 
                     # Validate net_exposure against PlatformSettings.max_risk_tolerance
                     if new_net_exposure >= risk_limit:
+                        # mark market suspended and require admin override
+                        market.is_suspended_over = True
+                        market.is_suspended_under = True
+                        market.requires_admin_override = True
+                        market.save(update_fields=["is_suspended_over", "is_suspended_under", "requires_admin_override"])
+                        try:
+                            cache.delete(f"market_grouped_{market.stock.symbol}")
+                        except Exception:
+                            pass
                         return Response(
                             {"status": "error", "message": f"Exposure limit reached for market {market_id}."},
                             status=status.HTTP_400_BAD_REQUEST,

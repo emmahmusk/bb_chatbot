@@ -398,19 +398,62 @@ class RecentBetSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Bet
+
+class SuspendedMarketSerializer(serializers.ModelSerializer):
+    stock_symbol = serializers.CharField(source="stock.symbol", read_only=True)
+    stock_company_name = serializers.CharField(source="stock.company_name", read_only=True)
+    stock_url = serializers.CharField(source="stock.url", read_only=True)
+
+    class Meta:
+        model = Market
         fields = [
             "id",
-            "user_username",
-            "market_symbol",
-            "market_target_price",
-            "market_expiry_date",
-            "chosen_outcome",
-            "amount_wagered",
-            "odds_at_placement",
-            "status",
-            "payout_amount",
-            "created_at",
+            "stock_symbol",
+            "stock_url",
+            "stock_company_name",
+            "target_price",
+            "expiry_date",
+            "outcome_type",
+            "display_odds_over",
+            "display_odds_under",
+            "implied_odds_over",
+            "implied_odds_under",
+            "is_active",
+            "is_suspended_over",
+            "is_suspended_under",
+            "requires_admin_override",
+            "nudge_offset_over",
+            "nudge_offset_under",
         ]
+
+
+class SuspendedMarketUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Market
+        fields = [
+            "is_active",
+            "is_suspended_over",
+            "is_suspended_under",
+            "requires_admin_override",
+        ]
+
+    def validate(self, data):
+        # Ensure boolean-like values are correct types
+        for k in ["is_active", "is_suspended_over", "is_suspended_under", "requires_admin_override"]:
+            if k in data and not isinstance(data[k], bool):
+                # allow values like 'true'/'false' from clients by coercion
+                val = data[k]
+                if isinstance(val, str):
+                    lowered = val.lower()
+                    if lowered in ["true", "1", "yes", "y"]:
+                        data[k] = True
+                    elif lowered in ["false", "0", "no", "n"]:
+                        data[k] = False
+                    else:
+                        raise serializers.ValidationError({k: "Invalid boolean value"})
+                else:
+                    raise serializers.ValidationError({k: "Invalid boolean value"})
+        return data
 
 
 class MarketCreateSerializer(serializers.ModelSerializer):
