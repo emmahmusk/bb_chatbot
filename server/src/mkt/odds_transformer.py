@@ -2,10 +2,11 @@ import logging
 import math
 from datetime import date
 from decimal import Decimal
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 from scipy.stats import norm
 
-from .polygon_data_fetcher import PolygonDataFetcher
+if TYPE_CHECKING:
+    from .polygon_data_fetcher import PolygonDataFetcher
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -223,7 +224,7 @@ class OddsCalculator:
 
     def get_over_under_odds(
         self,
-        polygon_data_fetcher: PolygonDataFetcher,
+        polygon_data_fetcher: "PolygonDataFetcher",
         stock_symbol: str,
         target_price: Decimal,
         expiry_date: date,

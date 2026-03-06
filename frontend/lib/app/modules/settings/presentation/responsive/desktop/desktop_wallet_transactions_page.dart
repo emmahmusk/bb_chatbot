@@ -200,7 +200,8 @@ class _DesktopWalletTransactionsPageState
   void showConvertCoinsDialog() {
     String coinsAmount = '';
     String conversionExplanation = '';
-    String conversionResult = '';
+    String conversionFromAmount = '';
+    String conversionToAmount = '';
     final colors = ref.watch(appThemeProvider).colors;
 
     showDialog(
@@ -220,22 +221,63 @@ class _DesktopWalletTransactionsPageState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Center(
-                      child: Text(
-                        'Convert BullBear Coins',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: colors.alwaysWhite,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Center(
+                              child: Image.asset(
+                                Pngs.bullbearLogo,
+                                width: 18,
+                                height: 18,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Convert BullBear Coins',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: colors.alwaysWhite,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      'Available: ${walletCoinBalance.toStringAsFixed(2)} BBC',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.always8B949E,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Center(
+                            child: Image.asset(
+                              Pngs.bullbearLogo,
+                              width: 10,
+                              height: 10,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Available: ${walletCoinBalance.toStringAsFixed(2)} BBC',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.always8B949E,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     CustomTextField(
@@ -250,7 +292,8 @@ class _DesktopWalletTransactionsPageState
                         if (preview != null) {
                           final previewData = preview['preview'] as Map<String, dynamic>?;
                           setState(() {
-                            conversionResult = '${previewData?['coin_amount'] ?? '0.00'} BBC → ${previewData?['cash'] ?? '0.00'} BB Cash';
+                            conversionFromAmount = previewData?['coin_amount']?.toString() ?? '0.00';
+                            conversionToAmount = previewData?['cash']?.toString() ?? '0.00';
                             conversionExplanation = previewData?['explanation']?.toString() ?? '';
                           });
                         }
@@ -258,13 +301,33 @@ class _DesktopWalletTransactionsPageState
                     ),
                     if (conversionFormula != null) ...[
                       const SizedBox(height: 12),
-                      Text(
-                        'Conversion Model',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.alwaysWhite,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Center(
+                              child: Image.asset(
+                                Pngs.bullbearLogo,
+                                width: 10,
+                                height: 10,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Conversion Model',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colors.alwaysWhite,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -275,18 +338,97 @@ class _DesktopWalletTransactionsPageState
                         ),
                       ),
                     ],
-                    if (conversionResult.isNotEmpty) ...[
+                    if (conversionFromAmount.isNotEmpty && conversionToAmount.isNotEmpty) ...[
                       const SizedBox(height: 10),
-                      Text(
-                        conversionResult,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.alwaysFFD33D,
-                        ),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Center(
+                              child: Image.asset(
+                                Pngs.bullbearLogo,
+                                width: 10,
+                                height: 10,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '$conversionFromAmount BBC',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colors.alwaysFFD33D,
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 12,
+                            color: colors.always8B949E,
+                          ),
+                          Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: colors.always27D07F.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.attach_money_rounded,
+                                size: 12,
+                                color: colors.always27D07F,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '$conversionToAmount BB Cash',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colors.always27D07F,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                     if (conversionExplanation.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: colors.always27D07F.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.calculate_rounded,
+                                size: 11,
+                                color: colors.always27D07F,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Calculation',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: colors.always8B949E,
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         conversionExplanation,
@@ -362,7 +504,8 @@ class _DesktopWalletTransactionsPageState
     String amount = '';
     String description = '';
     String conversionExplanation = '';
-    String conversionResult = '';
+    String conversionFromAmount = '';
+    String conversionToAmount = '';
     final colors = ref.watch(appThemeProvider).colors;
 
     showDialog(
@@ -410,7 +553,8 @@ class _DesktopWalletTransactionsPageState
                         if (preview != null) {
                           final previewData = preview['preview'] as Map<String, dynamic>?;
                           setState(() {
-                            conversionResult = '${previewData?['cash_amount'] ?? '0.00'} BB Cash → ${previewData?['coins'] ?? '0.00'} BBC';
+                            conversionFromAmount = previewData?['cash_amount']?.toString() ?? '0.00';
+                            conversionToAmount = previewData?['coins']?.toString() ?? '0.00';
                             conversionExplanation = previewData?['explanation']?.toString() ?? '';
                           });
                         }
@@ -418,6 +562,35 @@ class _DesktopWalletTransactionsPageState
                     ),
                     if (heading == 'Fund Wallet' || heading == 'Test Coin Reward') ...[
                       const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: colors.always27D07F.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.attach_money_rounded,
+                                size: 11,
+                                color: colors.always27D07F,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Conversion Model',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colors.alwaysWhite,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
                       Text(
                         conversionFormula?['cash_to_coins']?.toString() ?? 'coins = cash * (base_rate + rate_slope * cash)',
                         style: TextStyle(
@@ -425,18 +598,97 @@ class _DesktopWalletTransactionsPageState
                           color: colors.always8B949E,
                         ),
                       ),
-                      if (conversionResult.isNotEmpty) ...[
+                      if (conversionFromAmount.isNotEmpty && conversionToAmount.isNotEmpty) ...[
                         const SizedBox(height: 6),
-                        Text(
-                          conversionResult,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: colors.alwaysFFD33D,
-                          ),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: colors.always27D07F.withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  Icons.attach_money_rounded,
+                                  size: 12,
+                                  color: colors.always27D07F,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '$conversionFromAmount BB Cash',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: colors.always27D07F,
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 12,
+                              color: colors.always8B949E,
+                            ),
+                            Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Center(
+                                child: Image.asset(
+                                  Pngs.bullbearLogo,
+                                  width: 10,
+                                  height: 10,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '$conversionToAmount BBC',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: colors.alwaysFFD33D,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                       if (conversionExplanation.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Center(
+                                child: Image.asset(
+                                  Pngs.bullbearLogo,
+                                  width: 10,
+                                  height: 10,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Calculation',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: colors.always8B949E,
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           conversionExplanation,
@@ -591,22 +843,62 @@ class _DesktopWalletTransactionsPageState
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      '${walletBalance.toStringAsFixed(2)} BB Cash',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w600,
-                        color: colors.alwaysWhite,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: colors.always27D07F.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(17),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              Icons.attach_money_rounded,
+                              size: 20,
+                              color: colors.always27D07F,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '${walletBalance.toStringAsFixed(2)} BB Cash',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w600,
+                            color: colors.alwaysWhite,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${walletCoinBalance.toStringAsFixed(2)} BBC',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: colors.alwaysFFD33D,
-                      ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Center(
+                            child: Image.asset(
+                              Pngs.bullbearLogo,
+                              width: 18,
+                              height: 18,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${walletCoinBalance.toStringAsFixed(2)} BBC',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: colors.alwaysFFD33D,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -841,13 +1133,33 @@ class WalletTransactionsItem extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 40),
-            Text(
-              '$sign$price BB Cash',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: priceColor ?? colors.always27D07F,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: colors.always27D07F.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.attach_money_rounded,
+                      size: 12,
+                      color: colors.always27D07F,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$sign$price BB Cash',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: priceColor ?? colors.always27D07F,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

@@ -452,7 +452,7 @@ class AdminFundUserWalletAPIView(APIView):
         except Exception:
             return Response({"detail": "Invalid amount format."}, status=status.HTTP_400_BAD_REQUEST)
 
-        wallet, _ = Wallet.objects.get_or_create(user=user)
+        wallet, _ = get_or_create_wallet_with_starting_coins(user=user)
         reference = f"TRX-ADMINFUND-{user.id}-{now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
         # Update balance
@@ -1094,8 +1094,6 @@ class UpdatePlatformSettingsView(APIView):
             },
             status=status.HTTP_200_OK,
         )
-    wallet, _ = get_or_create_wallet_with_starting_coins(user=user)
-
     # Optional: keep POST for backward compatibility
     def post(self, request):
         return self.patch(request)

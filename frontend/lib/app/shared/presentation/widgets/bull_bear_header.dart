@@ -83,6 +83,7 @@ bool isUSMarketOpenNow() {
     final colors = ref.watch(appThemeProvider).colors;
     final profile = ref.watch(currentUserProvider);
     final walletBalance = profile?.walletBalance ?? '0.00';
+    final parsedWalletBalance = double.tryParse(walletBalance) ?? 0.0;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 120),
       child: Row(
@@ -240,14 +241,23 @@ bool isUSMarketOpenNow() {
             ),
           ] else ...[
             CustomOutlinedButtonWithIcon(
-              text: '\$$walletBalance',
+              text: '${parsedWalletBalance.toStringAsFixed(2)} BB Cash',
               fontSize: 14,
               color: colors.alwaysWhite,
-              icon: Image.asset(
-                Pngs.wallet,
-                width: 16,
-                height: 16,
-                fit: BoxFit.cover,
+              icon: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: colors.always27D07F.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.attach_money_rounded,
+                    size: 14,
+                    color: colors.always27D07F,
+                  ),
+                ),
               ),
               iconPosition: IconPosition.left,
               onTap: () {},

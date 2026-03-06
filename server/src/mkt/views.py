@@ -21,7 +21,6 @@ from .alpha_vantage_utils import get_current_stock_price
 from .utils import calculate_implied_probability_risk_neutral, fetch_alpha_vantage_options, get_side_and_american_odds
 from .market_display_service import MarketDisplayService
 from .odds_transformer import OddsCalculator
-from .polygon_data_fetcher import PolygonDataFetcher
 from django_q.tasks import async_task
 from .models import OptionData
 # from .tasks import ingest_live_options
@@ -269,6 +268,14 @@ class MarketDataAPIView(APIView):
     """
 
     def get(self, request, *args, **kwargs):
+        if not getattr(settings, "POLYGON_ENABLED", False):
+            return Response(
+                {
+                    "error": "Polygon integration is disabled. Set POLYGON_ENABLED=true to enable this endpoint."
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         # You might get expiry_date and stock_symbols from request.query_params
         # For this example, we'll use hardcoded values as in your example usage.
         # In a real application, you'd validate these parameters.
@@ -284,6 +291,15 @@ class MarketDataAPIView(APIView):
 
         # In a real app, you might fetch these from a database or configuration
         common_stock_symbols = ["AAPL", "NVDA", "TSLA", "MSFT", "GOOG", "AMZN", "GOOGL", "META", "NFLX", "AMD"] # Expanded for example
+
+        try:
+            from .polygon_data_fetcher import PolygonDataFetcher
+        except Exception as import_error:
+            logger.warning(f"Polygon integration unavailable in MarketDataAPIView: {import_error}")
+            return Response(
+                {"error": "Polygon market data integration is unavailable in this environment."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         try:
             # Initialize data fetcher and odds calculator

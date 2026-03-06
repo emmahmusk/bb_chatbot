@@ -191,6 +191,8 @@ POLYGON_API_KEY = environ.get("POLYGON_API_KEY")
 if not POLYGON_API_KEY:
     print("POLYGON_API_KEY environment variable not set.")
 
+POLYGON_ENABLED = environ.get("POLYGON_ENABLED", "false").lower() == "true"
+
 
 # --- AWS Parameter Store (SSM) Configuration for Production Database Credentials ---
 AWS_REGION = "eu-north-1"  # Define AWS_REGION here for consistency for all AWS services
