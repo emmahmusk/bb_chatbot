@@ -638,6 +638,7 @@ Key wagerFieldKey = UniqueKey();
                                   phoneNumber: currentUser.phoneNumber,
                                   physicalAddress: currentUser.physicalAddress,
                                   walletBalance: updatedBalance.toStringAsFixed(2),
+                                  walletCoinBalance: currentUser.walletCoinBalance,
                                 );
 
                                 ref.read(currentUserProvider.notifier).state = updatedUser;
@@ -716,6 +717,7 @@ Key wagerFieldKey = UniqueKey();
                                   phoneNumber: currentUser.phoneNumber,
                                   physicalAddress: currentUser.physicalAddress,
                                   walletBalance: updatedBalance.toStringAsFixed(2),
+                                  walletCoinBalance: currentUser.walletCoinBalance,
                                 );
 
                                 ref.read(currentUserProvider.notifier).state = updatedUser;
