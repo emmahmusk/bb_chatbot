@@ -100,6 +100,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     phone_number = serializers.CharField(source="phone", allow_blank=True, allow_null=True)
     physical_address = serializers.CharField(source="current_address", allow_blank=True, allow_null=True)
     wallet_balance = serializers.SerializerMethodField()
+    wallet_coin_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -118,6 +119,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "crs_risk_level",
             "tax_residency_country",
             "wallet_balance",
+            "wallet_coin_balance",
         ]
 
     def get_full_name(self, obj):
@@ -130,6 +132,12 @@ class ProfileSerializer(serializers.ModelSerializer):
         """
         try:
             return str(obj.user.wallet.balance.quantize(Decimal("0.00")))
+        except Exception:
+            return "0.00"
+
+    def get_wallet_coin_balance(self, obj):
+        try:
+            return str(obj.user.wallet.coin_balance.quantize(Decimal("0.00")))
         except Exception:
             return "0.00"
 class EmailVerificationSerializer(serializers.Serializer):

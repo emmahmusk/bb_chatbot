@@ -25,6 +25,7 @@ from django.contrib.auth import get_user_model
 from datetime import datetime, timedelta, date
 from rest_framework.pagination import PageNumberPagination
 from user.models import PlatformSettings
+from user.wallet_utils import get_or_create_wallet_with_starting_coins
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.utils import timezone
 
@@ -1023,6 +1024,7 @@ class UpdatePlatformSettingsView(APIView):
                 "max_crs": str(settings_obj.max_crs),
                 "minimum_stake": str(settings_obj.minimum_stake),
                 "max_risk_tolerance": str(settings_obj.max_risk_tolerance),
+                "starting_coin_balance": str(settings_obj.starting_coin_balance),
             },
             status=status.HTTP_200_OK,
         )
@@ -1039,6 +1041,7 @@ class UpdatePlatformSettingsView(APIView):
             "max_crs",
             "minimum_stake",
             "max_risk_tolerance",
+            "starting_coin_balance",
         }
 
         updated_fields = []
@@ -1086,10 +1089,12 @@ class UpdatePlatformSettingsView(APIView):
                     "max_crs": str(settings_obj.max_crs),
                     "minimum_stake": str(settings_obj.minimum_stake),
                     "max_risk_tolerance": str(settings_obj.max_risk_tolerance),
+                    "starting_coin_balance": str(settings_obj.starting_coin_balance),
                 },
             },
             status=status.HTTP_200_OK,
         )
+    wallet, _ = get_or_create_wallet_with_starting_coins(user=user)
 
     # Optional: keep POST for backward compatibility
     def post(self, request):

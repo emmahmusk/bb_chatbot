@@ -23,6 +23,14 @@ from .serializers import (
 from django.utils.timezone import make_aware
 from datetime import datetime
 from rest_framework.pagination import PageNumberPagination
+from .wallet_coins import (
+    cash_to_coins,
+    coins_to_cash,
+    get_formula_payload,
+    explain_cash_to_coins,
+    explain_coins_to_cash,
+)
+from .wallet_utils import get_or_create_wallet_with_starting_coins
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +67,7 @@ class SignupAPIView(APIView):
                 postal_code=data.get("postal_code"),
             )
             kyc_profile = KYCProfile.objects.create(user=user)
+            get_or_create_wallet_with_starting_coins(user=user)
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 
@@ -88,7 +97,7 @@ class LoginAPIView(APIView):
 
         # Ensure KYC and Wallet exist
         KYCProfile.objects.get_or_create(user=user)
-        Wallet.objects.get_or_create(user=user)
+        get_or_create_wallet_with_starting_coins(user=user)
 
         # Preload related objects to avoid null wallet balance
         user = (
@@ -310,8 +319,7 @@ class WalletFundView(APIView):
     def post(self, request):
         user = request.user
         amount = request.data.get("amount")
-        description = request.data.get("description", "Wallet funding")
-        reference = request.data.get("reference")
+        description = request.data.get("description", "Wallet funded in BullBear Cash and converted to BullBear Coins")
 
         try:
             amount = Decimal(amount)
@@ -319,22 +327,28 @@ class WalletFundView(APIView):
                 return Response({"detail": "Amount must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception:
             return Response({"detail": "Invalid amount format."}, status=status.HTTP_400_BAD_REQUEST)
-        wallet, _ = Wallet.objects.get_or_create(user=user)
+        wallet, _ = get_or_create_wallet_with_starting_coins(user=user, for_update=True)
+        coin_amount = cash_to_coins(amount)
+        formula_preview = explain_cash_to_coins(amount)
         reference = f"TRX-FUND-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
-        wallet.balance = Decimal(wallet.balance) + amount
-        wallet.save(update_fields=["balance", "updated_at"])
+        wallet.coin_balance = Decimal(wallet.coin_balance) + coin_amount
+        wallet.save(update_fields=["coin_balance", "updated_at"])
         transaction_entry = Transaction.objects.create(
             wallet=wallet,
             amount=amount,
             transaction_type=Transaction.CREDIT,
-            description=description,
+            description=f"{description} (+{coin_amount} BBC)",
             reference=reference,
         )
 
         return Response(
             {
                 "message": "success",
-                "new_balance": wallet.balance,
+                "funded_bullbear_cash": amount,
+                "coins_credited": coin_amount,
+                "wallet_balance": wallet.balance,
+                "wallet_coin_balance": wallet.coin_balance,
+                "conversion": formula_preview,
                 "transaction": {
                     "id": transaction_entry.id,
                     "type": transaction_entry.transaction_type,
@@ -412,6 +426,7 @@ class WalletTransactionHistoryView(APIView):
         # --- 4️⃣ Return paginated response ---
         return paginator.get_paginated_response({
             "wallet_balance": wallet.balance,
+            "wallet_coin_balance": wallet.coin_balance,
             "transactions": transactions_data
         })
 
@@ -497,3 +512,184 @@ class WalletWithdrawView(APIView):
                 "created_at": transaction_entry.created_at,
             }
         }, status=status.HTTP_201_CREATED)
+
+
+class WalletCoinConversionTableView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            {
+                "message": "success",
+                "formula": get_formula_payload(),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class WalletCoinSummaryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        wallet, _ = get_or_create_wallet_with_starting_coins(user=request.user)
+        return Response(
+            {
+                "message": "success",
+                "wallet_balance": wallet.balance,
+                "wallet_coin_balance": wallet.coin_balance,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class WalletCoinRewardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        user = request.user
+        amount = request.data.get("amount")
+        description = request.data.get("description", "Bet reward issued in BullBear Coins")
+
+        try:
+            cash_reward = Decimal(str(amount))
+            if cash_reward <= 0:
+                return Response({"detail": "Amount must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({"detail": "Invalid amount format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        wallet, _ = get_or_create_wallet_with_starting_coins(user=user)
+        coin_reward = cash_to_coins(cash_reward)
+
+        wallet.coin_balance = Decimal(wallet.coin_balance) + coin_reward
+        wallet.save(update_fields=["coin_balance", "updated_at"])
+
+        reference = f"TRX-COIN-RWD-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
+        transaction_entry = Transaction.objects.create(
+            wallet=wallet,
+            amount=cash_reward,
+            transaction_type=Transaction.CREDIT,
+            description=f"{description} (+{coin_reward} BBC)",
+            reference=reference,
+        )
+
+        return Response(
+            {
+                "message": "success",
+                "cash_equivalent": cash_reward,
+                "coins_credited": coin_reward,
+                "wallet_balance": wallet.balance,
+                "wallet_coin_balance": wallet.coin_balance,
+                "transaction": {
+                    "id": transaction_entry.id,
+                    "type": transaction_entry.transaction_type,
+                    "amount": transaction_entry.amount,
+                    "description": transaction_entry.description,
+                    "reference": transaction_entry.reference,
+                    "created_at": transaction_entry.created_at,
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class WalletCoinConvertToCashView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        user = request.user
+        coin_amount = request.data.get("coins_amount")
+        description = request.data.get("description", "Converted BullBear Coins to cash")
+
+        try:
+            coin_amount = Decimal(str(coin_amount))
+            if coin_amount <= 0:
+                return Response({"detail": "coins_amount must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({"detail": "Invalid coins_amount format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        wallet, _ = get_or_create_wallet_with_starting_coins(user=user, for_update=True)
+        if wallet.coin_balance < coin_amount:
+            return Response({"detail": "Insufficient BullBear coin balance."}, status=status.HTTP_400_BAD_REQUEST)
+
+        cash_amount = coins_to_cash(coin_amount)
+        formula_preview = explain_coins_to_cash(coin_amount)
+        wallet.coin_balance = (Decimal(wallet.coin_balance) - coin_amount).quantize(Decimal("0.01"))
+        wallet.balance = (Decimal(wallet.balance) + cash_amount).quantize(Decimal("0.01"))
+        wallet.save(update_fields=["coin_balance", "balance", "updated_at"])
+
+        reference = f"TRX-COIN-CNV-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
+        transaction_entry = Transaction.objects.create(
+            wallet=wallet,
+            amount=cash_amount,
+            transaction_type=Transaction.CREDIT,
+            description=f"{description} ({coin_amount} BBC -> ${cash_amount})",
+            reference=reference,
+        )
+
+        return Response(
+            {
+                "message": "success",
+                "coins_debited": coin_amount,
+                "cash_credited": cash_amount,
+                "wallet_balance": wallet.balance,
+                "wallet_coin_balance": wallet.coin_balance,
+                "conversion": formula_preview,
+                "transaction": {
+                    "id": transaction_entry.id,
+                    "type": transaction_entry.transaction_type,
+                    "amount": transaction_entry.amount,
+                    "description": transaction_entry.description,
+                    "reference": transaction_entry.reference,
+                    "created_at": transaction_entry.created_at,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class WalletCoinRedeemView(WalletCoinConvertToCashView):
+    """Alias endpoint for redeeming coins into BullBear cash."""
+
+
+class WalletCoinConversionPreviewView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        direction = request.data.get("direction")
+        amount = request.data.get("amount")
+
+        try:
+            amount = Decimal(str(amount))
+            if amount <= 0:
+                return Response({"detail": "amount must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({"detail": "Invalid amount format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if direction == "cash_to_coins":
+            return Response(
+                {
+                    "message": "success",
+                    "direction": direction,
+                    "formula": get_formula_payload(),
+                    "preview": explain_cash_to_coins(amount),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        if direction == "coins_to_cash":
+            return Response(
+                {
+                    "message": "success",
+                    "direction": direction,
+                    "formula": get_formula_payload(),
+                    "preview": explain_coins_to_cash(amount),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {"detail": "direction must be either 'cash_to_coins' or 'coins_to_cash'."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )

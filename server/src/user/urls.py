@@ -23,4 +23,10 @@ urlpatterns = [
     path("wallet/fund/", api.WalletFundView.as_view(), name="fund-wallet"),
     path("wallet/history/", api.WalletTransactionHistoryView.as_view(), name="wallet-history"),
     path("wallet/withdraw/", api.WalletWithdrawView.as_view(), name="wallet-withdraw"),
+    path("wallet/coins/summary/", api.WalletCoinSummaryView.as_view(), name="wallet-coins-summary"),
+    path("wallet/coins/conversion-table/", api.WalletCoinConversionTableView.as_view(), name="wallet-coins-conversion-table"),
+    path("wallet/coins/reward/", api.WalletCoinRewardView.as_view(), name="wallet-coins-reward"),
+    path("wallet/coins/convert-to-cash/", api.WalletCoinConvertToCashView.as_view(), name="wallet-coins-convert-to-cash"),
+    path("wallet/coins/redeem/", api.WalletCoinRedeemView.as_view(), name="wallet-coins-redeem"),
+    path("wallet/coins/conversion-preview/", api.WalletCoinConversionPreviewView.as_view(), name="wallet-coins-conversion-preview"),
 ]

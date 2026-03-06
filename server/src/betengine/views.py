@@ -30,6 +30,8 @@ from taggit.models import Tag
 
 from datetime import datetime, timedelta
 from user.models import KYCProfile
+from user.wallet_coins import cash_to_coins
+from user.wallet_utils import get_or_create_wallet_with_starting_coins
 from .models import Bet, Market, ParlayBet, Stock
 from .serializers import (  # Import Polygon's Ticker model for type hinting
     BetResolutionSerializer,
@@ -1060,23 +1062,23 @@ class BetResolutionAPIView(APIView):
                 if bet_won:
                     bet.status = "won"
                     bet.payout_amount = bet.get_potential_payout()
+                    payout_coins = cash_to_coins(bet.payout_amount)
 
-                    # ✅ Credit wallet
+                    # ✅ Credit wallet in BullBear Coins
                     wallet = Wallet.objects.select_for_update().get(user=user)
-                    wallet.balance += bet.payout_amount
-                    # wallet.locked_balance = 0
-                    wallet.save(update_fields=["balance"])
+                    wallet.coin_balance += payout_coins
+                    wallet.save(update_fields=["coin_balance"])
                     reference = f"TRX-BET-CR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
                     # ✅ Log transaction
                     Transaction.objects.create(
                         wallet=wallet,
                         amount=bet.payout_amount,
                         transaction_type=Transaction.CREDIT,
-                        description=f"Payout for winning bet #{bet.id}",
+                        description=f"Payout for winning bet #{bet.id} (+{payout_coins} BBC)",
                         reference=reference,
                     )
 
-                    logger.info(f"✅ Bet {bet.id} WON. Credited {bet.payout_amount} to {user.username}.")
+                    logger.info(f"✅ Bet {bet.id} WON. Credited {payout_coins} BBC to {user.username}.")
 
                 else:
                     bet.status = "lost"
@@ -1092,6 +1094,7 @@ class BetResolutionAPIView(APIView):
                     "message": f"Bet {bet.id} resolved as {bet.status}.",
                     "final_stock_price": str(final_price),
                     "payout_amount": str(bet.payout_amount),
+                    "payout_coins": str(cash_to_coins(bet.payout_amount)) if bet.status == "won" else "0.00",
                     "market_target_price": str(target_price),
                     "stock_symbol": stock.symbol,
                 },
@@ -1217,14 +1220,15 @@ class CreditWinningBetsAPIView(APIView):
 
         for bet in winning_bets.select_related("user"):
             with transaction.atomic():
-                wallet, _ = Wallet.objects.get_or_create(user=bet.user)
+                wallet, _ = get_or_create_wallet_with_starting_coins(user=bet.user)
+                payout_coins = cash_to_coins(bet.payout_amount)
 
                 # Generate a unique transaction reference (UUID4)
                 reference = f"TRX-BET-CR-{bet.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
-                # Update wallet balance
-                wallet.balance += bet.payout_amount
-                wallet.save(update_fields=["balance"])
+                # Update wallet coin balance
+                wallet.coin_balance += payout_coins
+                wallet.save(update_fields=["coin_balance"])
 
                 # Create Transaction log
                 Transaction.objects.create(
@@ -1232,7 +1236,7 @@ class CreditWinningBetsAPIView(APIView):
                     amount=bet.payout_amount,
                     transaction_type=Transaction.CREDIT,
                     reference=reference,
-                    description=f"Payout for Bet #{bet.id} ({bet.market.stock.symbol})"
+                    description=f"Payout for Bet #{bet.id} ({bet.market.stock.symbol}) (+{payout_coins} BBC)"
                 )
 
                 # Mark bet as paid
