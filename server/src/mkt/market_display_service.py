@@ -3,9 +3,11 @@
 from datetime import date
 from decimal import Decimal
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TYPE_CHECKING
 from .odds_transformer import OddsCalculator
-from .polygon_data_fetcher import PolygonDataFetcher
+
+if TYPE_CHECKING:
+    from .polygon_data_fetcher import PolygonDataFetcher
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,7 +19,7 @@ class MarketDisplayService:
     Manages fetching data and calculating odds for multiple market listings
     to be displayed to users, grouped by expiry date.
     """
-    def __init__(self, polygon_data_fetcher: PolygonDataFetcher, odds_calculator: OddsCalculator):
+    def __init__(self, polygon_data_fetcher: "PolygonDataFetcher", odds_calculator: OddsCalculator):
         self.polygon_data_fetcher = polygon_data_fetcher
         self.odds_calculator = odds_calculator
 

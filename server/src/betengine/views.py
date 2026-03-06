@@ -24,7 +24,6 @@ from betengine.utils import (  # If you need to convert back/forth
     populate_market_from_option_data,
     decimal_to_american_odds
 )
-from mkt.polygon_data_fetcher import PolygonDataFetcher
 from mkt.utils import fetch_alpha_vantage_options
 from taggit.models import Tag
 
@@ -1271,6 +1270,23 @@ class ParlayBetResolutionAPIView(APIView):
         serializer = ParlayBetResolutionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         parlay_bet_id = serializer.validated_data["parlay_bet_id"]
+
+        if not getattr(settings, "POLYGON_ENABLED", False):
+            return Response(
+                {
+                    "error": "Polygon integration is disabled. Set POLYGON_ENABLED=true to enable parlay resolution."
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            from mkt.polygon_data_fetcher import PolygonDataFetcher
+        except Exception as import_error:
+            logger.warning(f"Polygon integration unavailable in ParlayBetResolutionAPIView: {import_error}")
+            return Response(
+                {"error": "Polygon integration is unavailable in this environment."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         run_in_mock_mode = settings.POLYGON_MOCK_MODE
 
