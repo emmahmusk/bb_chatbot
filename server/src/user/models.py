@@ -17,6 +17,7 @@ class PlatformSettings(models.Model):
     max_crs = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("30.00"))
     minimum_stake = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("1.00"))
     max_risk_tolerance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("3000.00"), help_text="Maximum allowed exposure per market side globally.")
+    starting_coin_balance = models.DecimalField(max_digits=16, decimal_places=2, default=Decimal("500.00"))
 
     def save(self, *args, **kwargs):
         """
@@ -95,6 +96,7 @@ def user_selfie_upload_path(instance, filename):
 class Wallet(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="wallet")
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    coin_balance = models.DecimalField(max_digits=16, decimal_places=2, default=0.00)
     locked_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     updated_at = models.DateTimeField(auto_now=True)
 
