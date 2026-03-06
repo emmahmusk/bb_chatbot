@@ -77,6 +77,7 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
                   await prefs.setInt('profile_id', d.profile.id);
                   await prefs.setString('access_token', d.access);
                   await prefs.setString('wallet_balance', d.profile.walletBalance);
+                    await prefs.setString('wallet_coin_balance', d.profile.walletCoinBalance);
                   print("Login Token: ${d.access}");
                   await prefs.setString('refresh_token', d.refresh);
 
