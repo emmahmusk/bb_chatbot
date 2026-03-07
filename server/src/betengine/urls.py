@@ -29,7 +29,7 @@ urlpatterns = [
         "single/resolve/", BetResolutionAPIView.as_view(), name="single-resolve"
     ),  # New
     path(
-        "parlay/resolve/", ParlayBetResolutionAPIView.as_view(), name="parlay-resolve"
+        "parlay/resolve/", ParlayBetResolutionAPIView.as_view(), name="parlay-resolve"                             
     ),  # New
     path("parlay/list/", ParlayBetListAPIView.as_view(), name="parlay-list"),  # New
     path("wallets/bulk-cr/", CreditWinningBetsAPIView.as_view(), name="credit-wallets"),
