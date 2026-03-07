@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "/Users/it/Downloads/bullbear/frontend/linux"
+    "cmake.sourceDirectory": "/Users/it/Downloads/bullbear/frontend/linux",
+    "snyk.advanced.autoSelectOrganization": true
 }

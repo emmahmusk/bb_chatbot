@@ -95,6 +95,8 @@ class UserKPIsSerializer(serializers.Serializer):
 #         fields = ["id", "user", "email_verified"]
 
 class ProfileSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True)
     full_name = serializers.SerializerMethodField()
     email = serializers.EmailField(source="user.email", read_only=True)
     phone_number = serializers.CharField(source="phone", allow_blank=True, allow_null=True)
@@ -106,6 +108,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = [
             "id",
+            "user_id",
+            "username",
             "user",
             "email_verified",
             "full_name",
@@ -206,9 +210,14 @@ class KYCProfileSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class UserBetStatsSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    profile_id = serializers.IntegerField()
     username = serializers.CharField()
+    email = serializers.EmailField(required=False, allow_blank=True)
     balance = serializers.DecimalField(max_digits=12, decimal_places=2)
     crs = serializers.IntegerField()
+    crs_level = serializers.CharField(required=False, allow_blank=True)
+    max_wager_allowed = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
     ggr = serializers.DecimalField(max_digits=12, decimal_places=2)
     bet_count = serializers.IntegerField()
     kyc_status = serializers.CharField(allow_null=True)
@@ -223,6 +232,9 @@ class FullProfileSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        data["profile_id"] = instance.id
+        data["user_id"] = instance.user.id
+        data["username"] = instance.user.username
         kyc_profile = getattr(instance.user, "kyc_profile", None)
         data["kyc_profile"] = KYCProfileSerializer(
             kyc_profile, context=self.context
@@ -255,6 +267,7 @@ class CombinedProfileSerializer(serializers.Serializer):
 
 
 class KYCFileReviewSerializer(serializers.ModelSerializer):
+    raw_user_id = serializers.IntegerField(source="user.id", read_only=True)
     user_id = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
     username = serializers.CharField(source="user.username", read_only=True)
@@ -265,6 +278,7 @@ class KYCFileReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = KYCProfile
         fields = [
+            "raw_user_id",
             "user_id",
             "full_name",       # ✅ Now included in fields
             "username",

@@ -179,7 +179,7 @@ class AdminUserListView(APIView):
     def get(self, request):
         # if not hasattr(request.user, "profile") or not request.user.profile.is_admin:
         #     return Response({"error": "You do not have permission to view this resource."}, status=status.HTTP_403_FORBIDDEN)
-        profiles = Profile.objects.select_related("user").all()
+        profiles = Profile.objects.select_related("user").order_by("user__id")
         serialized_profiles = FullProfileSerializer(profiles, many=True, context={"request": request}).data
 
         return Response({
