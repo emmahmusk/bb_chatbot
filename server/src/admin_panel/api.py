@@ -28,6 +28,7 @@ from user.models import PlatformSettings
 from user.wallet_utils import get_or_create_wallet_with_starting_coins
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.utils import timezone
+from admin_panel.permissions import IsAdmin
 
 from . import analytics as utils
 from .utils import (
@@ -237,7 +238,9 @@ class AdminBetFeedView(APIView):
 class AdminKYCViewSet(viewsets.ModelViewSet):
     queryset = KYCProfile.objects.select_related("user", "user__profile")
     serializer_class = KYCFileReviewSerializer
-    permission_classes = [IsAuthenticated]  # change to IsAdminUser if needed
+    permission_classes = [IsAdmin]
+    lookup_field = "user_id"
+    lookup_url_kwarg = "pk"
 
     def get_serializer_class(self):
         if self.action in ["review_kyc"]:
