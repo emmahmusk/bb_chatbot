@@ -34,23 +34,26 @@ class BetHistoryModel {
     final stock = marketDetails != null ? marketDetails['stock'] : null;
     final chosenOutcome = (json['chosen_outcome'] ?? 'N/A').toString().toUpperCase();
 
-    String fallbackOdds = 'N/A';
+    String marketDecimalOdds = 'N/A';
     if (marketDetails != null) {
       final String outcomeLower = chosenOutcome.toLowerCase();
       if (outcomeLower == 'under' && marketDetails['odds_under'] is Map) {
-        fallbackOdds = marketDetails['odds_under']['decimal']?.toString() ?? 'N/A';
+        marketDecimalOdds = marketDetails['odds_under']['decimal']?.toString() ?? 'N/A';
       } else if (marketDetails['odds_over'] is Map) {
-        fallbackOdds = marketDetails['odds_over']['decimal']?.toString() ?? 'N/A';
+        marketDecimalOdds = marketDetails['odds_over']['decimal']?.toString() ?? 'N/A';
       }
     }
+
+    final String placedDecimalOdds =
+        _toDecimalOdds(json['odds_at_placement']?.toString()) ?? marketDecimalOdds;
 
     return BetHistoryModel(
       id: json['id'] ?? 0,
       companyName: stock != null ? stock['company_name'] ?? 'N/A' : 'N/A',
       logoUrl: stock != null ? stock['url'] ?? '' : '',
       symbol: stock != null ? stock['symbol'] ?? 'N/A' : 'N/A',
-        outcome: chosenOutcome,
-        odds: json['odds_at_placement']?.toString() ?? fallbackOdds,
+      outcome: chosenOutcome,
+      odds: placedDecimalOdds,
       strikePrice: marketDetails != null
           ? marketDetails['target_price']?.toString() ?? 'N/A'
           : 'N/A',
@@ -65,5 +68,50 @@ class BetHistoryModel {
       isParlay: json['is_parlay_leg'] ?? false,
       status: json['status'] ?? 'pending',
     );
+  }
+
+  static String? _toDecimalOdds(String? oddsAtPlacement) {
+    if (oddsAtPlacement == null) return null;
+    final raw = oddsAtPlacement.trim();
+    if (raw.isEmpty || raw.toUpperCase() == 'N/A') return null;
+
+    if (raw.contains('/')) {
+      final parts = raw.split('/');
+      if (parts.length == 2) {
+        final numerator = double.tryParse(parts[0].trim());
+        final denominator = double.tryParse(parts[1].trim());
+        if (numerator != null && denominator != null && denominator != 0) {
+          final decimal = 1 + (numerator / denominator);
+          return decimal.toStringAsFixed(2);
+        }
+      }
+    }
+
+    if (raw.endsWith('%')) {
+      final percentValue = double.tryParse(raw.replaceAll('%', '').trim());
+      if (percentValue != null && percentValue > 0) {
+        final probability = percentValue / 100;
+        final decimal = 1 / probability;
+        return decimal.toStringAsFixed(2);
+      }
+      return null;
+    }
+
+    final parsed = double.tryParse(raw);
+    if (parsed == null) return null;
+
+    double decimal;
+
+    if (parsed < 0 || parsed >= 100) {
+      decimal = parsed < 0 ? 1 + (100 / parsed.abs()) : 1 + (parsed / 100);
+    } else if (parsed > 1) {
+      decimal = parsed;
+    } else if (parsed > 0 && parsed < 1) {
+      decimal = 1 / parsed;
+    } else {
+      return null;
+    }
+
+    return decimal.toStringAsFixed(2);
   }
 }
