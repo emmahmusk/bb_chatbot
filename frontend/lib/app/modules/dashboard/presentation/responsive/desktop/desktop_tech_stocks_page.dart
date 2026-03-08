@@ -783,7 +783,7 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
   }
 
 
-String preferredOdds = 'D'; // Default to Decimal
+String preferredOdds = 'P'; // Default to Probability
 
 Future<void> loadPreferredOddsType() async {
   final prefs = await SharedPreferences.getInstance();
@@ -795,7 +795,7 @@ Future<void> loadPreferredOddsType() async {
       print('DEBUG: preferredOdds set to: $preferredOdds');
     });
   } else {
-    print('DEBUG: Odds type not found or invalid, using default D. Saved value: $saved');
+    print('DEBUG: Odds type not found or invalid, using default P. Saved value: $saved');
   }
 }
 
