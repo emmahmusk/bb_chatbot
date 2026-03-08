@@ -15,7 +15,6 @@ import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 class BullBearHeader extends ConsumerStatefulWidget {
   const BullBearHeader({super.key, required this.shell});
   final StatefulNavigationShell shell;
@@ -82,8 +81,8 @@ bool isUSMarketOpenNow() {
 
     final colors = ref.watch(appThemeProvider).colors;
     final profile = ref.watch(currentUserProvider);
-    final walletBalance = profile?.walletBalance ?? '0.00';
-    final parsedWalletBalance = double.tryParse(walletBalance) ?? 0.0;
+    final walletCoinBalance = profile?.walletCoinBalance ?? '0.00';
+    final parsedWalletCoinBalance = double.tryParse(walletCoinBalance) ?? 0.0;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 120),
       child: Row(
@@ -241,21 +240,22 @@ bool isUSMarketOpenNow() {
             ),
           ] else ...[
             CustomOutlinedButtonWithIcon(
-              text: '${parsedWalletBalance.toStringAsFixed(2)} BB Cash',
+              text: '${parsedWalletCoinBalance.toStringAsFixed(2)} BBC',
               fontSize: 14,
               color: colors.alwaysWhite,
               icon: Container(
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: colors.always27D07F.withValues(alpha: 0.16),
+                  color: colors.alwaysFFD33D.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
-                  child: Icon(
-                    Icons.attach_money_rounded,
-                    size: 14,
-                    color: colors.always27D07F,
+                  child: Image.asset(
+                    Pngs.bullbearLogo,
+                    width: 12,
+                    height: 12,
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),

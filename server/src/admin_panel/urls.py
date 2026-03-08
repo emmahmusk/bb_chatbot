@@ -6,7 +6,7 @@ from admin_panel.views.kyc import (
     ManualKYCTriggerView
 )
 from admin_panel.views.vig import BulkOverrideVigByIdsView, OverrideVigView
-from admin_panel.views.market import MarketOddsResetView, MarketOddsNudgeView, StockListView, StockToggleUpdateView, StockRefreshView, GroupedMarketView, MarketStatusUpdateAPIView, SuspendedMarketsView, SuspendedMarketDetailView
+from admin_panel.views.market import MarketOddsResetView, MarketOddsNudgeView, StockListView, StockToggleUpdateView, StockRefreshView, GroupedMarketView, MarketStatusUpdateAPIView, SuspendedMarketsView, SuspendedMarketDetailView, StockSettlementDetailView
 from admin_panel.views.users import AlphaVantageVolumeView, BetVolumeAdminView, AdminBetSettlementView
 from admin_panel.api import AdminMarketOverrideAPIView, UpdateUserCRSView, UpdatePlatformSettingsView, AnalyticsDashboardAPIView, AnalyticsUserDashboardAPIView, AdminAnalyticsAPIView, DeleteExpiringMarketsView, KYCFileReviewListAPIView, TotalGGRAPIView, AdminSettleBetView, AdminUserListView, SignupAPIView, LoginAPIView, AdminBetFeedView, AdminKYCViewSet, AdminUserListAPIView, AnalyticsDashboardAPIViewNew
 
@@ -47,6 +47,7 @@ urlpatterns = [
     path("kyc/crs-audit/<int:user_id>/", CRSRiskAuditLogView.as_view(), name="crs-audit-log"),
     path("bet-settlements/", AdminBetSettlementView.as_view(), name="admin-bet-settlements"),
     path("stocks/", StockListView.as_view(), name="stock-list"),
+    path("stocks/settlements/", StockSettlementDetailView.as_view(), name="stock-settlement-detail"),
     path("stock/<int:pk>/toggle/", StockToggleUpdateView.as_view(), name="stock-toggle-update"),
     path("stock/refresh/", StockRefreshView.as_view(), name="stock-ticker-refresh"),
     path("markets/", GroupedMarketView.as_view(), name="grouped-market-view"),
