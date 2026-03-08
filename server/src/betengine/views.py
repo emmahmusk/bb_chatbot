@@ -81,6 +81,94 @@ def _max_wager_allowed_by_risk_limit(market, chosen_outcome: str, odds_decimal: 
     except Exception:
         return Decimal("0.00")
 
+
+def _get_exposure_snapshot(market):
+    over = Decimal(str(market.exposure_over or 0))
+    under = Decimal(str(market.exposure_under or 0))
+    diff = over - under
+    net = abs(diff)
+    dominant_side = "over" if diff > 0 else "under" if diff < 0 else None
+    return over, under, diff, net, dominant_side
+
+
+def _sync_market_side_locks(market, risk_limit):
+    """
+    Side-specific lock behavior:
+    - if net_exposure > limit: lock only dominant side, keep opposite side open for hedging.
+    - if net_exposure <= limit: unlock both sides.
+    """
+    try:
+        limit = Decimal(str(risk_limit or 0))
+    except Exception:
+        limit = Decimal("0")
+
+    _, _, _, net, dominant_side = _get_exposure_snapshot(market)
+
+    desired_over = False
+    desired_under = False
+    desired_override = False
+
+    if limit > 0 and net > limit:
+        desired_override = True
+        if dominant_side == "over":
+            desired_over = True
+        elif dominant_side == "under":
+            desired_under = True
+
+    update_fields = []
+    if market.is_suspended_over != desired_over:
+        market.is_suspended_over = desired_over
+        update_fields.append("is_suspended_over")
+    if market.is_suspended_under != desired_under:
+        market.is_suspended_under = desired_under
+        update_fields.append("is_suspended_under")
+    if market.requires_admin_override != desired_override:
+        market.requires_admin_override = desired_override
+        update_fields.append("requires_admin_override")
+
+    if update_fields:
+        market.save(update_fields=update_fields)
+        try:
+            cache.delete(f"market_grouped_{market.stock.symbol}")
+        except Exception:
+            pass
+
+
+def _max_wager_allowed_for_current_exposure(market, chosen_outcome: str, odds_decimal: Decimal, risk_limit) -> Decimal:
+    """
+    When net is already over limit, only opposite-side bets that reduce net exposure are allowed.
+    Otherwise, use normal limit-preserving cap.
+    """
+    per_unit_liability = Decimal(str(odds_decimal)) - Decimal("1")
+    if per_unit_liability <= 0:
+        return Decimal("0.00")
+
+    try:
+        limit = Decimal(str(risk_limit or 0))
+    except Exception:
+        limit = Decimal("0")
+
+    _, _, _, current_net, dominant_side = _get_exposure_snapshot(market)
+
+    if limit > 0 and current_net > limit:
+        if dominant_side == chosen_outcome:
+            return Decimal("0.00")
+
+        # For opposite-side hedging, require liability to stay below 2*current_net
+        # so net exposure strictly decreases (prevents over-hedging to the other extreme).
+        max_liability_for_reduction = (current_net * Decimal("2")) - Decimal("0.00000001")
+        max_wager = max_liability_for_reduction / per_unit_liability
+        if max_wager <= 0:
+            return Decimal("0.00")
+        return max_wager.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+
+    return _max_wager_allowed_by_risk_limit(
+        market=market,
+        chosen_outcome=chosen_outcome,
+        odds_decimal=odds_decimal,
+        risk_limit=risk_limit,
+    )
+
 class PopulateMarketsView(APIView):
     def post(self, request):
         symbol = request.data.get("symbol", "AAPL")
@@ -698,15 +786,26 @@ class PlaceSingleBetAPIView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
+                settings_obj = PlatformSettings.get_instance()
+                risk_limit = settings_obj.max_risk_tolerance
+
+                _sync_market_side_locks(market, risk_limit)
+
                 # Disallow bets on a suspended side
                 if chosen_outcome == "over" and market.is_suspended_over:
                     return Response(
-                        {"status": "error", "message": "Over side for this market is suspended."},
+                        {
+                            "status": "error",
+                            "message": "This side is temporarily unavailable.",
+                        },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 if chosen_outcome == "under" and market.is_suspended_under:
                     return Response(
-                        {"status": "error", "message": "Under side for this market is suspended."},
+                        {
+                            "status": "error",
+                            "message": "This side is temporarily unavailable.",
+                        },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
@@ -745,13 +844,10 @@ class PlaceSingleBetAPIView(APIView):
                 # net_exposure = abs(exposure_over - exposure_under) represents unmatched (unhedged) positions.
                 # Users can hedge by betting the opposite side, which reduces net_exposure and may unlock markets.
                 # This is compared against PlatformSettings.max_risk_tolerance to ensure platform risk limits aren't exceeded.
-                settings_obj = PlatformSettings.get_instance()
-                risk_limit = settings_obj.max_risk_tolerance
-
                 potential_payout = amount_wagered * odds_decimal
                 liability = potential_payout - amount_wagered
 
-                max_allowed_by_risk = _max_wager_allowed_by_risk_limit(
+                max_allowed_by_risk = _max_wager_allowed_for_current_exposure(
                     market=market,
                     chosen_outcome=chosen_outcome,
                     odds_decimal=odds_decimal,
@@ -763,10 +859,7 @@ class PlaceSingleBetAPIView(APIView):
                     return Response(
                         {
                             "status": "error",
-                            "message": (
-                                f"Bet limit reached for this side. You can wager up to {effective_max_allowed} "
-                                f"on {chosen_outcome.upper()} for market {market.id} under current risk settings."
-                            ),
+                            "message": f"Bet amount exceeds allowed limit. Maximum allowed is {effective_max_allowed}.",
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
@@ -812,6 +905,7 @@ class PlaceSingleBetAPIView(APIView):
                     market.exposure_under += liability
 
                 market.save(update_fields=["exposure_over", "exposure_under"])
+                _sync_market_side_locks(market, risk_limit)
 
             serializer = BetSerializer(bet)
             return Response(
@@ -912,15 +1006,23 @@ class PlaceParlayBetAPIView(APIView):
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
+                    _sync_market_side_locks(market, risk_limit)
+
                     # Disallow bets on suspended sides
                     if chosen_outcome == "over" and market.is_suspended_over:
                         return Response(
-                            {"status": "error", "message": f"Over side suspended for market {market_id}."},
+                            {
+                                "status": "error",
+                                "message": "This side is temporarily unavailable.",
+                            },
                             status=status.HTTP_400_BAD_REQUEST,
                         )
                     if chosen_outcome == "under" and market.is_suspended_under:
                         return Response(
-                            {"status": "error", "message": f"Under side suspended for market {market_id}."},
+                            {
+                                "status": "error",
+                                "message": "This side is temporarily unavailable.",
+                            },
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
@@ -952,7 +1054,7 @@ class PlaceParlayBetAPIView(APIView):
                         new_net_exposure = abs(market.exposure_over - new_exposure_under)
 
                     # Validate net_exposure against PlatformSettings.max_risk_tolerance
-                    max_allowed_by_risk = _max_wager_allowed_by_risk_limit(
+                    max_allowed_by_risk = _max_wager_allowed_for_current_exposure(
                         market=market,
                         chosen_outcome=chosen_outcome,
                         odds_decimal=odds_decimal,
@@ -962,10 +1064,7 @@ class PlaceParlayBetAPIView(APIView):
                         return Response(
                             {
                                 "status": "error",
-                                "message": (
-                                    f"Bet limit reached for market {market_id} ({chosen_outcome.upper()}). "
-                                    f"You can wager up to {max_allowed_by_risk} under current risk settings."
-                                ),
+                                "message": f"Bet amount exceeds allowed limit. Maximum allowed is {max_allowed_by_risk}.",
                             },
                             status=status.HTTP_400_BAD_REQUEST,
                         )
@@ -1014,6 +1113,7 @@ class PlaceParlayBetAPIView(APIView):
                         market.exposure_under += liability
 
                     market.save(update_fields=["exposure_over", "exposure_under"])
+                    _sync_market_side_locks(market, risk_limit)
 
                 parlay_bet.combined_odds = decimal_to_american_odds(combined_decimal_odds)
                 parlay_bet.save()
