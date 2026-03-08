@@ -32,16 +32,25 @@ class BetHistoryModel {
   factory BetHistoryModel.fromJson(Map<String, dynamic> json) {
     final marketDetails = json['market_details'];
     final stock = marketDetails != null ? marketDetails['stock'] : null;
+    final chosenOutcome = (json['chosen_outcome'] ?? 'N/A').toString().toUpperCase();
+
+    String fallbackOdds = 'N/A';
+    if (marketDetails != null) {
+      final String outcomeLower = chosenOutcome.toLowerCase();
+      if (outcomeLower == 'under' && marketDetails['odds_under'] is Map) {
+        fallbackOdds = marketDetails['odds_under']['decimal']?.toString() ?? 'N/A';
+      } else if (marketDetails['odds_over'] is Map) {
+        fallbackOdds = marketDetails['odds_over']['decimal']?.toString() ?? 'N/A';
+      }
+    }
 
     return BetHistoryModel(
       id: json['id'] ?? 0,
       companyName: stock != null ? stock['company_name'] ?? 'N/A' : 'N/A',
       logoUrl: stock != null ? stock['url'] ?? '' : '',
       symbol: stock != null ? stock['symbol'] ?? 'N/A' : 'N/A',
-      outcome: (json['chosen_outcome'] ?? 'N/A').toString().toUpperCase(),
-      odds: marketDetails != null && marketDetails['odds_over'] != null
-          ? marketDetails['odds_over']['decimal']?.toString() ?? 'N/A'
-          : 'N/A',
+        outcome: chosenOutcome,
+        odds: json['odds_at_placement']?.toString() ?? fallbackOdds,
       strikePrice: marketDetails != null
           ? marketDetails['target_price']?.toString() ?? 'N/A'
           : 'N/A',
