@@ -483,7 +483,7 @@ Key wagerFieldKey = UniqueKey();
                     borderColor: colors.always30363D,
                     hasPrefixSpace: true,
                     prefix: Text(
-                      '\$',
+                      'BBC ',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
@@ -505,7 +505,7 @@ Key wagerFieldKey = UniqueKey();
                       }
       
                       if (numericValue > 500) {
-                        return 'Wager cannot exceed \$500';
+                        return 'Wager cannot exceed 500 BBC';
                       }
       
                       return null; // Valid input
@@ -544,7 +544,7 @@ Key wagerFieldKey = UniqueKey();
                       // ),
                       const Spacer(),
                       Text(
-                        wagerAmount!=0? '\$${payout.toStringAsFixed(2)}':"\$0.00",
+                        wagerAmount!=0? '${payout.toStringAsFixed(2)} BBC':"0.00 BBC",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -625,8 +625,8 @@ Key wagerFieldKey = UniqueKey();
                                 final currentUser = ref.read(currentUserProvider);
 
                                if (currentUser != null) {
-                                final currentBalance = double.tryParse(currentUser.walletBalance) ?? 0.0;
-                                final updatedBalance = (currentBalance - wagerAmount).clamp(0.0, double.infinity);
+                                final currentCoinBalance = double.tryParse(currentUser.walletCoinBalance) ?? 0.0;
+                                final updatedCoinBalance = (currentCoinBalance - wagerAmount).clamp(0.0, double.infinity);
 
                                 final updatedUser = Profile(
                                   id: currentUser.id,
@@ -637,15 +637,15 @@ Key wagerFieldKey = UniqueKey();
                                   dateOfBirth: currentUser.dateOfBirth,
                                   phoneNumber: currentUser.phoneNumber,
                                   physicalAddress: currentUser.physicalAddress,
-                                  walletBalance: updatedBalance.toStringAsFixed(2),
-                                  walletCoinBalance: currentUser.walletCoinBalance,
+                                  walletBalance: currentUser.walletBalance,
+                                  walletCoinBalance: updatedCoinBalance.toStringAsFixed(2),
                                 );
 
                                 ref.read(currentUserProvider.notifier).state = updatedUser;
 
                                 // Optionally update shared prefs if used elsewhere
                                 final prefs = await SharedPreferences.getInstance();
-                                await prefs.setString('wallet_balance', updatedBalance.toStringAsFixed(2));
+                                await prefs.setString('wallet_coin_balance', updatedCoinBalance.toStringAsFixed(2));
                               }
                               showTopRightAlert(context, "Single bet placed!", false);
                                 context.go('/dashboard/trending');        
@@ -658,8 +658,8 @@ Key wagerFieldKey = UniqueKey();
                                   ticker: selectedStocks.first.companySymbol,
                                   expDate: selectedStocks.first.expiryDate,
                                   odds: getCumulativeOdds(selectedStocks).toStringAsFixed(2),
-                                  wagerAmount: '\$${wagerAmount.toString()}',
-                                  payout: '\$${payout.toStringAsFixed(2)}',
+                                  wagerAmount: '${wagerAmount.toString()} BBC',
+                                  payout: '${payout.toStringAsFixed(2)} BBC',
                                   logoUrl: selectedStocks.first.logoUrl,
                                   symbol: selectedStocks.first.companySymbol,
                                 ),
@@ -704,8 +704,8 @@ Key wagerFieldKey = UniqueKey();
                               // ✅ Step 1: Subtract wager from wallet
                               final currentUser = ref.read(currentUserProvider);
                               if (currentUser != null) {
-                                final currentBalance = double.tryParse(currentUser.walletBalance) ?? 0.0;
-                                final updatedBalance = (currentBalance - wagerAmount).clamp(0.0, double.infinity);
+                                final currentCoinBalance = double.tryParse(currentUser.walletCoinBalance) ?? 0.0;
+                                final updatedCoinBalance = (currentCoinBalance - wagerAmount).clamp(0.0, double.infinity);
 
                                 final updatedUser = Profile(
                                   id: currentUser.id,
@@ -716,15 +716,15 @@ Key wagerFieldKey = UniqueKey();
                                   dateOfBirth: currentUser.dateOfBirth,
                                   phoneNumber: currentUser.phoneNumber,
                                   physicalAddress: currentUser.physicalAddress,
-                                  walletBalance: updatedBalance.toStringAsFixed(2),
-                                  walletCoinBalance: currentUser.walletCoinBalance,
+                                  walletBalance: currentUser.walletBalance,
+                                  walletCoinBalance: updatedCoinBalance.toStringAsFixed(2),
                                 );
 
                                 ref.read(currentUserProvider.notifier).state = updatedUser;
 
                                 // Optional: update shared preferences too
                                 final prefs = await SharedPreferences.getInstance();
-                                await prefs.setString('wallet_balance', updatedBalance.toStringAsFixed(2));
+                                await prefs.setString('wallet_coin_balance', updatedCoinBalance.toStringAsFixed(2));
                               }
                               showTopRightAlert(context, "Parlay bet placed!", false);
                               // Create a list of ParlayBetItem(s)
@@ -741,9 +741,9 @@ Key wagerFieldKey = UniqueKey();
                                   barrierDismissible: true,
                                   builder: (context) => ParlaySuccessDialog(
                                     bets: parlayItems,
-                                    wagerAmount: "\$${wagerAmount.toStringAsFixed(0)}",
+                                    wagerAmount: "${wagerAmount.toStringAsFixed(0)} BBC",
                                     odds: getCumulativeOdds(selectedStocks).toStringAsFixed(2),
-                                    potentialPayout: "\$${ payout.toStringAsFixed(2)}",
+                                    potentialPayout: "${ payout.toStringAsFixed(2)} BBC",
                                   ),
                                 );
                                 Future.delayed(Duration(milliseconds: 50), () {

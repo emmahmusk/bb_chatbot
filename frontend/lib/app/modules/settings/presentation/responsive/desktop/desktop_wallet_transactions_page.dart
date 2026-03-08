@@ -377,19 +377,19 @@ class _DesktopWalletTransactionsPageState
                             width: 18,
                             height: 18,
                             decoration: BoxDecoration(
-                              color: colors.always27D07F.withValues(alpha: 0.16),
+                              color: colors.alwaysFFD33D.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(9),
                             ),
                             child: Center(
-                              child: Icon(
-                                Icons.attach_money_rounded,
-                                size: 12,
-                                color: colors.always27D07F,
+                              child: Image.asset(
+                                Pngs.bullbearLogo,
+                                width: 10,
+                                height: 10,
                               ),
                             ),
                           ),
                           Text(
-                            '$conversionToAmount BB Cash',
+                            '$conversionToAmount BBC',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -539,7 +539,7 @@ class _DesktopWalletTransactionsPageState
                     /// Amount field
                     CustomTextField(
                       headerText: 'Amount',
-                      hint: heading == 'Fund Wallet' ? 'Enter BullBear Cash amount' : 'Enter amount',
+                      hint: heading == 'Fund Wallet' ? 'Enter amount to transfer into BBC' : 'Enter amount',
                       onChanged: (val) async {
                         setState(() => amount = val);
                         final isWithdraw = heading == 'Withdraw Wallet' || heading == 'Withdraw';
@@ -621,7 +621,7 @@ class _DesktopWalletTransactionsPageState
                               ),
                             ),
                             Text(
-                              '$conversionFromAmount BB Cash',
+                              '$conversionFromAmount (source amount)',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -741,7 +741,57 @@ class _DesktopWalletTransactionsPageState
                           );
 
                           if (res.statusCode == 200 || res.statusCode == 201) {
-                            await fetchWalletHistory(); // Refresh wallet data, stays on current page
+                            Map<String, dynamic>? responseBody;
+                            try {
+                              responseBody = jsonDecode(res.body) as Map<String, dynamic>;
+                            } catch (_) {
+                              responseBody = null;
+                            }
+
+                            await fetchWalletHistory();
+
+                            if (!isWithdraw && !isCoinReward) {
+                              final fundedCashRaw = responseBody?['funded_bullbear_cash'] ?? amount;
+                              final coinsCreditedRaw = responseBody?['coins_credited'] ?? conversionToAmount;
+
+                              final fundedCash = (fundedCashRaw is num)
+                                  ? fundedCashRaw.toDouble()
+                                  : double.tryParse(fundedCashRaw?.toString() ?? '') ?? 0.0;
+                              final coinsCredited = (coinsCreditedRaw is num)
+                                  ? coinsCreditedRaw.toDouble()
+                                  : double.tryParse(coinsCreditedRaw?.toString() ?? '') ?? 0.0;
+
+                              final adjustedCash = (walletBalance - fundedCash).clamp(0.0, double.infinity);
+                              final adjustedCoins = walletCoinBalance + coinsCredited;
+
+                              if (mounted) {
+                                this.setState(() {
+                                  walletBalance = adjustedCash;
+                                  walletCoinBalance = adjustedCoins;
+                                });
+                              }
+
+                              final currentUser = ref.read(currentUserProvider);
+                              if (currentUser != null) {
+                                final updatedUser = Profile(
+                                  id: currentUser.id,
+                                  user: currentUser.user,
+                                  emailVerified: currentUser.emailVerified,
+                                  fullName: currentUser.fullName,
+                                  email: currentUser.email,
+                                  dateOfBirth: currentUser.dateOfBirth,
+                                  phoneNumber: currentUser.phoneNumber,
+                                  physicalAddress: currentUser.physicalAddress,
+                                  walletBalance: adjustedCash.toStringAsFixed(2),
+                                  walletCoinBalance: adjustedCoins.toStringAsFixed(2),
+                                );
+                                ref.read(currentUserProvider.notifier).state = updatedUser;
+                              }
+
+                              await prefs.setString('wallet_balance', adjustedCash.toStringAsFixed(2));
+                              await prefs.setString('wallet_coin_balance', adjustedCoins.toStringAsFixed(2));
+                            }
+
                             Navigator.pop(context);
                           } else {
                             // Only show error for withdraw API
@@ -835,7 +885,7 @@ class _DesktopWalletTransactionsPageState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'BullBear Cash balance',
+                      'BullBear Coin balance',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
@@ -862,7 +912,7 @@ class _DesktopWalletTransactionsPageState
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          '${walletBalance.toStringAsFixed(2)} BB Cash',
+                          '${walletCoinBalance.toStringAsFixed(2)} BBC',
                           style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.w600,
@@ -914,7 +964,7 @@ class _DesktopWalletTransactionsPageState
                 const Spacer(),
                 CustomOutlinedButtonWithIcon(
                   icon: Image.asset(Pngs.plus, width: 16, height: 16),
-                  text: 'Fund BB Cash → Coins',
+                  text: 'Transfer to BB Coins',
                   color: colors.alwaysWhite,
                   onTap: () => showWalletActionDialog("Fund Wallet"),
                 ),
@@ -1152,7 +1202,7 @@ class WalletTransactionsItem extends ConsumerWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '$sign$price BB Cash',
+                  '$sign$price BBC',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
