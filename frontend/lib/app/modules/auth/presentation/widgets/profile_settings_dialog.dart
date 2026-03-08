@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 }
 
 class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
+  String walletBalance = '0.00';
   String walletCoinBalance = '0.00';
 
   @override
@@ -27,9 +28,11 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
 
   Future<void> loadWalletBalance() async {
     final prefs = await SharedPreferences.getInstance();
+    final cashBalance = prefs.getString('wallet_balance') ?? '0.00';
     final coinBalance = prefs.getString('wallet_coin_balance') ?? '0.00';
 
     setState(() {
+      walletBalance = cashBalance;
       walletCoinBalance = coinBalance;
     });
   }
@@ -37,10 +40,10 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
+    final parsedWalletBalance = double.tryParse(walletBalance) ?? 0.0;
     final parsedWalletCoinBalance = double.tryParse(walletCoinBalance) ?? 0.0;
 
     return Container(
-      height: 274,
       width: 350,
       decoration: BoxDecoration(
         color: colors.always1F242C,
@@ -59,7 +62,7 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Coin Balance',
+                      'Wallet Balances',
                       style: TextStyle(
                         fontWeight: FontWeight.w400,
                         fontSize: 14,
@@ -67,6 +70,35 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
                       ),
                     ),
                     const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: colors.always27D07F.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              Icons.attach_money_rounded,
+                              size: 18,
+                              color: colors.always27D07F,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${parsedWalletBalance.toStringAsFixed(2)} BB Cash',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: colors.alwaysWhite,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Container(
@@ -89,9 +121,9 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
                         Text(
                           '${parsedWalletCoinBalance.toStringAsFixed(2)} BBC',
                           style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: colors.alwaysWhite,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: colors.alwaysFFD33D,
                           ),
                         ),
                       ],

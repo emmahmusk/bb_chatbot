@@ -279,6 +279,34 @@ class _DesktopWalletTransactionsPageState
                         ),
                       ],
                     ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: colors.always27D07F.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              Icons.attach_money_rounded,
+                              size: 12,
+                              color: colors.always27D07F,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Available: ${walletBalance.toStringAsFixed(2)} BB Cash',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.always8B949E,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
                     CustomTextField(
                       headerText: 'Coins Amount',
@@ -307,14 +335,14 @@ class _DesktopWalletTransactionsPageState
                             width: 18,
                             height: 18,
                             decoration: BoxDecoration(
-                              color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                              color: colors.always27D07F.withValues(alpha: 0.16),
                               borderRadius: BorderRadius.circular(9),
                             ),
                             child: Center(
-                              child: Image.asset(
-                                Pngs.bullbearLogo,
-                                width: 10,
-                                height: 10,
+                              child: Icon(
+                                Icons.attach_money_rounded,
+                                size: 12,
+                                color: colors.always27D07F,
                               ),
                             ),
                           ),
@@ -389,7 +417,7 @@ class _DesktopWalletTransactionsPageState
                             ),
                           ),
                           Text(
-                            '$conversionToAmount BBC',
+                            '$conversionToAmount BB Cash',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -539,7 +567,7 @@ class _DesktopWalletTransactionsPageState
                     /// Amount field
                     CustomTextField(
                       headerText: 'Amount',
-                      hint: heading == 'Fund Wallet' ? 'Enter amount to transfer into BBC' : 'Enter amount',
+                      hint: heading == 'Fund Wallet' ? 'Enter BB Cash amount' : 'Enter amount',
                       onChanged: (val) async {
                         setState(() => amount = val);
                         final isWithdraw = heading == 'Withdraw Wallet' || heading == 'Withdraw';
@@ -621,7 +649,7 @@ class _DesktopWalletTransactionsPageState
                               ),
                             ),
                             Text(
-                              '$conversionFromAmount (source amount)',
+                              '$conversionFromAmount BB Cash',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -752,17 +780,13 @@ class _DesktopWalletTransactionsPageState
 
                             if (!isWithdraw && !isCoinReward) {
                               final fundedCashRaw = responseBody?['funded_bullbear_cash'] ?? amount;
-                              final coinsCreditedRaw = responseBody?['coins_credited'] ?? conversionToAmount;
 
                               final fundedCash = (fundedCashRaw is num)
                                   ? fundedCashRaw.toDouble()
                                   : double.tryParse(fundedCashRaw?.toString() ?? '') ?? 0.0;
-                              final coinsCredited = (coinsCreditedRaw is num)
-                                  ? coinsCreditedRaw.toDouble()
-                                  : double.tryParse(coinsCreditedRaw?.toString() ?? '') ?? 0.0;
 
                               final adjustedCash = (walletBalance - fundedCash).clamp(0.0, double.infinity);
-                              final adjustedCoins = walletCoinBalance + coinsCredited;
+                              final adjustedCoins = walletCoinBalance;
 
                               if (mounted) {
                                 this.setState(() {
@@ -849,6 +873,38 @@ class _DesktopWalletTransactionsPageState
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
 
+    Widget buildWalletActionButton({
+      required Widget icon,
+      required String text,
+      required VoidCallback onTap,
+    }) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 220),
+        child: CustomOutlinedButtonWithIcon(
+          icon: icon,
+          text: text,
+          color: colors.alwaysWhite,
+          onTap: onTap,
+        ),
+      );
+    }
+
+    Widget buildWalletActionIcon(String assetPath) {
+      return SizedBox(
+        width: 16,
+        height: 16,
+        child: ColorFiltered(
+          colorFilter: ColorFilter.mode(colors.alwaysWhite, BlendMode.srcIn),
+          child: Image.asset(
+            assetPath,
+            width: 16,
+            height: 16,
+            fit: BoxFit.contain,
+          ),
+        ),
+      );
+    }
+
     if (isLoading) {
       return const Center(
         child: SizedBox(
@@ -878,117 +934,111 @@ class _DesktopWalletTransactionsPageState
             ),
             const SizedBox(height: 32),
 
-            // Balance + buttons
-            Row(
+            // Balances + actions
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Text(
+                  'Wallet Balances',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: colors.always8B949E,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
                   children: [
-                    Text(
-                      'BullBear Coin balance',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: colors.always8B949E,
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: colors.always27D07F.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.attach_money_rounded,
+                          size: 20,
+                          color: colors.always27D07F,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: colors.always27D07F.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(17),
-                          ),
-                          child: Center(
-                            child: Icon(
-                              Icons.attach_money_rounded,
-                              size: 20,
-                              color: colors.always27D07F,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          '${walletCoinBalance.toStringAsFixed(2)} BBC',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w600,
-                            color: colors.alwaysWhite,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: colors.alwaysFFD33D.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Center(
-                            child: Image.asset(
-                              Pngs.bullbearLogo,
-                              width: 18,
-                              height: 18,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${walletCoinBalance.toStringAsFixed(2)} BBC',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: colors.alwaysFFD33D,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                    const SizedBox(width: 10),
                     Text(
-                      'New users start with ${startingCoinBalance.toStringAsFixed(2)} BBC (set by admin)',
+                      '${walletBalance.toStringAsFixed(2)} BB Cash',
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w400,
-                        color: colors.always8B949E,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        color: colors.alwaysWhite,
                       ),
                     ),
                   ],
                 ),
-                const Spacer(),
-                CustomOutlinedButtonWithIcon(
-                  icon: Image.asset(Pngs.plus, width: 16, height: 16),
-                  text: 'Transfer to BB Coins',
-                  color: colors.alwaysWhite,
-                  onTap: () => showWalletActionDialog("Fund Wallet"),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Center(
+                        child: Image.asset(
+                          Pngs.bullbearLogo,
+                          width: 18,
+                          height: 18,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${walletCoinBalance.toStringAsFixed(2)} BBC',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        color: colors.alwaysFFD33D,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                CustomOutlinedButtonWithIcon(
-                  icon:
-                      Image.asset(Pngs.arrowUpRight, width: 16, height: 16),
-                  text: 'Withdraw',
-                  color: colors.alwaysWhite,
-                  onTap: () => showWalletActionDialog("Withdraw"),
+                const SizedBox(height: 4),
+                Text(
+                  'New users start with ${startingCoinBalance.toStringAsFixed(2)} BBC (set by admin)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w400,
+                    color: colors.always8B949E,
+                  ),
                 ),
-                const SizedBox(width: 16),
-                CustomOutlinedButtonWithIcon(
-                  icon: Image.asset(Pngs.wallet, width: 16, height: 16),
-                  text: 'Convert Coins',
-                  color: colors.alwaysWhite,
-                  onTap: showConvertCoinsDialog,
-                ),
-                const SizedBox(width: 16),
-                CustomOutlinedButtonWithIcon(
-                  icon: Image.asset(Pngs.plus, width: 16, height: 16),
-                  text: 'Test Coin Reward',
-                  color: colors.alwaysWhite,
-                  onTap: () => showWalletActionDialog('Test Coin Reward'),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    buildWalletActionButton(
+                      icon: buildWalletActionIcon(Pngs.plus),
+                      text: 'Transfer BB Cash → Coins',
+                      onTap: () => showWalletActionDialog("Fund Wallet"),
+                    ),
+                    buildWalletActionButton(
+                      icon: buildWalletActionIcon(Pngs.wallet),
+                      text: 'Convert Coins → Cash',
+                      onTap: showConvertCoinsDialog,
+                    ),
+                    buildWalletActionButton(
+                      icon: buildWalletActionIcon(Pngs.arrowUpRight),
+                      text: 'Withdraw BB Cash',
+                      onTap: () => showWalletActionDialog("Withdraw"),
+                    ),
+                    buildWalletActionButton(
+                      icon: buildWalletActionIcon(Pngs.plus),
+                      text: 'Test Coin Reward',
+                      onTap: () => showWalletActionDialog('Test Coin Reward'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1146,68 +1196,81 @@ class WalletTransactionsItem extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Image.asset(asset, width: 40, height: 40),
             const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    transaction,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: colors.alwaysWhite,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w400,
+                        color: colors.always8B949E,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
             Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  transaction,
+                  formatDateTimeToDDMMYYYYHHmm(date),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: colors.alwaysWhite,
                   ),
                 ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w400,
-                      color: colors.always8B949E,
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: colors.always27D07F.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.attach_money_rounded,
+                          size: 12,
+                          color: colors.always27D07F,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ],
-            ),
-            const Spacer(),
-            Text(
-              formatDateTimeToDDMMYYYYHHmm(date),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: colors.alwaysWhite,
-              ),
-            ),
-            const SizedBox(width: 40),
-            Row(
-              children: [
-                Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color: colors.always27D07F.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.attach_money_rounded,
-                      size: 12,
-                      color: colors.always27D07F,
+                    const SizedBox(width: 6),
+                    Text(
+                      '$sign$price BB Cash',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: priceColor ?? colors.always27D07F,
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '$sign$price BBC',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: priceColor ?? colors.always27D07F,
-                  ),
+                  ],
                 ),
               ],
             ),

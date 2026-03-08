@@ -18,7 +18,7 @@ class DesktopBettingPreferencePage extends ConsumerStatefulWidget {
 
 class _DesktopBettingPreferencePageState
     extends ConsumerState<DesktopBettingPreferencePage> {
-  OddsType _selectedType = OddsType.decimal;
+  OddsType _selectedType = OddsType.probability;
 
 @override
 void initState() {
@@ -29,7 +29,7 @@ void initState() {
 
 Future<void> _loadSelectedOddsType() async {
   final prefs = await SharedPreferences.getInstance();
-  final storedOdds = prefs.getString('odds_type') ?? 'D'; // default to Decimal
+  final storedOdds = prefs.getString('odds_type') ?? 'P'; // default to Probability
 
   setState(() {
     switch (storedOdds) {
@@ -44,7 +44,7 @@ Future<void> _loadSelectedOddsType() async {
         break;
       case 'D':
       default:
-        _selectedType = OddsType.decimal;
+        _selectedType = OddsType.probability;
     }
   });
 }

@@ -33,7 +33,7 @@ class _StockProfilePageState extends ConsumerState<StockProfilePage> {
   bool isLoading = true;
   String htmlContent = '';
   late InAppWebViewController webViewController;
-  String preferredOdds = 'D'; // Default
+  String preferredOdds = 'P'; // Default to Probability
   bool isOddsLoaded = false;
 
   List<String>? expiryDates;

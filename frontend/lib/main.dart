@@ -51,10 +51,10 @@ Future<void> _hydrateSession() async {
   final prefs = await SharedPreferences.getInstance();
 
    // ✅ Set default only if not already set
-  final oddsType = prefs.getString('odds_type') ?? 'D';
+  final oddsType = prefs.getString('odds_type') ?? 'P';
   
   if (oddsType.isEmpty) {
-    await prefs.setString('odds_type', 'D');
+    await prefs.setString('odds_type', 'P');
   }
   print("Selected Odds type is: $oddsType");
   
