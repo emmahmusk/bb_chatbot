@@ -95,12 +95,11 @@ class CustomRouteChipHeader extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         mainAxisSize: MainAxisSize.max,
         children: [
           // Left group: Trending, Expiring Soon, All Stocks
           Expanded(
-            flex: 7,
+            flex: 3,
             child: Wrap(
               alignment: WrapAlignment.center,
               spacing: 10,
@@ -225,11 +224,14 @@ class CustomRouteChipHeader extends ConsumerWidget {
             ),
           ),
 
+          const SizedBox(width: 24),
+
           // Right-aligned: My Predictions
           Expanded(
-              flex: 3,
-              child: Align(
-                alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 40),
+                child: Align(
+                alignment: Alignment.center,
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
@@ -261,6 +263,7 @@ class CustomRouteChipHeader extends ConsumerWidget {
                       ),
                      
                 ),
+              ),
               ),
             ),
            
