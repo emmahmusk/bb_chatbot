@@ -403,6 +403,10 @@ class SuspendedMarketSerializer(serializers.ModelSerializer):
     stock_symbol = serializers.CharField(source="stock.symbol", read_only=True)
     stock_company_name = serializers.CharField(source="stock.company_name", read_only=True)
     stock_url = serializers.CharField(source="stock.url", read_only=True)
+    net_exposure = serializers.SerializerMethodField(read_only=True)
+
+    def get_net_exposure(self, obj):
+        return str(obj.net_exposure)
 
     class Meta:
         model = Market
@@ -418,6 +422,7 @@ class SuspendedMarketSerializer(serializers.ModelSerializer):
             "display_odds_under",
             "implied_odds_over",
             "implied_odds_under",
+            "net_exposure",
             "is_active",
             "is_suspended_over",
             "is_suspended_under",

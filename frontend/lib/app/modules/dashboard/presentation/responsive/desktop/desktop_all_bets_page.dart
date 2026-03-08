@@ -114,12 +114,12 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
 
   Widget buildBetItem(BetHistoryModel item) {
     final double amount = double.tryParse(item.wagerAmount) ?? 0.0;
-    final double parsedOdds = double.tryParse(item.odds) ?? 0.0;
-    final int odds = parsedOdds.round();
-
-    final double potentialPayout = odds < 0
-        ? (amount / odds.abs()) * 100 + amount
-        : (amount * (odds / 100)) + amount;
+    final bool isSettled = item.status != 'pending';
+    final double settledPayout = double.tryParse(item.payoutAmount) ?? 0.0;
+    final double potentialPayout = _calculatePotentialPayout(
+      wagerAmount: amount,
+      oddsText: item.odds,
+    );
 
     return Container(
       margin: const EdgeInsets.all(8.0),
@@ -213,10 +213,35 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
             child: Divider(color: Colors.grey, thickness: 1),
           ),
           _infoRow(
-              "Potential Payout", "${potentialPayout.toStringAsFixed(2)} BBC"),
+            isSettled ? "Payout" : "Potential Payout",
+            "${(isSettled ? settledPayout : potentialPayout).toStringAsFixed(2)} BBC",
+          ),
         ],
       ),
     );
+  }
+
+  double _calculatePotentialPayout({
+    required double wagerAmount,
+    required String oddsText,
+  }) {
+    final trimmed = oddsText.trim();
+    if (wagerAmount <= 0 || trimmed.isEmpty || trimmed == 'N/A') return 0.0;
+
+    final parsedOdds = double.tryParse(trimmed);
+    if (parsedOdds == null) return 0.0;
+
+    if (parsedOdds < 0 || parsedOdds >= 100) {
+      return parsedOdds < 0
+          ? (wagerAmount / parsedOdds.abs()) * 100 + wagerAmount
+          : (wagerAmount * (parsedOdds / 100)) + wagerAmount;
+    }
+
+    if (parsedOdds > 1) {
+      return wagerAmount * parsedOdds;
+    }
+
+    return 0.0;
   }
 
   String _statusText(String status) {
