@@ -12,9 +12,29 @@ class DesktopAllBetsPage extends ConsumerStatefulWidget {
   ConsumerState<DesktopAllBetsPage> createState() => _DesktopAllBetsPageState();
 }
 
-class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
+class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage>
+  with SingleTickerProviderStateMixin {
   String selectedTab = 'Live';
   final ScrollController _scrollController = ScrollController();
+  late final AnimationController _blinkController;
+
+  @override
+  void initState() {
+    super.initState();
+    _blinkController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+      lowerBound: 0.25,
+      upperBound: 1.0,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _blinkController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,10 +77,19 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
                       style: const TextStyle(color: Colors.white)),
                 ),
                 data: (bets) {
+                  final today = DateUtils.dateOnly(DateTime.now());
+
                   final filtered = bets
-                      .where((b) => selectedTab == 'Live'
-                          ? b.status == 'pending'
-                          : b.status != 'pending')
+                      .where((b) {
+                        final isPending = b.status.toLowerCase() == 'pending';
+                        final isExpired = _isExpired(b, today);
+
+                        if (selectedTab == 'Live') {
+                          return isPending && !isExpired;
+                        }
+
+                        return !isPending || isExpired;
+                      })
                       .toList();
 
                   return Scrollbar(
@@ -206,7 +235,7 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
           _infoRow("Single/Parlay", item.isParlay ? "Parlay" : "Single"),
 
           /// ✅ NEW ROW (ONLY ADDITION)
-          _infoRow("Status", _statusText(item.status)),
+          _statusRow(item),
 
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 10.0),
@@ -250,19 +279,89 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
         return 'WON';
       case 'lost':
         return 'LOST';
+      case 'void':
+        return 'VOID';
       default:
         return 'LIVE';
     }
   }
 
-  Widget _infoRow(String label, String value) {
+  bool _isExpired(BetHistoryModel item, DateTime today) {
+    try {
+      final expiry = DateUtils.dateOnly(DateTime.parse(item.expiryDate));
+      return expiry.isBefore(today);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Widget _statusRow(BetHistoryModel item) {
+    final normalized = item.status.toLowerCase();
+
+    if (normalized == 'won') {
+      return _infoRow(
+        "Status",
+        "WON",
+        valueStyle: const TextStyle(
+          color: Color(0xFF22C55E),
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+
+    if (normalized == 'lost') {
+      return _infoRow(
+        "Status",
+        "LOST",
+        valueStyle: const TextStyle(
+          color: Color(0xFFEF4444),
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("Status", style: TextStyle(color: Colors.white)),
+          Row(
+            children: [
+              FadeTransition(
+                opacity: _blinkController,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF22C55E),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                "LIVE",
+                style: TextStyle(
+                  color: Color(0xFF22C55E),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value, {TextStyle? valueStyle}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Colors.white)),
-          Text(value, style: const TextStyle(color: Colors.white)),
+          Text(value, style: valueStyle ?? const TextStyle(color: Colors.white)),
         ],
       ),
     );
