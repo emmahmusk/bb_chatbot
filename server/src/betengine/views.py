@@ -1,5 +1,5 @@
 import logging
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 import re  # For financial calculations
 import uuid
 import pytz
@@ -41,6 +41,45 @@ from .serializers import (  # Import Polygon's Ticker model for type hinting
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _max_wager_allowed_by_risk_limit(market, chosen_outcome: str, odds_decimal: Decimal, risk_limit) -> Decimal:
+    """
+    Returns the maximum wager allowed for a side so resulting net exposure remains within risk limit.
+    net_exposure = abs(exposure_over - exposure_under)
+    liability added by wager = wager * (decimal_odds - 1)
+    """
+    try:
+        limit = Decimal(str(risk_limit or 0))
+        if limit <= 0:
+            return Decimal("0.00")
+
+        per_unit_liability = Decimal(str(odds_decimal)) - Decimal("1")
+        if per_unit_liability <= 0:
+            return Decimal("0.00")
+
+        current_diff = Decimal(str(market.exposure_over)) - Decimal(str(market.exposure_under))
+
+        if chosen_outcome == "over":
+            lower_liability = -limit - current_diff
+            upper_liability = limit - current_diff
+        else:
+            lower_liability = current_diff - limit
+            upper_liability = current_diff + limit
+
+        feasible_lower = max(Decimal("0"), lower_liability)
+        feasible_upper = upper_liability
+
+        if feasible_upper < feasible_lower:
+            return Decimal("0.00")
+
+        max_wager = feasible_upper / per_unit_liability
+        if max_wager <= 0:
+            return Decimal("0.00")
+
+        return max_wager.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    except Exception:
+        return Decimal("0.00")
 
 class PopulateMarketsView(APIView):
     def post(self, request):
@@ -712,25 +751,23 @@ class PlaceSingleBetAPIView(APIView):
                 potential_payout = amount_wagered * odds_decimal
                 liability = potential_payout - amount_wagered
 
-                if chosen_outcome == "over":
-                    new_exposure_over = market.exposure_over + liability
-                    new_net_exposure = abs(new_exposure_over - market.exposure_under)
-                else:  # under
-                    new_exposure_under = market.exposure_under + liability
-                    new_net_exposure = abs(market.exposure_over - new_exposure_under)
+                max_allowed_by_risk = _max_wager_allowed_by_risk_limit(
+                    market=market,
+                    chosen_outcome=chosen_outcome,
+                    odds_decimal=odds_decimal,
+                    risk_limit=risk_limit,
+                )
+                effective_max_allowed = min(max_stake_allowed, max_allowed_by_risk)
 
-                # Check net_exposure against platform risk tolerance yardstick
-                if new_net_exposure >= risk_limit:
-                    market.is_suspended_over = True
-                    market.is_suspended_under = True
-                    market.requires_admin_override = True
-                    market.save(update_fields=["is_suspended_over", "is_suspended_under", "requires_admin_override"])
-                    try:
-                        cache.delete(f"market_grouped_{market.stock.symbol}")
-                    except Exception:
-                        pass
+                if amount_wagered > effective_max_allowed:
                     return Response(
-                        {"status": "error", "message": "Exposure limit reached for this market."},
+                        {
+                            "status": "error",
+                            "message": (
+                                f"Bet limit reached for this side. You can wager up to {effective_max_allowed} "
+                                f"on {chosen_outcome.upper()} for market {market.id} under current risk settings."
+                            ),
+                        },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
@@ -915,18 +952,21 @@ class PlaceParlayBetAPIView(APIView):
                         new_net_exposure = abs(market.exposure_over - new_exposure_under)
 
                     # Validate net_exposure against PlatformSettings.max_risk_tolerance
-                    if new_net_exposure >= risk_limit:
-                        # mark market suspended and require admin override
-                        market.is_suspended_over = True
-                        market.is_suspended_under = True
-                        market.requires_admin_override = True
-                        market.save(update_fields=["is_suspended_over", "is_suspended_under", "requires_admin_override"])
-                        try:
-                            cache.delete(f"market_grouped_{market.stock.symbol}")
-                        except Exception:
-                            pass
+                    max_allowed_by_risk = _max_wager_allowed_by_risk_limit(
+                        market=market,
+                        chosen_outcome=chosen_outcome,
+                        odds_decimal=odds_decimal,
+                        risk_limit=risk_limit,
+                    )
+                    if amount_wagered > max_allowed_by_risk:
                         return Response(
-                            {"status": "error", "message": f"Exposure limit reached for market {market_id}."},
+                            {
+                                "status": "error",
+                                "message": (
+                                    f"Bet limit reached for market {market_id} ({chosen_outcome.upper()}). "
+                                    f"You can wager up to {max_allowed_by_risk} under current risk settings."
+                                ),
+                            },
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
