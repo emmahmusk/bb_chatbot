@@ -927,7 +927,7 @@ Future<void> fetchAndReplaceMarket(
         const Padding(
           padding: EdgeInsets.only(bottom: 12.0),
           child: Text(
-            "Trending Bets",
+            "Trending Predictions",
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,

@@ -33,7 +33,7 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "My Bets",
+              "My Predictions",
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,

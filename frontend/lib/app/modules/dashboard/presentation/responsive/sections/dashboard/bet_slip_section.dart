@@ -176,7 +176,7 @@ Key wagerFieldKey = UniqueKey();
                 color: colors.always1F242C,
               ),
               child: Text(
-                'Bet Slip',
+                'Prediction Slip',
                 style: TextStyle(
                   color: colors.alwaysWhite,
                   fontWeight: FontWeight.w400,
@@ -847,7 +847,7 @@ class _SingleViewState extends ConsumerState<SingleView> {
     final betList = ref.watch(betListProvider);
     if (betList.isEmpty || betList.length > 1) {
       return EmptyState(
-        title: "Your Bet Slip is empty",
+        title: "Your Prediction Slip is empty",
         message: "",
       );
     }
@@ -872,7 +872,7 @@ class _ParlayViewState extends ConsumerState<ParlayView> {
     final betList = ref.watch(betListProvider);
     if (betList.isEmpty || betList.length < 2) {
       return EmptyState(
-        title: "Your bet-slip is empty",
+        title: "Your Prediction Slip is empty",
         message: "Excepteur sint occaecat cupidatat non proident, sunt",
       );
     }
