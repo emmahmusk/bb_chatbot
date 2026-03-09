@@ -1269,11 +1269,17 @@ class ResolveExpiredMarketsAPIView(APIView):
 
     def post(self, request, *args, **kwargs):
         today = timezone.now().date()
-        expired_markets = Market.objects.filter(expiry_date__lte=today, is_active=True)
+        expired_markets = (
+            Market.objects
+            .filter(expiry_date__lte=today, bets__status="pending")
+            .select_related("stock")
+            .distinct()
+        )
 
         total_markets = expired_markets.count()
         resolved_bets = 0
         updated_markets = 0
+        skipped_missing_price = []
 
         if not total_markets:
             return Response(
@@ -1281,13 +1287,19 @@ class ResolveExpiredMarketsAPIView(APIView):
                 status=status.HTTP_200_OK
             )
 
-        for market in expired_markets.select_related("stock"):
+        for market in expired_markets:
 
             stock_price = market.stock.last_price
             if stock_price is None:
+                skipped_missing_price.append(
+                    {
+                        "market_id": market.id,
+                        "symbol": market.stock.symbol,
+                        "expiry_date": str(market.expiry_date),
+                        "reason": "missing_stock_price",
+                    }
+                )
                 continue  # skip if stock price unavailable
-
-            winning_side = "over" if stock_price > market.target_price else "under"
 
             with transaction.atomic():
 
@@ -1297,12 +1309,23 @@ class ResolveExpiredMarketsAPIView(APIView):
                 pending_bets = Bet.objects.filter(market=market, status="pending")
 
                 for bet in pending_bets:
-                    bet.status = "won" if bet.chosen_outcome == winning_side else "lost"
-                    bet.payout_amount = (
-                        bet.get_potential_payout()
-                        if bet.status == "won"
-                        else Decimal("0.00")
-                    )
+                    final_price = Decimal(str(stock_price))
+                    target_price = Decimal(str(market.target_price))
+
+                    if bet.chosen_outcome == "over":
+                        bet_won = final_price >= target_price
+                    elif bet.chosen_outcome == "under":
+                        bet_won = final_price <= target_price
+                    else:
+                        bet.status = "void"
+                        bet.payout_amount = Decimal("0.00")
+                        bet.settled_at = timezone.now()
+                        bet.save(update_fields=["status", "payout_amount", "settled_at"])
+                        resolved_bets += 1
+                        continue
+
+                    bet.status = "won" if bet_won else "lost"
+                    bet.payout_amount = bet.get_potential_payout() if bet_won else Decimal("0.00")
                     bet.settled_at = timezone.now()
 
                     bet.save(update_fields=["status", "payout_amount", "settled_at"])
@@ -1336,6 +1359,8 @@ class ResolveExpiredMarketsAPIView(APIView):
                 "message": f"✅ Resolved {updated_markets} expired markets",
                 "total_markets": total_markets,
                 "resolved_bets": resolved_bets,
+                "skipped_markets_count": len(skipped_missing_price),
+                "skipped_markets": skipped_missing_price,
             },
             status=status.HTTP_200_OK,
         )
