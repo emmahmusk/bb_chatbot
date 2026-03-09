@@ -1073,13 +1073,17 @@ class _DesktopWalletTransactionsPageState
                 final icon =
                     isCredit ? Pngs.walletDeposit : Pngs.bankWithdrawal;
                 final dt = DateTime.parse(txn['created_at']);
+                final amountUnit = (txn['amount_unit'] ?? 'BB Cash').toString();
+                final displayAmount =
+                    (txn['display_amount'] ?? txn['amount'] ?? '0').toString();
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: WalletTransactionsItem(
                     asset: icon,
                     date: dt,
-                    price: txn['amount'].toString(),
+                    price: displayAmount,
+                    amountUnit: amountUnit,
                     transaction: txn['description'] ?? "Transaction",
                     sign: sign,
                     priceColor: priceColor,
@@ -1172,6 +1176,7 @@ class WalletTransactionsItem extends ConsumerWidget {
     required this.asset,
     required this.date,
     required this.price,
+    required this.amountUnit,
     required this.transaction,
     required this.onClick,
     this.subtitle,
@@ -1183,6 +1188,7 @@ class WalletTransactionsItem extends ConsumerWidget {
   final String transaction;
   final DateTime date;
   final String price;
+  final String amountUnit;
   final String? subtitle;
   final Color? priceColor;
   final String sign;
@@ -1263,7 +1269,7 @@ class WalletTransactionsItem extends ConsumerWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '$sign$price BB Cash',
+                      '$sign$price $amountUnit',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
