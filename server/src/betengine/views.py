@@ -8,7 +8,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from user.models import PlatformSettings, Wallet, Transaction
-from django.db.models import Sum, OuterRef, Subquery, IntegerField, Q, F, Value
+from django.db.models import Sum, OuterRef, Subquery, IntegerField, Q, F, Value, Count
 from django.db.models.functions import Coalesce, Abs
 from django.db.models import ProtectedError
 from rest_framework import generics, pagination, status
@@ -94,8 +94,9 @@ def _get_exposure_snapshot(market):
 def _sync_market_side_locks(market, risk_limit):
     """
     Side-specific lock behavior:
-    - if net_exposure > limit: lock only dominant side, keep opposite side open for hedging.
-    - if net_exposure <= limit: unlock both sides.
+    - Trigger lock when net_exposure reaches at least 95% of max risk tolerance.
+    - Lock only the dominant side; keep opposite side open for hedging.
+    - Auto-unlock when opposite-side activity brings net_exposure below 95% threshold.
     """
     try:
         limit = Decimal(str(risk_limit or 0))
@@ -108,7 +109,9 @@ def _sync_market_side_locks(market, risk_limit):
     desired_under = False
     desired_override = False
 
-    if limit > 0 and net > limit:
+    lock_threshold = limit * Decimal("0.95") if limit > 0 else Decimal("0")
+
+    if limit > 0 and net >= lock_threshold:
         desired_override = True
         if dominant_side == "over":
             desired_over = True
@@ -842,41 +845,22 @@ class PlaceSingleBetAPIView(APIView):
 
                 # --- Guardrail calculation ---
                 # net_exposure = abs(exposure_over - exposure_under) represents unmatched (unhedged) positions.
-                # Users can hedge by betting the opposite side, which reduces net_exposure and may unlock markets.
-                # This is compared against PlatformSettings.max_risk_tolerance to ensure platform risk limits aren't exceeded.
+                # Side lock/unlock behavior is handled by _sync_market_side_locks after exposure update.
                 potential_payout = amount_wagered * odds_decimal
                 liability = potential_payout - amount_wagered
-
-                max_allowed_by_risk = _max_wager_allowed_for_current_exposure(
-                    market=market,
-                    chosen_outcome=chosen_outcome,
-                    odds_decimal=odds_decimal,
-                    risk_limit=risk_limit,
-                )
-                effective_max_allowed = min(max_stake_allowed, max_allowed_by_risk)
-
-                if amount_wagered > effective_max_allowed:
-                    return Response(
-                        {
-                            "status": "error",
-                            "message": f"Bet amount exceeds allowed limit. Maximum allowed is {effective_max_allowed}.",
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
 
                 # --- Lock wallet ---
                 wallet = Wallet.objects.select_for_update().get(user=user)
 
-                if wallet.balance < amount_wagered:
+                if wallet.coin_balance < amount_wagered:
                     return Response(
-                        {"status": "error", "message": "Insufficient wallet balance."},
+                        {"status": "error", "message": "Insufficient BB coin balance."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-                # Deduct wallet
-                wallet.balance -= amount_wagered
-                wallet.locked_balance += amount_wagered
-                wallet.save(update_fields=["balance", "locked_balance", "updated_at"])
+                # Deduct from BB coins only
+                wallet.coin_balance -= amount_wagered
+                wallet.save(update_fields=["coin_balance", "updated_at"])
 
                 reference = f"TRX-BET-DR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
@@ -985,9 +969,9 @@ class PlaceParlayBetAPIView(APIView):
             with transaction.atomic():
 
                 wallet = Wallet.objects.select_for_update().get(user=user)
-                if wallet.balance < amount_wagered:
+                if wallet.coin_balance < amount_wagered:
                     return Response(
-                        {"status": "error", "message": "Insufficient balance."},
+                        {"status": "error", "message": "Insufficient BB coin balance."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
@@ -1053,28 +1037,11 @@ class PlaceParlayBetAPIView(APIView):
                         new_exposure_under = market.exposure_under + liability
                         new_net_exposure = abs(market.exposure_over - new_exposure_under)
 
-                    # Validate net_exposure against PlatformSettings.max_risk_tolerance
-                    max_allowed_by_risk = _max_wager_allowed_for_current_exposure(
-                        market=market,
-                        chosen_outcome=chosen_outcome,
-                        odds_decimal=odds_decimal,
-                        risk_limit=risk_limit,
-                    )
-                    if amount_wagered > max_allowed_by_risk:
-                        return Response(
-                            {
-                                "status": "error",
-                                "message": f"Bet amount exceeds allowed limit. Maximum allowed is {max_allowed_by_risk}.",
-                            },
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
                     markets_locked.append((market, chosen_outcome, odds_str, liability))
 
-                # --- Deduct wallet ---
-                wallet.balance -= amount_wagered
-                wallet.locked_balance += amount_wagered
-                wallet.save(update_fields=["balance", "locked_balance", "updated_at"])
+                # --- Deduct wallet (BB coins only) ---
+                wallet.coin_balance -= amount_wagered
+                wallet.save(update_fields=["coin_balance", "updated_at"])
 
                 reference = f"TRX-PBET-DR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
@@ -1278,8 +1245,10 @@ class ResolveExpiredMarketsAPIView(APIView):
 
         total_markets = expired_markets.count()
         resolved_bets = 0
+        resolved_parlays = 0
         updated_markets = 0
         skipped_missing_price = []
+        skipped_parlays_missing_price = []
 
         if not total_markets:
             return Response(
@@ -1306,7 +1275,7 @@ class ResolveExpiredMarketsAPIView(APIView):
                 # Lock market row for safety
                 market = Market.objects.select_for_update().get(id=market.id)
 
-                pending_bets = Bet.objects.filter(market=market, status="pending")
+                pending_bets = Bet.objects.filter(market=market, status="pending", is_parlay_leg=False)
 
                 for bet in pending_bets:
                     final_price = Decimal(str(stock_price))
@@ -1354,31 +1323,113 @@ class ResolveExpiredMarketsAPIView(APIView):
 
                 updated_markets += 1
 
+        # Resolve pending parlays whose legs have all expired and have price data.
+        pending_parlays = ParlayBet.objects.filter(status="pending").prefetch_related("legs__market__stock")
+
+        for parlay in pending_parlays:
+            legs = list(parlay.legs.all())
+
+            if not legs:
+                continue
+
+            if any(leg.market.expiry_date > today for leg in legs):
+                continue
+
+            missing_price_legs = [leg for leg in legs if leg.market.stock.last_price is None]
+            if missing_price_legs:
+                skipped_parlays_missing_price.append(
+                    {
+                        "parlay_id": parlay.id,
+                        "missing_symbols": list({leg.market.stock.symbol for leg in missing_price_legs}),
+                        "reason": "missing_stock_price",
+                    }
+                )
+                continue
+
+            with transaction.atomic():
+                parlay = ParlayBet.objects.select_for_update().get(id=parlay.id)
+                legs_qs = parlay.legs.select_related("market__stock").all()
+
+                for leg in legs_qs:
+                    if leg.status != "pending":
+                        continue
+
+                    final_price = Decimal(str(leg.market.stock.last_price))
+                    target_price = Decimal(str(leg.market.target_price))
+
+                    if leg.chosen_outcome == "over":
+                        leg_won = final_price >= target_price
+                    elif leg.chosen_outcome == "under":
+                        leg_won = final_price <= target_price
+                    else:
+                        leg.status = "void"
+                        leg.payout_amount = Decimal("0.00")
+                        leg.settled_at = timezone.now()
+                        leg.save(update_fields=["status", "payout_amount", "settled_at"])
+                        continue
+
+                    leg.status = "won" if leg_won else "lost"
+                    leg.payout_amount = Decimal("0.00")
+                    leg.settled_at = timezone.now()
+                    leg.save(update_fields=["status", "payout_amount", "settled_at"])
+
+                latest_leg_statuses = list(parlay.legs.values_list("status", flat=True))
+                if any(status == "pending" for status in latest_leg_statuses):
+                    continue
+
+                if any(status == "void" for status in latest_leg_statuses):
+                    parlay.status = "void"
+                    parlay.payout_amount = Decimal("0.00")
+                elif all(status == "won" for status in latest_leg_statuses):
+                    parlay.status = "won"
+                    parlay.payout_amount = parlay.get_potential_payout()
+                else:
+                    parlay.status = "lost"
+                    parlay.payout_amount = Decimal("0.00")
+
+                parlay.settled_at = timezone.now()
+                parlay.save(update_fields=["status", "payout_amount", "settled_at"])
+                resolved_parlays += 1
+
         return Response(
             {
                 "message": f"✅ Resolved {updated_markets} expired markets",
                 "total_markets": total_markets,
                 "resolved_bets": resolved_bets,
+                "resolved_parlays": resolved_parlays,
                 "skipped_markets_count": len(skipped_missing_price),
                 "skipped_markets": skipped_missing_price,
+                "skipped_parlays_count": len(skipped_parlays_missing_price),
+                "skipped_parlays": skipped_parlays_missing_price,
             },
             status=status.HTTP_200_OK,
         )
     
 class CreditWinningBetsAPIView(APIView):
     """
-    Credits all users whose bets are won but not yet paid.
-    Creates a Transaction record for each wallet credit using UUID reference.
+    Credits all users for settled winnings not yet paid.
+    - Singles: credit each won non-parlay Bet.
+    - Parlays: credit only once at ParlayBet level after all legs are settled and parlay status is won.
     """
 
     def post(self, request, *args, **kwargs):
-        winning_bets = Bet.objects.filter(status="won", is_paid=False)
+        winning_bets = Bet.objects.filter(status="won", is_paid=False, is_parlay_leg=False)
+        winning_parlays = (
+            ParlayBet.objects
+            .filter(status="won")
+            .annotate(unpaid_legs=Count("legs", filter=Q(legs__is_paid=False)))
+            .filter(unpaid_legs__gt=0)
+            .select_related("user")
+        )
+
         total_credited = 0
+        singles_credited = 0
+        parlays_credited = 0
         total_amount = Decimal("0.00")
 
-        if not winning_bets.exists():
+        if not winning_bets.exists() and not winning_parlays.exists():
             return Response(
-                {"message": "No unpaid winning bets found."},
+                {"message": "No unpaid settled winnings found."},
                 status=status.HTTP_200_OK,
             )
 
@@ -1408,12 +1459,57 @@ class CreditWinningBetsAPIView(APIView):
                 bet.save(update_fields=["is_paid"])
 
                 total_credited += 1
+                singles_credited += 1
                 total_amount += bet.payout_amount
+
+        for parlay in winning_parlays:
+            with transaction.atomic():
+                parlay_locked = ParlayBet.objects.select_for_update().get(id=parlay.id)
+                leg_statuses = list(parlay_locked.legs.values_list("status", flat=True))
+
+                if not leg_statuses or any(leg_status == "pending" for leg_status in leg_statuses):
+                    continue
+
+                if any(leg_status != "won" for leg_status in leg_statuses):
+                    continue
+
+                unpaid_legs_qs = parlay_locked.legs.filter(is_paid=False)
+                if not unpaid_legs_qs.exists():
+                    continue
+
+                payout_amount = parlay_locked.payout_amount or Decimal("0.00")
+                if payout_amount <= 0:
+                    unpaid_legs_qs.update(is_paid=True)
+                    continue
+
+                wallet, _ = get_or_create_wallet_with_starting_coins(user=parlay_locked.user)
+                payout_coins = cash_to_coins(payout_amount)
+
+                reference = f"TRX-PARLAY-CR-{parlay_locked.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
+
+                wallet.coin_balance += payout_coins
+                wallet.save(update_fields=["coin_balance"])
+
+                Transaction.objects.create(
+                    wallet=wallet,
+                    amount=payout_amount,
+                    transaction_type=Transaction.CREDIT,
+                    reference=reference,
+                    description=f"Payout for Parlay #{parlay_locked.id} (+{payout_coins} BBC)",
+                )
+
+                unpaid_legs_qs.update(is_paid=True)
+
+                total_credited += 1
+                parlays_credited += 1
+                total_amount += payout_amount
 
         return Response(
             {
                 "message": "success",
                 "total_credited": total_credited,
+                "singles_credited": singles_credited,
+                "parlays_credited": parlays_credited,
                 "total_amount_paid": float(total_amount),
             },
             status=status.HTTP_200_OK,
