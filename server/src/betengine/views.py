@@ -878,7 +878,7 @@ class PlaceSingleBetAPIView(APIView):
                     wallet=wallet,
                     amount=amount_wagered,
                     transaction_type=Transaction.DEBIT,
-                    description=f"placed bet @ id: #{bet.id} | {market.expiry_date} | {chosen_outcome.capitalize()} ${market.target_price}",
+                    description=f"placed bet @ id: #{bet.id} | {market.expiry_date} | {chosen_outcome.capitalize()} ${market.target_price} (-{amount_wagered} BBC)",
                     reference=reference,
                 )
 
@@ -897,6 +897,9 @@ class PlaceSingleBetAPIView(APIView):
                     "status": "success",
                     "message": "Bet placed successfully!",
                     "bet": serializer.data,
+                    "wallet_balance": str(wallet.balance),
+                    "wallet_coin_balance": str(wallet.coin_balance),
+                    "debited_from": "coin_balance",
                 },
                 status=status.HTTP_201_CREATED,
             )
@@ -1056,7 +1059,7 @@ class PlaceParlayBetAPIView(APIView):
                     wallet=wallet,
                     amount=amount_wagered,
                     transaction_type=Transaction.DEBIT,
-                    description=f"placed bet(parlay) @ id: #{parlay_bet.id} with {len(legs_data)} leg(s)",
+                    description=f"placed bet(parlay) @ id: #{parlay_bet.id} with {len(legs_data)} leg(s) (-{amount_wagered} BBC)",
                     reference=reference,
                 )
 
@@ -1091,6 +1094,9 @@ class PlaceParlayBetAPIView(APIView):
                     "status": "success",
                     "message": "Parlay bet placed successfully!",
                     "parlay_bet": serializer.data,
+                    "wallet_balance": str(wallet.balance),
+                    "wallet_coin_balance": str(wallet.coin_balance),
+                    "debited_from": "coin_balance",
                 },
                 status=status.HTTP_201_CREATED,
             )

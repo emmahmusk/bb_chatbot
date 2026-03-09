@@ -622,11 +622,19 @@ Key wagerFieldKey = UniqueKey();
                             print(res.body);
 
                             if (res.statusCode == 200 || res.statusCode == 201) {
+                                final responseBody = jsonDecode(res.body);
                                 final currentUser = ref.read(currentUserProvider);
 
                                if (currentUser != null) {
-                                final currentCoinBalance = double.tryParse(currentUser.walletCoinBalance) ?? 0.0;
-                                final updatedCoinBalance = (currentCoinBalance - wagerAmount).clamp(0.0, double.infinity);
+                                final serverCoinBalance = responseBody['wallet_coin_balance'];
+                                final serverCashBalance = responseBody['wallet_balance'];
+
+                                final updatedCoinBalance = (serverCoinBalance != null)
+                                    ? (double.tryParse(serverCoinBalance.toString()) ?? 0.0)
+                                    : ((double.tryParse(currentUser.walletCoinBalance) ?? 0.0) - wagerAmount).clamp(0.0, double.infinity);
+                                final updatedCashBalance = (serverCashBalance != null)
+                                    ? serverCashBalance.toString()
+                                    : currentUser.walletBalance;
 
                                 final updatedUser = Profile(
                                   id: currentUser.id,
@@ -637,7 +645,7 @@ Key wagerFieldKey = UniqueKey();
                                   dateOfBirth: currentUser.dateOfBirth,
                                   phoneNumber: currentUser.phoneNumber,
                                   physicalAddress: currentUser.physicalAddress,
-                                  walletBalance: currentUser.walletBalance,
+                                  walletBalance: updatedCashBalance,
                                   walletCoinBalance: updatedCoinBalance.toStringAsFixed(2),
                                 );
 
@@ -645,6 +653,7 @@ Key wagerFieldKey = UniqueKey();
 
                                 // Optionally update shared prefs if used elsewhere
                                 final prefs = await SharedPreferences.getInstance();
+                                await prefs.setString('wallet_balance', updatedCashBalance);
                                 await prefs.setString('wallet_coin_balance', updatedCoinBalance.toStringAsFixed(2));
                               }
                               showTopRightAlert(context, "Single bet placed!", false);
@@ -701,11 +710,19 @@ Key wagerFieldKey = UniqueKey();
                             // Show the Parlay Success Dialog
                             
                             if (res.statusCode == 200 || res.statusCode == 201) {
+                              final responseBody = jsonDecode(res.body);
                               // ✅ Step 1: Subtract wager from wallet
                               final currentUser = ref.read(currentUserProvider);
                               if (currentUser != null) {
-                                final currentCoinBalance = double.tryParse(currentUser.walletCoinBalance) ?? 0.0;
-                                final updatedCoinBalance = (currentCoinBalance - wagerAmount).clamp(0.0, double.infinity);
+                                final serverCoinBalance = responseBody['wallet_coin_balance'];
+                                final serverCashBalance = responseBody['wallet_balance'];
+
+                                final updatedCoinBalance = (serverCoinBalance != null)
+                                    ? (double.tryParse(serverCoinBalance.toString()) ?? 0.0)
+                                    : ((double.tryParse(currentUser.walletCoinBalance) ?? 0.0) - wagerAmount).clamp(0.0, double.infinity);
+                                final updatedCashBalance = (serverCashBalance != null)
+                                    ? serverCashBalance.toString()
+                                    : currentUser.walletBalance;
 
                                 final updatedUser = Profile(
                                   id: currentUser.id,
@@ -716,7 +733,7 @@ Key wagerFieldKey = UniqueKey();
                                   dateOfBirth: currentUser.dateOfBirth,
                                   phoneNumber: currentUser.phoneNumber,
                                   physicalAddress: currentUser.physicalAddress,
-                                  walletBalance: currentUser.walletBalance,
+                                  walletBalance: updatedCashBalance,
                                   walletCoinBalance: updatedCoinBalance.toStringAsFixed(2),
                                 );
 
@@ -724,6 +741,7 @@ Key wagerFieldKey = UniqueKey();
 
                                 // Optional: update shared preferences too
                                 final prefs = await SharedPreferences.getInstance();
+                                await prefs.setString('wallet_balance', updatedCashBalance);
                                 await prefs.setString('wallet_coin_balance', updatedCoinBalance.toStringAsFixed(2));
                               }
                               showTopRightAlert(context, "Parlay bet placed!", false);
