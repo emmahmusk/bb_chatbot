@@ -1,5 +1,6 @@
 import logging
 import uuid
+import re
 from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.hashers import make_password
@@ -411,17 +412,34 @@ class WalletTransactionHistoryView(APIView):
         paginated_qs = paginator.paginate_queryset(transactions_qs, request)
 
         # --- 3️⃣ Serialize output ---
-        transactions_data = [
-            {
-                "id": tx.id,
-                "transaction_type": tx.transaction_type,
-                "amount": tx.amount,
-                "description": tx.description,
-                "reference": tx.reference,
-                "created_at": tx.created_at,
-            }
-            for tx in paginated_qs
-        ]
+        def _display_payload(tx: Transaction):
+            description = tx.description or ""
+
+            bbc_match = re.search(r"\(([+-]?\d+(?:\.\d+)?)\s*BBC\)", description, re.IGNORECASE)
+            if bbc_match:
+                try:
+                    display_amount = abs(Decimal(str(bbc_match.group(1))))
+                except Exception:
+                    display_amount = tx.amount
+                return str(display_amount), "BBC"
+
+            return str(tx.amount), "BB Cash"
+
+        transactions_data = []
+        for tx in paginated_qs:
+            display_amount, amount_unit = _display_payload(tx)
+            transactions_data.append(
+                {
+                    "id": tx.id,
+                    "transaction_type": tx.transaction_type,
+                    "amount": tx.amount,
+                    "display_amount": display_amount,
+                    "amount_unit": amount_unit,
+                    "description": tx.description,
+                    "reference": tx.reference,
+                    "created_at": tx.created_at,
+                }
+            )
 
         # --- 4️⃣ Return paginated response ---
         return paginator.get_paginated_response({
