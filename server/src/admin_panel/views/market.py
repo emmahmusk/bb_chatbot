@@ -7,7 +7,8 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.core.management import call_command  # To run Django management commands
 from django.core.cache import cache
-from django.db.models import Q
+from django.db.models import Q, F, Value, DecimalField
+from django.db.models.functions import Abs, Coalesce, Least
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny  # Or a more custom admin permission
 from rest_framework.response import Response
@@ -17,6 +18,7 @@ from betengine.utils import american_to_decimal_odds, american_to_fractional_odd
 from betengine.serializers import StockAdminSerializer
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from admin_panel.permissions import IsAdmin
+from user.models import PlatformSettings
 # Import your serializers
 from django.utils import timezone
 from mkt.utils import get_side_and_american_odds
@@ -986,9 +988,26 @@ class SuspendedMarketsView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request, *args, **kwargs):
+        settings_obj = PlatformSettings.get_instance()
+        default_per_market_limit = Decimal(str(settings_obj.max_risk_tolerance or 0))
+        global_limit = Decimal(
+            str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance) or 0)
+        )
+
         markets = (
             Market.objects.select_related("stock")
-            .filter(Q(is_suspended_over=True) | Q(is_suspended_under=True))
+            .annotate(
+                net_exposure_value=Abs(F("exposure_over") - F("exposure_under")),
+                effective_per_market_limit=Least(
+                    Coalesce(
+                        F("max_risk_tolerance"),
+                        Value(default_per_market_limit),
+                        output_field=DecimalField(max_digits=12, decimal_places=2),
+                    ),
+                    Value(global_limit),
+                ),
+            )
+            .filter(net_exposure_value__gte=F("effective_per_market_limit"))
             .order_by("stock__symbol", "expiry_date")
         )
 
@@ -999,9 +1018,53 @@ class SuspendedMarketsView(APIView):
 class SuspendedMarketDetailView(APIView):
     """Retrieve or update suspended state for a single market.
 
-    PATCH body accepts any of: `is_active`, `is_suspended_over`, `is_suspended_under`, `requires_admin_override`.
+    PATCH body accepts any of: `is_active`, `is_suspended_over`, `is_suspended_under`,
+    `requires_admin_override`, `max_risk_tolerance`.
     """
     permission_classes = [IsAdminUser]
+
+    @staticmethod
+    def _sync_market_flags_for_effective_limit(market):
+        settings_obj = PlatformSettings.get_instance()
+        default_per_market_limit = Decimal(str(settings_obj.max_risk_tolerance or 0))
+        global_limit = Decimal(
+            str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance) or 0)
+        )
+        configured_limit = Decimal(
+            str(market.max_risk_tolerance if market.max_risk_tolerance is not None else default_per_market_limit)
+        )
+        effective_limit = min(configured_limit, global_limit)
+
+        over = Decimal(str(market.exposure_over or 0))
+        under = Decimal(str(market.exposure_under or 0))
+        diff = over - under
+        net_exposure = abs(diff)
+        dominant_side = "over" if diff > 0 else "under" if diff < 0 else None
+
+        desired_over = False
+        desired_under = False
+        desired_override = False
+
+        if effective_limit > 0 and net_exposure >= effective_limit:
+            desired_override = True
+            if dominant_side == "over":
+                desired_over = True
+            elif dominant_side == "under":
+                desired_under = True
+
+        update_fields = []
+        if market.is_suspended_over != desired_over:
+            market.is_suspended_over = desired_over
+            update_fields.append("is_suspended_over")
+        if market.is_suspended_under != desired_under:
+            market.is_suspended_under = desired_under
+            update_fields.append("is_suspended_under")
+        if market.requires_admin_override != desired_override:
+            market.requires_admin_override = desired_override
+            update_fields.append("requires_admin_override")
+
+        if update_fields:
+            market.save(update_fields=update_fields)
 
     def get_object(self, market_id):
         try:
@@ -1026,6 +1089,12 @@ class SuspendedMarketDetailView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         serializer.save()
+
+        if "max_risk_tolerance" in request.data and not any(
+            key in request.data
+            for key in ["is_suspended_over", "is_suspended_under", "requires_admin_override"]
+        ):
+            self._sync_market_flags_for_effective_limit(market)
 
         # Optionally clear grouped cache for the affected stock
         try:

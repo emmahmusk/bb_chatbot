@@ -1027,6 +1027,7 @@ class UpdatePlatformSettingsView(APIView):
                 "max_crs": str(settings_obj.max_crs),
                 "minimum_stake": str(settings_obj.minimum_stake),
                 "max_risk_tolerance": str(settings_obj.max_risk_tolerance),
+                "global_max_risk_tolerance": str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance)),
                 "starting_coin_balance": str(settings_obj.starting_coin_balance),
             },
             status=status.HTTP_200_OK,
@@ -1044,6 +1045,7 @@ class UpdatePlatformSettingsView(APIView):
             "max_crs",
             "minimum_stake",
             "max_risk_tolerance",
+            "global_max_risk_tolerance",
             "starting_coin_balance",
         }
 
@@ -1080,6 +1082,27 @@ class UpdatePlatformSettingsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        candidate_global_limit = Decimal(
+            str(
+                request.data.get(
+                    "global_max_risk_tolerance",
+                    getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance),
+                )
+            )
+        )
+        candidate_per_market_limit = Decimal(
+            str(request.data.get("max_risk_tolerance", settings_obj.max_risk_tolerance))
+        )
+
+        if candidate_per_market_limit > candidate_global_limit:
+            return Response(
+                {
+                    "success": False,
+                    "error": "max_risk_tolerance cannot exceed global_max_risk_tolerance.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         settings_obj.save(update_fields=updated_fields)
 
         return Response(
@@ -1092,6 +1115,7 @@ class UpdatePlatformSettingsView(APIView):
                     "max_crs": str(settings_obj.max_crs),
                     "minimum_stake": str(settings_obj.minimum_stake),
                     "max_risk_tolerance": str(settings_obj.max_risk_tolerance),
+                    "global_max_risk_tolerance": str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance)),
                     "starting_coin_balance": str(settings_obj.starting_coin_balance),
                 },
             },

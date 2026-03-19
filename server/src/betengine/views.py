@@ -43,6 +43,26 @@ from .serializers import (  # Import Polygon's Ticker model for type hinting
 logger = logging.getLogger(__name__)
 
 
+def _get_market_risk_limits(market, settings_obj=None):
+    if settings_obj is None:
+        settings_obj = PlatformSettings.get_instance()
+
+    default_per_market_limit = Decimal(str(settings_obj.max_risk_tolerance or 0))
+    global_limit = Decimal(
+        str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance) or 0)
+    )
+    configured_per_market_limit = Decimal(
+        str(market.max_risk_tolerance if market.max_risk_tolerance is not None else default_per_market_limit)
+    )
+
+    effective_per_market_limit = min(configured_per_market_limit, global_limit)
+    return {
+        "effective_per_market_limit": effective_per_market_limit,
+        "configured_per_market_limit": configured_per_market_limit,
+        "global_limit": global_limit,
+    }
+
+
 def _max_wager_allowed_by_risk_limit(market, chosen_outcome: str, odds_decimal: Decimal, risk_limit) -> Decimal:
     """
     Returns the maximum wager allowed for a side so resulting net exposure remains within risk limit.
@@ -94,9 +114,9 @@ def _get_exposure_snapshot(market):
 def _sync_market_side_locks(market, risk_limit):
     """
     Side-specific lock behavior:
-    - Trigger lock when net_exposure reaches at least 95% of max risk tolerance.
+    - Trigger lock when net_exposure reaches max risk tolerance.
     - Lock only the dominant side; keep opposite side open for hedging.
-    - Auto-unlock when opposite-side activity brings net_exposure below 95% threshold.
+    - Auto-unlock when opposite-side activity brings net_exposure below max risk tolerance.
     """
     try:
         limit = Decimal(str(risk_limit or 0))
@@ -109,7 +129,7 @@ def _sync_market_side_locks(market, risk_limit):
     desired_under = False
     desired_override = False
 
-    lock_threshold = limit * Decimal("0.95") if limit > 0 else Decimal("0")
+    lock_threshold = limit if limit > 0 else Decimal("0")
 
     if limit > 0 and net >= lock_threshold:
         desired_override = True
@@ -790,7 +810,7 @@ class PlaceSingleBetAPIView(APIView):
                     )
 
                 settings_obj = PlatformSettings.get_instance()
-                risk_limit = settings_obj.max_risk_tolerance
+                risk_limit = _get_market_risk_limits(market, settings_obj)["effective_per_market_limit"]
 
                 _sync_market_side_locks(market, risk_limit)
 
@@ -965,7 +985,6 @@ class PlaceParlayBetAPIView(APIView):
                 )
 
             settings_obj = PlatformSettings.get_instance()
-            risk_limit = settings_obj.max_risk_tolerance
 
             combined_decimal_odds = Decimal("1")
 
@@ -993,6 +1012,7 @@ class PlaceParlayBetAPIView(APIView):
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
+                    risk_limit = _get_market_risk_limits(market, settings_obj)["effective_per_market_limit"]
                     _sync_market_side_locks(market, risk_limit)
 
                     # Disallow bets on suspended sides
@@ -1083,6 +1103,7 @@ class PlaceParlayBetAPIView(APIView):
                         market.exposure_under += liability
 
                     market.save(update_fields=["exposure_over", "exposure_under"])
+                    risk_limit = _get_market_risk_limits(market, settings_obj)["effective_per_market_limit"]
                     _sync_market_side_locks(market, risk_limit)
 
                 parlay_bet.combined_odds = decimal_to_american_odds(combined_decimal_odds)

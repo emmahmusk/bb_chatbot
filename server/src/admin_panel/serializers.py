@@ -404,9 +404,52 @@ class SuspendedMarketSerializer(serializers.ModelSerializer):
     stock_company_name = serializers.CharField(source="stock.company_name", read_only=True)
     stock_url = serializers.CharField(source="stock.url", read_only=True)
     net_exposure = serializers.SerializerMethodField(read_only=True)
+    per_market_max_risk_tolerance = serializers.SerializerMethodField(read_only=True)
+    global_max_risk_tolerance = serializers.SerializerMethodField(read_only=True)
+    net_exposure_percent_of_per_market_limit = serializers.SerializerMethodField(read_only=True)
+    net_exposure_percent_of_global_limit = serializers.SerializerMethodField(read_only=True)
+    configured_max_risk_tolerance = serializers.SerializerMethodField(read_only=True)
+
+    def _settings(self):
+        if not hasattr(self, "_settings_cache"):
+            self._settings_cache = PlatformSettings.get_instance()
+        return self._settings_cache
+
+    def _global_limit(self):
+        settings_obj = self._settings()
+        return Decimal(str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance) or 0))
+
+    def _per_market_limit(self, obj):
+        settings_obj = self._settings()
+        default_per_market_limit = Decimal(str(settings_obj.max_risk_tolerance or 0))
+        configured_per_market_limit = Decimal(
+            str(obj.max_risk_tolerance if obj.max_risk_tolerance is not None else default_per_market_limit)
+        )
+        return min(configured_per_market_limit, self._global_limit())
+
+    @staticmethod
+    def _percent(numerator: Decimal, denominator: Decimal) -> str:
+        if denominator <= 0:
+            return "0.00"
+        return str(((numerator / denominator) * Decimal("100")).quantize(Decimal("0.01")))
 
     def get_net_exposure(self, obj):
         return str(obj.net_exposure)
+
+    def get_per_market_max_risk_tolerance(self, obj):
+        return str(self._per_market_limit(obj))
+
+    def get_global_max_risk_tolerance(self, obj):
+        return str(self._global_limit())
+
+    def get_net_exposure_percent_of_per_market_limit(self, obj):
+        return self._percent(Decimal(str(obj.net_exposure)), self._per_market_limit(obj))
+
+    def get_net_exposure_percent_of_global_limit(self, obj):
+        return self._percent(Decimal(str(obj.net_exposure)), self._global_limit())
+
+    def get_configured_max_risk_tolerance(self, obj):
+        return str(obj.max_risk_tolerance) if obj.max_risk_tolerance is not None else None
 
     class Meta:
         model = Market
@@ -423,6 +466,11 @@ class SuspendedMarketSerializer(serializers.ModelSerializer):
             "implied_odds_over",
             "implied_odds_under",
             "net_exposure",
+            "configured_max_risk_tolerance",
+            "per_market_max_risk_tolerance",
+            "global_max_risk_tolerance",
+            "net_exposure_percent_of_per_market_limit",
+            "net_exposure_percent_of_global_limit",
             "is_active",
             "is_suspended_over",
             "is_suspended_under",
@@ -440,6 +488,7 @@ class SuspendedMarketUpdateSerializer(serializers.ModelSerializer):
             "is_suspended_over",
             "is_suspended_under",
             "requires_admin_override",
+            "max_risk_tolerance",
         ]
 
     def validate(self, data):
@@ -458,6 +507,31 @@ class SuspendedMarketUpdateSerializer(serializers.ModelSerializer):
                         raise serializers.ValidationError({k: "Invalid boolean value"})
                 else:
                     raise serializers.ValidationError({k: "Invalid boolean value"})
+
+        if "max_risk_tolerance" in data:
+            new_limit = data.get("max_risk_tolerance")
+            if new_limit is not None:
+                if new_limit < 0:
+                    raise serializers.ValidationError(
+                        {"max_risk_tolerance": "max_risk_tolerance cannot be negative."}
+                    )
+
+                settings_obj = PlatformSettings.get_instance()
+                global_limit = Decimal(
+                    str(
+                        getattr(
+                            settings_obj,
+                            "global_max_risk_tolerance",
+                            settings_obj.max_risk_tolerance,
+                        )
+                    )
+                )
+                if Decimal(str(new_limit)) > global_limit:
+                    raise serializers.ValidationError(
+                        {
+                            "max_risk_tolerance": "Per-market max_risk_tolerance cannot exceed global_max_risk_tolerance."
+                        }
+                    )
         return data
 
 
