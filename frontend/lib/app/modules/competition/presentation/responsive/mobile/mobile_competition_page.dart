@@ -892,16 +892,10 @@ class _CompetitionDetailsSheet extends ConsumerWidget {
                                 hasPrevious: leaderboardState.data.previous != null,
                                 hasNext: leaderboardState.data.next != null,
                                 onPrevious: () async {
-                                  final previous = leaderboardState.data.previous;
-                                  if (previous == null) return;
-                                  _leaderboardPage = int.tryParse(Uri.parse(previous).queryParameters['page'] ?? '') ?? _leaderboardPage;
-                                  _updateRoute();
+                                  await leaderboardNotifier.previousPage();
                                 },
                                 onNext: () async {
-                                  final next = leaderboardState.data.next;
-                                  if (next == null) return;
-                                  _leaderboardPage = int.tryParse(Uri.parse(next).queryParameters['page'] ?? '') ?? _leaderboardPage;
-                                  _updateRoute();
+                                  await leaderboardNotifier.nextPage();
                                 },
                               ),
                           ],

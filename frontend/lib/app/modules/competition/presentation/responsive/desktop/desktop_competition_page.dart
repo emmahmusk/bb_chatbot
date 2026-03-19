@@ -713,7 +713,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
-              value: memberPercent,
+                value: memberPercent.toDouble(),
               minHeight: 8,
               backgroundColor: colors.always2D333B,
               valueColor: AlwaysStoppedAnimation<Color>(colors.always52AAFF),
