@@ -139,7 +139,14 @@ class Market(models.Model):
     baseline_prob_over = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0.00"), help_text="Initial feed-based probability for over before any nudging")
     baseline_prob_under = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0.00"), help_text="Initial feed-based probability for under before any nudging")
 
-    # max_risk_tolerance = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Maximum allowed exposure per side for this market.")
+    max_risk_tolerance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=Decimal("3000.00"),
+        help_text="Per-market maximum allowed net exposure. Uses platform default when null.",
+    )
     exposure_over = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), help_text="Total liability exposure for Over side.")
     exposure_under = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"), help_text="Total liability exposure for Under side.")
     is_suspended_over = models.BooleanField(default=False)

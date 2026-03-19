@@ -16,7 +16,8 @@ class PlatformSettings(models.Model):
     max_profit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("15000.00"))
     max_crs = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("30.00"))
     minimum_stake = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("1.00"))
-    max_risk_tolerance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("3000.00"), help_text="Maximum allowed exposure per market side globally.")
+    max_risk_tolerance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("3000.00"), help_text="Default per-market maximum allowed net exposure.")
+    global_max_risk_tolerance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("5000.00"), help_text="Global ceiling for market max risk tolerance.")
     starting_coin_balance = models.DecimalField(max_digits=16, decimal_places=2, default=Decimal("500.00"))
 
     def save(self, *args, **kwargs):
