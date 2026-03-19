@@ -1174,7 +1174,7 @@ class BetResolutionAPIView(APIView):
                 if bet_won:
                     bet.status = "won"
                     bet.payout_amount = bet.get_potential_payout()
-                    payout_coins = cash_to_coins(bet.payout_amount)
+                    payout_coins = bet.payout_amount
 
                     # ✅ Credit wallet in BullBear Coins
                     wallet = Wallet.objects.select_for_update().get(user=user)
@@ -1206,7 +1206,7 @@ class BetResolutionAPIView(APIView):
                     "message": f"Bet {bet.id} resolved as {bet.status}.",
                     "final_stock_price": str(final_price),
                     "payout_amount": str(bet.payout_amount),
-                    "payout_coins": str(cash_to_coins(bet.payout_amount)) if bet.status == "won" else "0.00",
+                    "payout_coins": str(bet.payout_amount) if bet.status == "won" else "0.00",
                     "market_target_price": str(target_price),
                     "stock_symbol": stock.symbol,
                 },
@@ -1442,7 +1442,7 @@ class CreditWinningBetsAPIView(APIView):
         for bet in winning_bets.select_related("user"):
             with transaction.atomic():
                 wallet, _ = get_or_create_wallet_with_starting_coins(user=bet.user)
-                payout_coins = cash_to_coins(bet.payout_amount)
+                payout_coins = bet.payout_amount
 
                 # Generate a unique transaction reference (UUID4)
                 reference = f"TRX-BET-CR-{bet.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
@@ -1489,7 +1489,7 @@ class CreditWinningBetsAPIView(APIView):
                     continue
 
                 wallet, _ = get_or_create_wallet_with_starting_coins(user=parlay_locked.user)
-                payout_coins = cash_to_coins(payout_amount)
+                payout_coins = payout_amount
 
                 reference = f"TRX-PARLAY-CR-{parlay_locked.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
