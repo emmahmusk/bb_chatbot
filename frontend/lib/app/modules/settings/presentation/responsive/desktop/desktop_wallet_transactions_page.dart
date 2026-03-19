@@ -1090,7 +1090,7 @@ class _DesktopWalletTransactionsPageState
                     onClick: () {
                       showCenterDialog(
                         context,
-                        child: const TransactionDetailsDialog(),
+                        child: TransactionDetailsDialog(transaction: txn),
                       );
                     },
                   ),
