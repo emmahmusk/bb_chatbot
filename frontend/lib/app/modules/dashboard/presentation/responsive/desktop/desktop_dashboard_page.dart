@@ -220,6 +220,32 @@ class CustomRouteChipHeader extends ConsumerWidget {
                     ),
                   ),
                 ),
+
+                // Competitions
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () {
+                      context.go('/dashboard/competitions');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colors.alwaysWhite),
+                        borderRadius: BorderRadius.circular(50),
+                        color: colors.alwaysWhite.withOpacity(0.1),
+                      ),
+                      child: Text(
+                        'Competitions',
+                        style: TextStyle(
+                          color: colors.alwaysWhite,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

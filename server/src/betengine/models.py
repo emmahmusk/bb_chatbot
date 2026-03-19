@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from mkt.market_chart import ODDS_LADDER_JSON
 from django.db import models, transaction
+from django.db.models import TextChoices, IntegerChoices
 from taggit.managers import TaggableManager
 from betengine.utils import american_to_decimal_odds, american_to_fractional_odds, implied_probability_to_american
 from django.core.cache import cache
@@ -15,6 +16,26 @@ from math import gcd
 
 from mkt.utils import get_side_and_american_odds
 User = get_user_model()
+
+
+# ============================================================================
+# Choice Classes - Defines all choice field options used throughout betengine
+# ============================================================================
+
+class CompetitionStatus(TextChoices):
+    """Status options for competitions"""
+    REGISTRATION = "registration", "Registration Open"
+    ACTIVE = "active", "Active"
+    COMPLETED = "completed", "Completed"
+    CANCELLED = "cancelled", "Cancelled"
+
+
+class ScoringMethod(TextChoices):
+    """Methods to rank competitors on leaderboard"""
+    NET_PROFIT = "net_profit", "Net Profit/Loss"
+    ROI = "roi", "Return on Investment (%)"
+    WIN_RATE = "win_rate", "Win Rate (%)"
+    TOTAL_PAYOUT = "total_payout", "Total Payout Amount"
 
 
 def round_two_places(value):
@@ -568,3 +589,155 @@ def backfill_display_odds():
             market.display_odds_under = implied_probability_to_american(market.implied_odds_under)
 
         market.save()
+
+
+# ===========================
+# COMPETITION MODELS
+# ===========================
+class Competition(models.Model):
+    """
+    Represents a stock prediction competition/league where users can join
+    and compete against each other over a specific time period.
+    """
+
+    name = models.CharField(
+        max_length=255,
+        help_text="Name of the competition (e.g., 'Tech Stocks March Madness')"
+    )
+    description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Detailed description of the competition rules and format"
+    )
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_competitions",
+        help_text="User who created this competition"
+    )
+    max_members = models.PositiveIntegerField(
+        default=50,
+        help_text="Maximum number of members allowed in this competition"
+    )
+    
+    start_date = models.DateTimeField(
+        help_text="When the competition starts (registration may close before this)"
+    )
+    end_date = models.DateTimeField(
+        help_text="When the competition ends and leaderboard is finalized"
+    )
+    registration_close_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When registration closes (defaults to start_date if not set)"
+    )
+    
+    status = models.CharField(
+        max_length=15,
+        choices=CompetitionStatus.choices,
+        default=CompetitionStatus.REGISTRATION,
+        help_text="Current status of the competition"
+    )
+    
+    entry_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        null=True,
+        blank=True,
+        help_text="Entry fee in platform currency (0 for free)"
+    )
+    
+    # Leaderboard & Rules
+    scoring_method = models.CharField(
+        max_length=50,
+        default=ScoringMethod.NET_PROFIT,
+        choices=ScoringMethod.choices,
+        help_text="Method used to rank competitors on the leaderboard"
+    )
+    
+    is_private = models.BooleanField(
+        default=False,
+        help_text="If True, only invited users can join"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name_plural = "Competitions"
+        indexes = [
+            models.Index(fields=["status", "start_date"]),
+            models.Index(fields=["creator", "created_at"]),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} (Ends: {self.end_date.strftime('%Y-%m-%d')})"
+    
+    @property
+    def current_member_count(self):
+        """Returns current number of active members in competition"""
+        return self.members.filter(joined_at__isnull=False).count()
+    
+    @property
+    def is_registration_open(self):
+        """Check if registration is still open"""
+        from django.utils import timezone
+        now = timezone.now()
+        close_date = self.registration_close_date or self.start_date
+        return self.status == CompetitionStatus.REGISTRATION and now < close_date
+    
+    @property
+    def is_active(self):
+        """Check if competition is currently active"""
+        from django.utils import timezone
+        now = timezone.now()
+        return self.status == CompetitionStatus.ACTIVE and now >= self.start_date and now <= self.end_date
+    
+    @property
+    def is_full(self):
+        """Check if competition has reached max members"""
+        return self.current_member_count >= self.max_members
+    
+    def update_status(self):
+        """
+        Automatically updates competition status based on dates.
+        Should be called periodically via a management command or signal.
+        """
+        from django.utils import timezone
+        now = timezone.now()
+        
+        if self.status == CompetitionStatus.CANCELLED:
+            return  # Don't change cancelled competitions
+        
+        if now >= self.end_date and self.status != CompetitionStatus.COMPLETED:
+            self.status = CompetitionStatus.COMPLETED
+            self.save(update_fields=["status", "updated_at"])
+        elif now >= self.start_date and self.status == CompetitionStatus.REGISTRATION:
+            self.status = CompetitionStatus.ACTIVE
+            self.save(update_fields=["status", "updated_at"])
+
+
+
+    
+    def calculate_score(self):
+        """
+        Calculate member's score based on competition's scoring_method.
+        """
+        stats = self.get_member_stats()
+        
+        scoring_method = self.competition.scoring_method
+        
+        if scoring_method == "net_profit":
+            return Decimal(str(stats["net_profit"]))
+        elif scoring_method == "roi":
+            return Decimal(str(stats["roi"]))
+        elif scoring_method == "win_rate":
+            return Decimal(str(stats["win_rate"]))
+        elif scoring_method == "total_payout":
+            return Decimal(str(stats["total_payout"]))
+        
+        return Decimal("0.00")

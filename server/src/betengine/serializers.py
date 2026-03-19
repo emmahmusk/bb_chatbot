@@ -9,8 +9,9 @@ from rest_framework import serializers
 
 from betengine.utils import calculate_payout, convert_odds
 from mkt.serializers import StockSerializer
+from user.models import CompetitionMember
 
-from .models import Bet, Market, ParlayBet, Stock
+from .models import Bet, Competition, CompetitionStatus, Market, ParlayBet, Stock
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,155 @@ class MarketOddsSerializer(serializers.ModelSerializer):
 
     def get_net_exposure(self, obj):
         return str(obj.net_exposure)
+
+
+class CompetitionSerializer(serializers.ModelSerializer):
+    creator_username = serializers.CharField(source="creator.username", read_only=True)
+    member_count = serializers.SerializerMethodField(read_only=True)
+    is_registration_open = serializers.BooleanField(read_only=True)
+    is_full = serializers.BooleanField(read_only=True)
+    user_joined = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Competition
+        fields = [
+            "id",
+            "name",
+            "description",
+            "creator",
+            "creator_username",
+            "max_members",
+            "member_count",
+            "start_date",
+            "end_date",
+            "registration_close_date",
+            "status",
+            "entry_fee",
+            "scoring_method",
+            "is_private",
+            "is_registration_open",
+            "is_full",
+            "user_joined",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "creator",
+            "creator_username",
+            "member_count",
+            "is_registration_open",
+            "is_full",
+            "user_joined",
+            "created_at",
+            "updated_at",
+        ]
+
+    def validate(self, attrs):
+        start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        end_date = attrs.get("end_date", getattr(self.instance, "end_date", None))
+        registration_close_date = attrs.get(
+            "registration_close_date",
+            getattr(self.instance, "registration_close_date", None),
+        )
+
+        if start_date and end_date and end_date <= start_date:
+            raise serializers.ValidationError(
+                {"end_date": "end_date must be later than start_date."}
+            )
+
+        if registration_close_date and start_date and registration_close_date > start_date:
+            raise serializers.ValidationError(
+                {
+                    "registration_close_date": (
+                        "registration_close_date must be on or before start_date."
+                    )
+                }
+            )
+
+        return attrs
+
+    def get_member_count(self, obj):
+        annotated_count = getattr(obj, "member_count", None)
+        if annotated_count is not None:
+            return annotated_count
+        return obj.members.count()
+
+    def get_user_joined(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user or not request.user.is_authenticated:
+            return False
+        return obj.members.filter(user=request.user).exists()
+
+
+class CompetitionMemberSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    competition_name = serializers.CharField(source="competition.name", read_only=True)
+
+    class Meta:
+        model = CompetitionMember
+        fields = [
+            "id",
+            "competition",
+            "competition_name",
+            "user",
+            "username",
+            "joined_at",
+            "final_rank",
+            "final_score",
+            "is_disqualified",
+        ]
+        read_only_fields = fields
+
+
+class CompetitionLeaderboardEntrySerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    total_bets = serializers.SerializerMethodField()
+    net_profit = serializers.SerializerMethodField()
+    roi = serializers.SerializerMethodField()
+    win_rate = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CompetitionMember
+        fields = [
+            "id",
+            "user",
+            "username",
+            "joined_at",
+            "final_rank",
+            "final_score",
+            "total_bets",
+            "net_profit",
+            "roi",
+            "win_rate",
+        ]
+        read_only_fields = fields
+
+    def _stats(self, obj):
+        if not hasattr(obj, "_cached_member_stats"):
+            obj._cached_member_stats = obj.get_member_stats()
+        return obj._cached_member_stats
+
+    def get_total_bets(self, obj):
+        return self._stats(obj).get("total_bets")
+
+    def get_net_profit(self, obj):
+        return self._stats(obj).get("net_profit")
+
+    def get_roi(self, obj):
+        return self._stats(obj).get("roi")
+
+    def get_win_rate(self, obj):
+        return self._stats(obj).get("win_rate")
+
+
+class CompetitionJoinSerializer(serializers.Serializer):
+    competition_id = serializers.IntegerField(read_only=True)
+    joined = serializers.BooleanField(read_only=True)
+    current_member_count = serializers.IntegerField(read_only=True)
+    max_members = serializers.IntegerField(read_only=True)
+    message = serializers.CharField(read_only=True)
+
     
 class BetSerializer(serializers.ModelSerializer):
     market_details = MarketSerializer(source="market", read_only=True)
