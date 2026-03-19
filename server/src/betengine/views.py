@@ -7,7 +7,7 @@ from datetime import datetime, time
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from user.models import PlatformSettings, Wallet, Transaction
+from user.models import CompetitionMember, PlatformSettings, Wallet, Transaction
 from django.db.models import Sum, OuterRef, Subquery, IntegerField, Q, F, Value, Count
 from django.db.models.functions import Coalesce, Abs
 from django.db.models import ProtectedError
@@ -31,10 +31,13 @@ from datetime import datetime, timedelta
 from user.models import KYCProfile
 from user.wallet_coins import cash_to_coins
 from user.wallet_utils import get_or_create_wallet_with_starting_coins
-from .models import Bet, Market, ParlayBet, Stock
+from .models import Bet, Competition, CompetitionStatus, Market, ParlayBet, Stock
 from .serializers import (  # Import Polygon's Ticker model for type hinting
     BetResolutionSerializer,
     BetSerializer,
+    CompetitionLeaderboardEntrySerializer,
+    CompetitionMemberSerializer,
+    CompetitionSerializer,
     MarketOddsSerializer,
     ParlayBetResolutionSerializer,
     ParlayBetSerializer,
@@ -1752,3 +1755,192 @@ class ParlayBetResolutionAPIView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class CompetitionListPagination(pagination.PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+class CompetitionListCreateAPIView(generics.ListCreateAPIView):
+    """
+    List competitions for discovery and allow authenticated users to create one.
+    """
+
+    serializer_class = CompetitionSerializer
+    authentication_classes = [JWTAuthentication]
+    pagination_class = CompetitionListPagination
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    def get_queryset(self):
+        queryset = Competition.objects.select_related("creator").annotate(
+            member_count=Count("members")
+        )
+
+        status_value = self.request.query_params.get("status")
+        q_value = self.request.query_params.get("q")
+        registration_open = self.request.query_params.get("registration_open")
+
+        if status_value:
+            queryset = queryset.filter(status=status_value)
+
+        if q_value:
+            queryset = queryset.filter(
+                Q(name__icontains=q_value) | Q(description__icontains=q_value)
+            )
+
+        if registration_open in ["true", "1", "yes"]:
+            now = timezone.now()
+            queryset = queryset.filter(
+                status=CompetitionStatus.REGISTRATION,
+            ).filter(
+                Q(registration_close_date__isnull=True, start_date__gt=now)
+                | Q(registration_close_date__gt=now)
+            )
+
+        ordering = self.request.query_params.get("ordering", "-created_at")
+        if ordering in ["created_at", "-created_at", "start_date", "-start_date", "end_date", "-end_date"]:
+            queryset = queryset.order_by(ordering)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(creator=self.request.user, status=CompetitionStatus.REGISTRATION)
+
+
+class CompetitionDetailAPIView(generics.RetrieveAPIView):
+    serializer_class = CompetitionSerializer
+    permission_classes = [AllowAny]
+    queryset = Competition.objects.select_related("creator").annotate(
+        member_count=Count("members")
+    )
+    lookup_field = "pk"
+
+
+class CompetitionJoinAPIView(APIView):
+    """
+    Join a competition if registration is open and capacity remains.
+    """
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, competition_id):
+        try:
+            competition = Competition.objects.select_for_update().get(pk=competition_id)
+        except Competition.DoesNotExist:
+            return Response(
+                {"error": "Competition not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        competition.update_status()
+
+        existing_membership = CompetitionMember.objects.filter(
+            competition=competition,
+            user=request.user,
+        ).first()
+        if existing_membership:
+            payload = {
+                "competition_id": competition.id,
+                "joined": True,
+                "current_member_count": competition.members.count(),
+                "max_members": competition.max_members,
+                "message": "You already joined this competition.",
+            }
+            return Response(payload, status=status.HTTP_200_OK)
+
+        if not competition.is_registration_open:
+            return Response(
+                {"error": "Registration is closed for this competition."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        current_member_count = CompetitionMember.objects.filter(
+            competition=competition
+        ).count()
+        if current_member_count >= competition.max_members:
+            return Response(
+                {"error": "Competition is full."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        entry_fee = Decimal(str(competition.entry_fee or 0))
+        if entry_fee > 0:
+            wallet, _ = get_or_create_wallet_with_starting_coins(user=request.user)
+            wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+            if wallet.coin_balance < entry_fee:
+                return Response(
+                    {"error": "Insufficient coin balance for entry fee."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            wallet.coin_balance -= entry_fee
+            wallet.save(update_fields=["coin_balance"])
+
+            reference = (
+                f"TRX-COMP-ENTRY-{competition.id}-"
+                f"{timezone.now().strftime('%Y%m%d%H%M%S')}-"
+                f"{uuid.uuid4().hex[:6].upper()}"
+            )
+            Transaction.objects.create(
+                wallet=wallet,
+                amount=entry_fee,
+                transaction_type=Transaction.DEBIT,
+                reference=reference,
+                description=f"Entry fee for competition #{competition.id} ({competition.name})",
+                status=Transaction.SUCCESSFUL,
+            )
+
+        CompetitionMember.objects.create(competition=competition, user=request.user)
+
+        payload = {
+            "competition_id": competition.id,
+            "joined": True,
+            "current_member_count": current_member_count + 1,
+            "max_members": competition.max_members,
+            "message": "Successfully joined competition.",
+        }
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class CompetitionLeaderboardAPIView(generics.ListAPIView):
+    """
+    Returns participants and their stats for a competition leaderboard page.
+    """
+
+    serializer_class = CompetitionLeaderboardEntrySerializer
+    permission_classes = [AllowAny]
+    pagination_class = CompetitionListPagination
+
+    def get_queryset(self):
+        competition_id = self.kwargs.get("competition_id")
+        queryset = CompetitionMember.objects.filter(
+            competition_id=competition_id,
+            is_disqualified=False,
+        ).select_related("user", "competition")
+
+        # Sort by finalized rank if available; otherwise by join date.
+        return queryset.order_by("final_rank", "joined_at")
+
+
+class CompetitionMembershipListAPIView(generics.ListAPIView):
+    """
+    Returns all competitions joined by the authenticated user.
+    """
+
+    serializer_class = CompetitionMemberSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    pagination_class = CompetitionListPagination
+
+    def get_queryset(self):
+        return CompetitionMember.objects.filter(user=self.request.user).select_related(
+            "competition", "user"
+        )

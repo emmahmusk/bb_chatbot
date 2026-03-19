@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import ExpiryDatesByStockSymbolView, LoadStockTagsView, MarketByExpiryDateView, MarketDetailAPIView, MarketListAPIView, PopulateMarketsView, StockSearchWithTagsAPIView, StrikePricesByStockSymbolView  # New
+from .views import CompetitionDetailAPIView, CompetitionJoinAPIView, CompetitionLeaderboardAPIView, CompetitionListCreateAPIView, CompetitionMembershipListAPIView, ExpiryDatesByStockSymbolView, LoadStockTagsView, MarketByExpiryDateView, MarketDetailAPIView, MarketListAPIView, PopulateMarketsView, StockSearchWithTagsAPIView, StrikePricesByStockSymbolView  # New
 from .views import PlaceParlayBetAPIView  # New
 from .views import PlaceSingleBetAPIView  # New
 from .views import (
@@ -33,4 +33,9 @@ urlpatterns = [
     ),  # New
     path("parlay/list/", ParlayBetListAPIView.as_view(), name="parlay-list"),  # New
     path("wallets/bulk-cr/", CreditWinningBetsAPIView.as_view(), name="credit-wallets"),
+    path("competitions/", CompetitionListCreateAPIView.as_view(), name="competition-list-create"),
+    path("competitions/<int:pk>/", CompetitionDetailAPIView.as_view(), name="competition-detail"),
+    path("competitions/<int:competition_id>/join/", CompetitionJoinAPIView.as_view(), name="competition-join"),
+    path("competitions/<int:competition_id>/leaderboard/", CompetitionLeaderboardAPIView.as_view(), name="competition-leaderboard"),
+    path("competitions/my/", CompetitionMembershipListAPIView.as_view(), name="competition-membership-list"),
 ]
