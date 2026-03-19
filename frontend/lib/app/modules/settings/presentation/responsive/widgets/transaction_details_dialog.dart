@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app/modules/settings/presentation/responsive/widgets/timeline_breakdown.dart';
 import 'package:frontend/app/shared/classes/media/pngs.dart';
 import 'package:frontend/app/shared/classes/media/svgs.dart';
+import 'package:frontend/app/shared/functions/date_functions.dart';
 import 'package:frontend/app/shared/presentation/widgets/clickable.dart';
 import 'package:frontend/app/shared/presentation/widgets/close_icon.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_divider.dart';
@@ -10,46 +11,45 @@ import 'package:frontend/app/shared/presentation/widgets/row_title_subtitle.dart
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:frontend/core/navigation/navigator.dart';
 
-class TransactionDetailsDialog extends ConsumerStatefulWidget {
-  const TransactionDetailsDialog({super.key});
+class TransactionDetailsDialog extends ConsumerWidget {
+  const TransactionDetailsDialog({
+    super.key,
+    required this.transaction,
+  });
+
+  final Map<String, dynamic> transaction;
 
   @override
-  ConsumerState<ConsumerStatefulWidget> createState() =>
-      _TransactionDetailsDialogState();
-}
-
-class _TransactionDetailsDialogState
-    extends ConsumerState<TransactionDetailsDialog> {
-  List<TimelineEvent> get _timelineEvents => [
-        const TimelineEvent(
-          title: 'Withdrawal requested',
-          timestamp: '04/02/2025, 13:17',
-          isCompleted: true,
-        ),
-        const TimelineEvent(
-          title: 'Money sent',
-          timestamp: '04/02/2025, 13:17',
-          isCompleted: true,
-        ),
-      ];
-
-  final transactionDetails = [
-    (
-      'Account name',
-      'Darrell Steward',
-    ),
-    (
-      'Account number',
-      '87290395',
-    ),
-    (
-      'Sort code',
-      '295830',
-    ),
-  ];
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = ref.watch(appThemeProvider).colors;
+    final isCredit =
+        (transaction['transaction_type'] ?? '').toString().toLowerCase() ==
+            'credit';
+    final amountUnit = (transaction['amount_unit'] ?? 'BB Cash').toString();
+    final displayAmount =
+        (transaction['display_amount'] ?? transaction['amount'] ?? '0')
+            .toString();
+    final description =
+        (transaction['description'] ?? 'Wallet transaction').toString();
+    final reference = transaction['reference']?.toString();
+    final txStatus = _normalizeStatus(transaction['status']?.toString());
+    final createdAt = _parseDateTime(transaction['created_at']?.toString());
+    final createdAtText = createdAt != null
+        ? formatDateTimeToDDMMYYYYHHmm(createdAt)
+        : 'N/A';
+
+    final timelineEvents = _buildTimelineEvents(createdAtText, txStatus);
+    final iconAsset = isCredit ? Pngs.walletDeposit : Pngs.bankWithdrawal;
+    final headerAmount =
+        '${isCredit ? '+' : '-'}$displayAmount ${amountUnit == 'BB Cash' ? 'BB Cash' : 'BBC'}';
+    final typeLabel = isCredit ? 'Credit' : 'Debit';
+    final detailRows = [
+      ('Type', typeLabel),
+      ('Unit', amountUnit),
+      ('Description', description),
+      ('Date', createdAtText),
+    ];
+
     return Container(
       width: 686,
       height: 700,
@@ -109,7 +109,7 @@ class _TransactionDetailsDialogState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Image.asset(
-                        Pngs.bankWithdrawal,
+                        iconAsset,
                         width: 40,
                         height: 40,
                         fit: BoxFit.cover,
@@ -120,7 +120,7 @@ class _TransactionDetailsDialogState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '-£4.50',
+                              headerAmount,
                               style: TextStyle(
                                 fontSize: 24,
                                 color: colors.alwaysWhite,
@@ -129,7 +129,7 @@ class _TransactionDetailsDialogState
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Withdrawal',
+                              typeLabel,
                               style: TextStyle(
                                 fontSize: 14,
                                 color: colors.alwaysWhite,
@@ -142,7 +142,9 @@ class _TransactionDetailsDialogState
                       const SizedBox(width: 12),
                       IconChip(
                         asset: Pngs.checkCircle,
-                        text: "Complete",
+                        text: _statusLabel(txStatus),
+                        color: _chipBackground(txStatus, colors),
+                        textColor: _chipTextColor(txStatus, colors),
                       ),
                     ],
                   ),
@@ -166,9 +168,9 @@ class _TransactionDetailsDialogState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TimelineBreakdown(events: _timelineEvents),
+                  TimelineBreakdown(events: timelineEvents),
                   const SizedBox(height: 56),
-                  for (var data in transactionDetails) ...[
+                  for (final data in detailRows) ...[
                     RowTitleSubtitle(
                       title: data.$1,
                       subtitle: data.$2,
@@ -193,7 +195,9 @@ class _TransactionDetailsDialogState
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'WL-56ZNLXQUYR',
+                        (reference != null && reference.trim().isNotEmpty)
+                            ? reference
+                            : 'TX-${transaction['id'] ?? ''}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -222,6 +226,109 @@ class _TransactionDetailsDialogState
       ),
     );
   }
+
+  static DateTime? _parseDateTime(String? raw) {
+    if (raw == null || raw.trim().isEmpty) {
+      return null;
+    }
+    try {
+      return DateTime.parse(raw).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _normalizeStatus(String? raw) {
+    final normalized = (raw ?? '').trim().toLowerCase();
+    if (normalized == 'pending') {
+      return 'pending';
+    }
+    if (normalized == 'failed') {
+      return 'failed';
+    }
+    return 'successful';
+  }
+
+  static String _statusLabel(String status) {
+    switch (status) {
+      case 'pending':
+        return 'Pending';
+      case 'failed':
+        return 'Failed';
+      default:
+        return 'Complete';
+    }
+  }
+
+  static List<TimelineEvent> _buildTimelineEvents(
+    String createdAtText,
+    String status,
+  ) {
+    if (status == 'pending') {
+      return [
+        TimelineEvent(
+          title: 'Transaction created',
+          timestamp: createdAtText,
+          isCompleted: true,
+        ),
+        TimelineEvent(
+          title: 'Awaiting confirmation',
+          timestamp: createdAtText,
+          isCompleted: false,
+        ),
+      ];
+    }
+
+    if (status == 'failed') {
+      return [
+        TimelineEvent(
+          title: 'Transaction created',
+          timestamp: createdAtText,
+          isCompleted: true,
+        ),
+        TimelineEvent(
+          title: 'Transaction failed',
+          timestamp: createdAtText,
+          isCompleted: true,
+        ),
+      ];
+    }
+
+    return [
+      TimelineEvent(
+        title: 'Transaction created',
+        timestamp: createdAtText,
+        isCompleted: true,
+      ),
+      TimelineEvent(
+        title: 'Transaction completed',
+        timestamp: createdAtText,
+        isCompleted: true,
+      ),
+    ];
+  }
+
+  static Color _chipBackground(String status, dynamic colors) {
+    switch (status) {
+      case 'pending':
+        return colors.alwaysFFD33D.withValues(alpha: 0.16);
+      case 'failed':
+        return colors.always8B949E.withValues(alpha: 0.16);
+      default:
+        return colors.always003D2E;
+    }
+  }
+
+  static Color _chipTextColor(String status, dynamic colors) {
+    switch (status) {
+      case 'pending':
+        return colors.alwaysFFD33D;
+      case 'failed':
+        return colors.always8B949E;
+      default:
+        return colors.always27D07F;
+    }
+  }
 }
 
 class IconChip extends ConsumerWidget {
@@ -230,11 +337,13 @@ class IconChip extends ConsumerWidget {
     required this.asset,
     required this.text,
     this.color,
+    this.textColor,
     this.borderRadius = 50,
   });
   final String asset;
   final String text;
   final Color? color;
+  final Color? textColor;
   final double borderRadius;
 
   @override
@@ -260,7 +369,7 @@ class IconChip extends ConsumerWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: colors.always27D07F,
+              color: textColor ?? colors.always27D07F,
             ),
           ),
         ],
