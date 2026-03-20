@@ -751,54 +751,49 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
 
   String _joinLabel(CompetitionModel item) {
     if (item.userJoined) return 'Joined';
-    if (item.isFull) return 'Full';
-    if (!item.isRegistrationOpen) return 'Closed';
-    return _isJoining ? 'Joining...' : 'Join';
-  }
-
-  bool _canJoin(CompetitionModel item) {
-    return !item.userJoined && item.isRegistrationOpen && !item.isFull;
-  }
-
-  Widget _buildDetailPanel({
-    required AppState<CompetitionModel> detailState,
-    required AppState<PaginatedCompetitionLeaderboardModel> leaderboardState,
-    required int leaderboardCurrentPage,
-    required Future<void> Function() onLeaderboardNext,
-    required Future<void> Function() onLeaderboardPrevious,
-  }) {
-    final colors = ref.watch(appThemeProvider).colors;
-
-    if (detailState.isInitial) {
-      return _panelMessage('Select a competition to view full details and leaderboard.');
-    }
-
-    if (detailState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (detailState.isError) {
-      return _panelMessage(detailState.errorMessage, isError: true);
-    }
-
-    final item = detailState.data;
-
-    return Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            item.name,
-            style: TextStyle(
+          if (item.startDate != null)
+            Text(
+              'Starts: ${_formatDate(item.startDate!)}',
+              style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 12),
+            ),
+          if (item.endDate != null)
+            Text(
+              'Ends: ${_formatDate(item.endDate!)}',
+              style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 12),
+            ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Text(
+                'Leaderboard',
+                style: TextStyle(
+                  color: colors.alwaysWhite,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: () => _showLeaderboardModal(context, leaderboardState, leaderboardCurrentPage, onLeaderboardNext, onLeaderboardPrevious),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.always52AAFF,
+                  foregroundColor: colors.alwaysWhite,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('View Table'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _buildLeaderboard(
+              leaderboardState: leaderboardState,
+              leaderboardCurrentPage: leaderboardCurrentPage,
               color: colors.alwaysWhite,
               fontSize: 20,
               fontWeight: FontWeight.w700,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            item.description ?? 'No description provided.',
             style: TextStyle(color: colors.always8B949E),
           ),
           const SizedBox(height: 12),
