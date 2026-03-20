@@ -74,106 +74,208 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     _statusFilter = widget.initialStatus;
     _ordering = widget.initialOrdering;
     _selectedCompetitionId = widget.selectedCompetitionId;
-    _discoverPage = widget.initialDiscoverPage;
-    _myPage = widget.initialMyPage;
-    _leaderboardPage = widget.initialLeaderboardPage;
-    _pageSize = widget.initialPageSize;
-    Future.microtask(() async {
-      await _syncFromRoute(forceReload: true);
-    });
-  }
+    Widget _buildDetailPanel({
+      required AppState<CompetitionModel> detailState,
+      required AppState<PaginatedCompetitionLeaderboardModel> leaderboardState,
+      required int leaderboardCurrentPage,
+      required Future<void> Function() onLeaderboardNext,
+      required Future<void> Function() onLeaderboardPrevious,
+    }) {
+      final colors = ref.watch(appThemeProvider).colors;
 
-  @override
-  void didUpdateWidget(covariant DesktopCompetitionPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final routeChanged = oldWidget.selectedCompetitionId != widget.selectedCompetitionId ||
-        oldWidget.initialQuery != widget.initialQuery ||
-        oldWidget.initialStatus != widget.initialStatus ||
-        oldWidget.initialOrdering != widget.initialOrdering ||
-        oldWidget.initialTab != widget.initialTab;
-
-    if (routeChanged) {
-      _activeTab = widget.initialTab == 'mine'
-          ? _CompetitionTab.myCompetitions
-          : _CompetitionTab.discover;
-      _searchController.text = widget.initialQuery;
-      _statusFilter = widget.initialStatus;
-      _ordering = widget.initialOrdering;
-      _selectedCompetitionId = widget.selectedCompetitionId;
-      _discoverPage = widget.initialDiscoverPage;
-      _myPage = widget.initialMyPage;
-      _leaderboardPage = widget.initialLeaderboardPage;
-      _pageSize = widget.initialPageSize;
-      Future.microtask(() async {
-        await _syncFromRoute(forceReload: true);
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _syncFromRoute({bool forceReload = false}) async {
-    final filters = _discoverQuery();
-    await ref.read(competitionDiscoverProvider.notifier).load(
-      query: filters,
-      page: forceReload ? _discoverPage : null,
-      pageSize: _pageSize,
-    );
-    if (isAuthenticated()) {
-      await ref.read(competitionMyProvider.notifier).load(
-        page: forceReload ? _myPage : null,
-        pageSize: _pageSize,
+      if (detailState.isInitial) {
+        return _panelMessage('Select a competition to view full details and leaderboard.');
+      }
+      if (detailState.isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (detailState.isError) {
+        return _panelMessage(detailState.errorMessage, isError: true);
+      }
+      final item = detailState.data;
+      return Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.name,
+              style: TextStyle(
+                color: colors.alwaysWhite,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              item.description ?? 'No description provided.',
+              style: TextStyle(color: colors.always8B949E),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _pill('Status: ${item.status}'),
+                _pill('Scoring: ${item.scoringMethod}'),
+                _pill('Members: ${item.memberCount}/${item.maxMembers}'),
+                _pill('Fee: ${item.entryFee} BBC'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (item.startDate != null)
+              Text(
+                'Starts: ${_formatDate(item.startDate!)}',
+                style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 12),
+              ),
+            if (item.endDate != null)
+              Text(
+                'Ends: ${_formatDate(item.endDate!)}',
+                style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 12),
+              ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Text(
+                  'Leaderboard',
+                  style: TextStyle(
+                    color: colors.alwaysWhite,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () => _showLeaderboardModal(context, leaderboardState, leaderboardCurrentPage, onLeaderboardNext, onLeaderboardPrevious),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.always52AAFF,
+                    foregroundColor: colors.alwaysWhite,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('View Table'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _buildLeaderboard(
+                leaderboardState: leaderboardState,
+                leaderboardCurrentPage: leaderboardCurrentPage,
+                onLeaderboardNext: onLeaderboardNext,
+                onLeaderboardPrevious: onLeaderboardPrevious,
+              ),
+            ),
+          ],
+        ),
       );
     }
-    if (_selectedCompetitionId != null) {
-      await ref.read(competitionDetailProvider.notifier).load(_selectedCompetitionId!);
-      await ref
-          .read(competitionLeaderboardProvider.notifier)
-          .load(_selectedCompetitionId!, page: forceReload ? _leaderboardPage : null, pageSize: _pageSize);
+
+    String _joinLabel(CompetitionModel item) {
+      if (item.userJoined) return 'Joined';
+      if (item.isFull) return 'Full';
+      if (!item.isRegistrationOpen) return 'Closed';
+      return _isJoining ? 'Joining...' : 'Join';
     }
-  }
 
-  Map<String, String> _discoverQuery() {
-    return {
-      'status': _statusFilter,
-      'ordering': _ordering,
-      if (_searchController.text.trim().isNotEmpty) 'q': _searchController.text.trim(),
-      if (_statusFilter == 'registration') 'registration_open': 'true',
-    };
-  }
+    bool _canJoin(CompetitionModel item) {
+      return !item.userJoined && item.isRegistrationOpen && !item.isFull;
+    }
 
-  void _updateRoute({int? competitionId, String? tab}) {
-    context.go(
-      DashboardRoutes.competitionLocation(
-        competitionId: competitionId?.toString() ?? _selectedCompetitionId?.toString(),
-        query: _searchController.text,
-        status: _statusFilter,
-        ordering: _ordering,
-        tab: tab ?? (_activeTab == _CompetitionTab.myCompetitions ? 'mine' : 'discover'),
-        discoverPage: '$_discoverPage',
-        myPage: '$_myPage',
-        leaderboardPage: '$_leaderboardPage',
-        pageSize: '$_pageSize',
-      ),
-    );
-  }
-
-  void _applyFilters() {
-    _selectedCompetitionId = null;
-    _discoverPage = 1;
-    _leaderboardPage = 1;
-    _updateRoute(competitionId: null);
-  }
-
-  void _resetFilters() {
-    setState(() {
-      _activeTab = _CompetitionTab.discover;
-      _searchController.text = '';
+    void _showLeaderboardModal(
+      BuildContext context,
+      AppState<PaginatedCompetitionLeaderboardModel> leaderboardState,
+      int leaderboardCurrentPage,
+      Future<void> Function() onLeaderboardNext,
+      Future<void> Function() onLeaderboardPrevious,
+    ) {
+      final colors = ref.read(appThemeProvider).colors;
+      showDialog(
+        context: context,
+        builder: (ctx) {
+          if (leaderboardState.isInitial || leaderboardState.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (leaderboardState.isError) {
+            return AlertDialog(
+              title: const Text('Leaderboard'),
+              content: Text(leaderboardState.errorMessage),
+              actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
+            );
+          }
+          final rows = leaderboardState.data.results;
+          return Dialog(
+            backgroundColor: colors.always161B22,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Container(
+              width: 700,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Leaderboard', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (rows.isEmpty)
+                    const Text('No participants yet.'),
+                  if (rows.isNotEmpty)
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columns: const [
+                          DataColumn(label: Text('Rank')),
+                          DataColumn(label: Text('Username')),
+                          DataColumn(label: Text('ROI')),
+                          DataColumn(label: Text('P/L')),
+                          DataColumn(label: Text('Total Bets')),
+                          DataColumn(label: Text('Win Rate')),
+                        ],
+                        rows: [
+                          for (int i = 0; i < rows.length; i++)
+                            DataRow(cells: [
+                              DataCell(Text('${rows[i].finalRank ?? (i + 1)}')),
+                              DataCell(Text(rows[i].username)),
+                              DataCell(Text('${rows[i].roi.toStringAsFixed(2)}%')),
+                              DataCell(Text('${rows[i].netProfit.toStringAsFixed(2)}')),
+                              DataCell(Text('${rows[i].totalBets}')),
+                              DataCell(Text('${rows[i].winRate.toStringAsFixed(2)}%')),
+                            ]),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      CompetitionPaginationBar(
+                        currentPage: leaderboardCurrentPage,
+                        hasPrevious: leaderboardState.data.previous != null,
+                        hasNext: leaderboardState.data.next != null,
+                        onPrevious: () async {
+                          await onLeaderboardPrevious();
+                        },
+                        onNext: () async {
+                          await onLeaderboardNext();
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
       _statusFilter = 'registration';
       _ordering = 'start_date';
       _selectedCompetitionId = null;
