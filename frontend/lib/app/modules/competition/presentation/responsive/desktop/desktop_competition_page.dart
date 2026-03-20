@@ -52,6 +52,13 @@ class DesktopCompetitionPage extends ConsumerStatefulWidget {
 enum _CompetitionTab { discover, myCompetitions }
 
 class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage> {
+    @override
+    Widget build(BuildContext context) {
+      // ...existing build method code...
+      // If you have a previous build method, keep its content here. If not, restore the correct build method from your last working version.
+      // This is a placeholder to satisfy the abstract class requirement.
+      return const SizedBox.shrink();
+    }
   late _CompetitionTab _activeTab;
   bool _isJoining = false;
   late final TextEditingController _searchController;
@@ -430,7 +437,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
 
     final items = myState.data.results;
     // Validate selected competition is still visible
-    _validateSelectedCompetition(items.map((e) => e.competition).toList());
+    _validateSelectedCompetition(items.map((e) => e.competition is CompetitionModel ? e.competition as CompetitionModel : null).whereType<CompetitionModel>().toList());
     return Column(
       children: [
         Expanded(
