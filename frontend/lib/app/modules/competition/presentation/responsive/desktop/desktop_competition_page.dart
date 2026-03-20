@@ -78,6 +78,10 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     _myPage = widget.initialMyPage;
     _leaderboardPage = widget.initialLeaderboardPage;
     _pageSize = widget.initialPageSize;
+    // Load competitions and details immediately after first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncFromRoute();
+    });
   }
 
   Widget _buildDetailPanel({
