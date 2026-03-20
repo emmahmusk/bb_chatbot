@@ -184,11 +184,75 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     return _isJoining ? 'Joining...' : 'Join';
   }
 
-  // --- Stubs for missing methods to prevent build errors ---
-  void _updateRoute({int? competitionId, String? tab}) {}
-  Future<void> _syncFromRoute() async {}
-  void _applyFilters() {}
-  void _resetFilters() {}
+
+  Future<void> _syncFromRoute({bool forceReload = false}) async {
+    await ref.read(competitionDiscoverProvider.notifier).load(
+      query: _discoverQuery(),
+      page: forceReload ? _discoverPage : null,
+      pageSize: _pageSize,
+    );
+    if (isAuthenticated()) {
+      await ref.read(competitionMyProvider.notifier).load(
+        page: forceReload ? _myPage : null,
+        pageSize: _pageSize,
+      );
+    }
+    if (_selectedCompetitionId != null) {
+      await ref.read(competitionDetailProvider.notifier).load(_selectedCompetitionId!);
+      await ref
+          .read(competitionLeaderboardProvider.notifier)
+          .load(_selectedCompetitionId!, page: forceReload ? _leaderboardPage : null, pageSize: _pageSize);
+    }
+  }
+
+  Map<String, String> _discoverQuery() {
+    return {
+      'status': _statusFilter,
+      'ordering': _ordering,
+      if (_searchController.text.trim().isNotEmpty) 'q': _searchController.text.trim(),
+      if (_statusFilter == 'registration') 'registration_open': 'true',
+    };
+  }
+
+  void _updateRoute({int? competitionId, String? tab}) {
+    context.go(
+      DashboardRoutes.competitionLocation(
+        competitionId: competitionId?.toString() ?? _selectedCompetitionId?.toString(),
+        query: _searchController.text,
+        status: _statusFilter,
+        ordering: _ordering,
+        tab: tab ?? (_activeTab == _CompetitionTab.myCompetitions ? 'mine' : 'discover'),
+        discoverPage: '$_discoverPage',
+        myPage: '$_myPage',
+        leaderboardPage: '$_leaderboardPage',
+        pageSize: '$_pageSize',
+      ),
+    );
+  }
+
+  void _applyFilters() {
+    setState(() {
+      _selectedCompetitionId = null;
+      _discoverPage = 1;
+      _leaderboardPage = 1;
+    });
+    _updateRoute(competitionId: null);
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _activeTab = _CompetitionTab.discover;
+      _searchController.text = '';
+      _statusFilter = 'registration';
+      _ordering = 'start_date';
+      _selectedCompetitionId = null;
+      _discoverPage = 1;
+      _myPage = 1;
+      _leaderboardPage = 1;
+      _pageSize = 20;
+    });
+    _updateRoute(competitionId: null, tab: 'discover');
+  }
 
   bool _canJoin(CompetitionModel item) {
     return !item.userJoined && item.isRegistrationOpen && !item.isFull;
