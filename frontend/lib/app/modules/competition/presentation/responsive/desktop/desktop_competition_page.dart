@@ -184,7 +184,6 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     return _isJoining ? 'Joining...' : 'Join';
   }
 
-
   Future<void> _syncFromRoute({bool forceReload = false}) async {
     await ref.read(competitionDiscoverProvider.notifier).load(
       query: _discoverQuery(),
@@ -623,6 +622,117 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     await ref.read(competitionLeaderboardProvider.notifier).load(competitionId, page: 1, pageSize: _pageSize);
   }
 
+  Future<void> _joinCompetition(CompetitionModel competition) async {
+    if (!isAuthenticated()) {
+      showCenterDialog(context, child: const LoginDialog());
+      return;
+    }
+    setState(() {
+      _isJoining = true;
+    });
+    final result = await ref.read(competitionRepositoryProvider).joinCompetition(competition.id);
+    if (!mounted) return;
+    setState(() {
+      _isJoining = false;
+    });
+    if (result.isError) {
+      context.showError(result.errorMessage);
+      return;
+    }
+    context.showSuccess(result.data.message);
+    await _syncFromRoute();
+  }
+
+  Widget _buildLeaderboard({
+    required AppState<PaginatedCompetitionLeaderboardModel> leaderboardState,
+    required int leaderboardCurrentPage,
+    required Future<void> Function() onLeaderboardNext,
+    required Future<void> Function() onLeaderboardPrevious,
+  }) {
+    final colors = ref.watch(appThemeProvider).colors;
+    if (leaderboardState.isInitial || leaderboardState.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (leaderboardState.isError) {
+      return _panelMessage(leaderboardState.errorMessage, isError: true);
+    }
+    final rows = leaderboardState.data.results;
+    if (rows.isEmpty) {
+      return const EmptyState(
+        title: 'No participants yet',
+        message: 'Once users join, leaderboard rankings will appear here.',
+      );
+    }
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.separated(
+            itemBuilder: (_, index) {
+              final row = rows[index];
+              final rank = row.finalRank ?? (index + 1);
+              return Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colors.always161B22,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: colors.always30363D),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 15,
+                      backgroundColor: colors.always2D333B,
+                      child: Text(
+                        ' 24{rank}',
+                        style: TextStyle(
+                          color: colors.alwaysWhite,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        row.username,
+                        style: TextStyle(
+                          color: colors.alwaysWhite,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'ROI  24{row.roi.toStringAsFixed(2)}%',
+                      style: TextStyle(color: colors.always52AAFF, fontSize: 12),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'P/L  24{row.netProfit.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        color: row.netProfit >= 0
+                            ? colors.always27D07F
+                            : colors.alwaysFF4C4C,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemCount: rows.length,
+          ),
+        ),
+        CompetitionPaginationBar(
+          currentPage: leaderboardCurrentPage,
+          hasPrevious: leaderboardState.data.previous != null,
+          hasNext: leaderboardState.data.next != null,
+          onPrevious: onLeaderboardPrevious,
+          onNext: onLeaderboardNext,
+        ),
+      ],
+    );
+  }
 
   Widget _pill(String text) {
     final colors = ref.watch(appThemeProvider).colors;
