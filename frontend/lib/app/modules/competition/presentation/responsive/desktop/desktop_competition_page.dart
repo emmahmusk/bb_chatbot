@@ -854,14 +854,6 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
   }
 
 
-              onLeaderboardNext: onLeaderboardNext,
-              onLeaderboardPrevious: onLeaderboardPrevious,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildLeaderboard({
     required AppState<PaginatedCompetitionLeaderboardModel> leaderboardState,
