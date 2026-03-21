@@ -88,18 +88,19 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
                   'Competitions',
                   style: TextStyle(
                     color: colors.alwaysWhite,
-                    fontSize: 30,
+                    fontSize: 26,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.always1F242C,
                     borderRadius: BorderRadius.circular(999),
@@ -109,23 +110,40 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                     'Community Leagues',
                     style: TextStyle(
                       color: colors.always8B949E,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
                 const Spacer(),
-                CustomOutlinedButton.big(
-                  text: 'Refresh',
-                  onTap: _syncFromRoute,
-                  textColor: colors.alwaysE6EDF3,
-                ),
-                const SizedBox(width: 10),
-                CustomButton(
-                  text: 'Create Competition',
-                  fontSize: 14,
-                  width: 180,
-                  onPressed: _openCreateDialog,
+                SizedBox(
+                  height: 36,
+                  child: Row(
+                    children: [
+                      OutlinedButton(
+                        onPressed: _syncFromRoute,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: colors.alwaysE6EDF3,
+                          side: BorderSide(color: colors.always52AAFF),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                        child: const Text('Refresh'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _openCreateDialog,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colors.always52AAFF,
+                          foregroundColor: colors.alwaysWhite,
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('Create Competition'),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -378,6 +396,21 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen for authentication state changes and reload joined competitions if authenticated
+    final wasAuthenticated = _wasAuthenticated;
+    final isNowAuthenticated = isAuthenticated();
+    if (!wasAuthenticated && isNowAuthenticated) {
+      // User just became authenticated, reload joined competitions
+      ref.read(competitionMyProvider.notifier).load(page: _myPage, pageSize: _pageSize);
+    }
+    _wasAuthenticated = isNowAuthenticated;
+  }
+
+  bool _wasAuthenticated = false;
+
   Widget _buildDetailPanel({
     required AppState<CompetitionModel> detailState,
     required AppState<PaginatedCompetitionLeaderboardModel> leaderboardState,
@@ -605,7 +638,10 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                 ),
                 const SizedBox(height: 16),
                 if (rows.isEmpty)
-                  const Text('No participants yet.'),
+                  Text(
+                    'No participants yet.',
+                    style: TextStyle(color: colors.always8B949E, fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
                 if (rows.isNotEmpty)
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -613,9 +649,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                       columns: const [
                         DataColumn(label: Text('Rank')),
                         DataColumn(label: Text('Username')),
-                        DataColumn(label: Text('ROI')),
-                        DataColumn(label: Text('P/L')),
-                        DataColumn(label: Text('Total Bets')),
+                        DataColumn(label: Text('Score')),
                         DataColumn(label: Text('Win Rate')),
                       ],
                       rows: [
@@ -623,9 +657,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                           DataRow(cells: [
                             DataCell(Text('${rows[i].finalRank ?? (i + 1)}')),
                             DataCell(Text(rows[i].username)),
-                            DataCell(Text('${rows[i].roi.toStringAsFixed(2)}%')),
                             DataCell(Text('${rows[i].netProfit.toStringAsFixed(2)}')),
-                            DataCell(Text('${rows[i].totalBets}')),
                             DataCell(Text('${rows[i].winRate.toStringAsFixed(2)}%')),
                           ]),
                       ],
@@ -804,10 +836,11 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     };
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.symmetric(vertical: 2),
       decoration: BoxDecoration(
         color: colors.always161B22,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: colors.always30363D),
       ),
       child: Column(
@@ -820,13 +853,15 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                   item.name,
                   style: TextStyle(
                     color: colors.alwaysWhite,
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: statusColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(999),
@@ -836,59 +871,101 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                   item.status.toUpperCase(),
                   style: TextStyle(
                     color: statusColor,
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             item.description ?? 'No description',
             style: TextStyle(
               color: colors.always8B949E,
-              fontSize: 13,
+              fontSize: 12,
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Members ${item.memberCount}/${item.maxMembers}',
-            style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 12),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-                value: memberPercent.toDouble(),
-              minHeight: 8,
-              backgroundColor: colors.always2D333B,
-              valueColor: AlwaysStoppedAnimation<Color>(colors.always52AAFF),
-            ),
-          ),
-          const SizedBox(height: 12),
           Row(
             children: [
+              Text(
+                'Members ${item.memberCount}/${item.maxMembers}',
+                style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 11),
+              ),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  'Entry fee: ${item.entryFee} BBC',
-                  style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: memberPercent.toDouble(),
+                    minHeight: 6,
+                    backgroundColor: colors.always2D333B,
+                    valueColor: AlwaysStoppedAnimation<Color>(colors.always52AAFF),
+                  ),
                 ),
               ),
-              CustomOutlinedButton.big(
-                text: 'Details',
-                onTap: () => _openCompetition(item.id),
-                textColor: colors.alwaysE6EDF3,
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                'Entry fee: ${item.entryFee} BBC',
+                style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 11),
               ),
-              const SizedBox(width: 8),
-              CustomButton(
-                text: _joinLabel(item),
-                onPressed: _canJoin(item) && !_isJoining
-                    ? () => _joinCompetition(item)
-                    : null,
-                width: 120,
-                fontSize: 13,
+              const Spacer(),
+              OutlinedButton(
+                onPressed: () => _openCompetition(item.id),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colors.alwaysE6EDF3,
+                  side: BorderSide(color: colors.always52AAFF),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  minimumSize: const Size(0, 28),
+                ),
+                child: const Text('Details'),
               ),
+              const SizedBox(width: 6),
+              ElevatedButton(
+                onPressed: _canJoin(item) && !_isJoining ? () => _joinCompetition(item) : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: item.userJoined ? colors.always52AAFF : colors.always30363D,
+                  foregroundColor: colors.alwaysWhite,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  minimumSize: const Size(0, 28),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: Text(_joinLabel(item)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              if (item.startDate != null)
+                Flexible(
+                  child: Text(
+                    'Starts: ${_formatDate(item.startDate!)}',
+                    style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              if (item.endDate != null) ...[
+                if (item.startDate != null) const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'Ends: ${_formatDate(item.endDate!)}',
+                    style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ],
           ),
         ],
