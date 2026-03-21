@@ -255,9 +255,10 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 24),
             Row(
               children: [
+                const SizedBox(width: 8),
                 _tabChip(
                   label: 'Discover',
                   selected: _activeTab == _CompetitionTab.discover,
@@ -268,7 +269,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                     _updateRoute(tab: 'discover');
                   },
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 24),
                 _tabChip(
                   label: 'My Competitions',
                   selected: _activeTab == _CompetitionTab.myCompetitions,
@@ -283,9 +284,10 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                     _updateRoute(tab: 'mine');
                   },
                 ),
+                const SizedBox(width: 8),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 32),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
