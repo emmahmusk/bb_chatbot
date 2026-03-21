@@ -150,120 +150,140 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
             ),
             const SizedBox(height: 14),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    style: TextStyle(color: colors.alwaysWhite),
-                    onChanged: (_) {
-                      _debounce?.cancel();
-                      _debounce = Timer(
-                        const Duration(milliseconds: 600),
-                        _applyFilters,
-                      );
-                    },
-                    onSubmitted: (_) {
-                      _debounce?.cancel();
-                      _applyFilters();
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Search competitions',
-                      hintStyle: TextStyle(color: colors.always8B949E),
-                      prefixIcon: Icon(Icons.search, color: colors.always8B949E),
-                      filled: true,
-                      fillColor: colors.always161B22,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colors.always30363D),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colors.always30363D),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colors.always52AAFF),
+                  child: SizedBox(
+                    height: 36,
+                    child: TextField(
+                      controller: _searchController,
+                      style: TextStyle(color: colors.alwaysWhite, fontSize: 13),
+                      onChanged: (_) {
+                        _debounce?.cancel();
+                        _debounce = Timer(
+                          const Duration(milliseconds: 600),
+                          _applyFilters,
+                        );
+                      },
+                      onSubmitted: (_) {
+                        _debounce?.cancel();
+                        _applyFilters();
+                      },
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                        hintText: 'Search competitions',
+                        hintStyle: TextStyle(color: colors.always8B949E, fontSize: 13),
+                        prefixIcon: Icon(Icons.search, color: colors.always8B949E, size: 18),
+                        filled: true,
+                        fillColor: colors.always161B22,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: colors.always30363D),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: colors.always30363D),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: colors.always52AAFF),
+                        ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                _filterDropdown(
-                  value: _statusFilter,
-                  items: const {
-                    'registration': 'Registration',
-                    'active': 'Active',
-                    'completed': 'Completed',
-                    'cancelled': 'Cancelled',
-                  },
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _statusFilter = value;
-                    });
-                    _applyFilters();
-                  },
-                ),
-                const SizedBox(width: 12),
-                _filterDropdown(
-                  value: _ordering,
-                  items: const {
-                    'start_date': 'Start Date',
-                    '-start_date': 'Latest Start',
-                    'end_date': 'End Date',
-                    '-created_at': 'Newest',
-                    'created_at': 'Oldest',
-                  },
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _ordering = value;
-                    });
-                    _applyFilters();
-                  },
-                ),
-                const SizedBox(width: 12),
-                _filterDropdown(
-                  value: '$_pageSize',
-                  items: const {
-                    '10': '10 / page',
-                    '20': '20 / page',
-                    '50': '50 / page',
-                  },
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _pageSize = int.parse(value);
-                      _discoverPage = 1;
-                      _myPage = 1;
-                      _leaderboardPage = 1;
-                    });
-                    _applyFilters();
-                  },
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: _applyFilters,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colors.alwaysE6EDF3,
-                    side: BorderSide(color: colors.always52AAFF),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                    minimumSize: const Size(0, 32),
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 36,
+                  child: _filterDropdown(
+                    value: _statusFilter,
+                    items: const {
+                      'registration': 'Registration',
+                      'active': 'Active',
+                      'completed': 'Completed',
+                      'cancelled': 'Cancelled',
+                    },
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _statusFilter = value;
+                      });
+                      _applyFilters();
+                    },
                   ),
-                  child: const Text('Apply'),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: _resetFilters,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colors.alwaysE6EDF3,
-                    side: BorderSide(color: colors.always52AAFF),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                    minimumSize: const Size(0, 32),
+                SizedBox(
+                  height: 36,
+                  child: _filterDropdown(
+                    value: _ordering,
+                    items: const {
+                      'start_date': 'Start Date',
+                      '-start_date': 'Latest Start',
+                      'end_date': 'End Date',
+                      '-created_at': 'Newest',
+                      'created_at': 'Oldest',
+                    },
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _ordering = value;
+                      });
+                      _applyFilters();
+                    },
                   ),
-                  child: const Text('Reset'),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 36,
+                  child: _filterDropdown(
+                    value: '$_pageSize',
+                    items: const {
+                      '10': '10 / page',
+                      '20': '20 / page',
+                      '50': '50 / page',
+                    },
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _pageSize = int.parse(value);
+                        _discoverPage = 1;
+                        _myPage = 1;
+                        _leaderboardPage = 1;
+                      });
+                      _applyFilters();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 32,
+                  child: OutlinedButton(
+                    onPressed: _applyFilters,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colors.alwaysE6EDF3,
+                      side: BorderSide(color: colors.always52AAFF),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                      minimumSize: const Size(0, 28),
+                    ),
+                    child: const Text('Apply'),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                SizedBox(
+                  height: 32,
+                  child: OutlinedButton(
+                    onPressed: _resetFilters,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colors.alwaysE6EDF3,
+                      side: BorderSide(color: colors.always52AAFF),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                      minimumSize: const Size(0, 28),
+                    ),
+                    child: const Text('Reset'),
+                  ),
                 ),
               ],
             ),
@@ -301,78 +321,83 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
             ),
             const SizedBox(height: 32),
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 5,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: colors.always0D1117,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: colors.always30363D),
-                      ),
-                      child: _buildListPanel(
-                        discoverState: discoverState,
-                        discoverCurrentPage: discoverNotifier.currentPage,
-                        onDiscoverNext: () async {
-                          final next = discoverState.isSuccess ? discoverState.data.next : null;
-                          if (next == null) return;
-                          _discoverPage = int.tryParse(Uri.parse(next).queryParameters['page'] ?? '') ?? _discoverPage;
-                          _updateRoute();
-                        },
-                        onDiscoverPrevious: () async {
-                          final previous = discoverState.isSuccess ? discoverState.data.previous : null;
-                          if (previous == null) return;
-                          _discoverPage = int.tryParse(Uri.parse(previous).queryParameters['page'] ?? '') ?? _discoverPage;
-                          _updateRoute();
-                        },
-                        myState: myState,
-                        myCurrentPage: myNotifier.currentPage,
-                        onMyNext: () async {
-                          final next = myState.isSuccess ? myState.data.next : null;
-                          if (next == null) return;
-                          _myPage = int.tryParse(Uri.parse(next).queryParameters['page'] ?? '') ?? _myPage;
-                          _updateRoute();
-                        },
-                        onMyPrevious: () async {
-                          final previous = myState.isSuccess ? myState.data.previous : null;
-                          if (previous == null) return;
-                          _myPage = int.tryParse(Uri.parse(previous).queryParameters['page'] ?? '') ?? _myPage;
-                          _updateRoute();
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 4,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: colors.always0D1117,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: colors.always30363D),
-                      ),
-                      child: _buildDetailPanel(
-                        detailState: detailState,
-                        leaderboardState: leaderboardState,
-                        leaderboardCurrentPage: leaderboardNotifier.currentPage,
-                        onLeaderboardNext: () async {
-                          final next = leaderboardState.isSuccess ? leaderboardState.data.next : null;
-                          if (next == null) return;
-                          _leaderboardPage = int.tryParse(Uri.parse(next).queryParameters['page'] ?? '') ?? _leaderboardPage;
-                          _updateRoute();
-                        },
-                        onLeaderboardPrevious: () async {
-                          final previous = leaderboardState.isSuccess ? leaderboardState.data.previous : null;
-                          if (previous == null) return;
-                          _leaderboardPage = int.tryParse(Uri.parse(previous).queryParameters['page'] ?? '') ?? _leaderboardPage;
-                          _updateRoute();
-                        },
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: Container(
+                        height: double.infinity,
+                        decoration: BoxDecoration(
+                          color: colors.always0D1117,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: colors.always30363D),
+                        ),
+                        child: _buildListPanel(
+                          discoverState: discoverState,
+                          discoverCurrentPage: discoverNotifier.currentPage,
+                          onDiscoverNext: () async {
+                            final next = discoverState.isSuccess ? discoverState.data.next : null;
+                            if (next == null) return;
+                            _discoverPage = int.tryParse(Uri.parse(next).queryParameters['page'] ?? '') ?? _discoverPage;
+                            _updateRoute();
+                          },
+                          onDiscoverPrevious: () async {
+                            final previous = discoverState.isSuccess ? discoverState.data.previous : null;
+                            if (previous == null) return;
+                            _discoverPage = int.tryParse(Uri.parse(previous).queryParameters['page'] ?? '') ?? _discoverPage;
+                            _updateRoute();
+                          },
+                          myState: myState,
+                          myCurrentPage: myNotifier.currentPage,
+                          onMyNext: () async {
+                            final next = myState.isSuccess ? myState.data.next : null;
+                            if (next == null) return;
+                            _myPage = int.tryParse(Uri.parse(next).queryParameters['page'] ?? '') ?? _myPage;
+                            _updateRoute();
+                          },
+                          onMyPrevious: () async {
+                            final previous = myState.isSuccess ? myState.data.previous : null;
+                            if (previous == null) return;
+                            _myPage = int.tryParse(Uri.parse(previous).queryParameters['page'] ?? '') ?? _myPage;
+                            _updateRoute();
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 4,
+                      child: Container(
+                        height: double.infinity,
+                        decoration: BoxDecoration(
+                          color: colors.always0D1117,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: colors.always30363D),
+                        ),
+                        child: _buildDetailPanel(
+                          detailState: detailState,
+                          leaderboardState: leaderboardState,
+                          leaderboardCurrentPage: leaderboardNotifier.currentPage,
+                          onLeaderboardNext: () async {
+                            final next = leaderboardState.isSuccess ? leaderboardState.data.next : null;
+                            if (next == null) return;
+                            _leaderboardPage = int.tryParse(Uri.parse(next).queryParameters['page'] ?? '') ?? _leaderboardPage;
+                            _updateRoute();
+                          },
+                          onLeaderboardPrevious: () async {
+                            final previous = leaderboardState.isSuccess ? leaderboardState.data.previous : null;
+                            if (previous == null) return;
+                            _leaderboardPage = int.tryParse(Uri.parse(previous).queryParameters['page'] ?? '') ?? _leaderboardPage;
+                            _updateRoute();
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
