@@ -1,4 +1,4 @@
-name: Deploy Flutter Web to S3 & CloudFront
+name: Deploy Flutter Web to S3 & CloudFront.
 
 on:
   push:
