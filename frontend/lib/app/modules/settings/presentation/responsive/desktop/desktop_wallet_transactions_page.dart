@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app/modules/settings/presentation/responsive/widgets/transaction_details_dialog.dart';
 import 'package:frontend/app/shared/classes/media/pngs.dart';
 import 'package:frontend/app/shared/functions/date_functions.dart';
+import 'package:frontend/app/shared/functions/format_amount.dart';
 import 'package:frontend/app/shared/functions/dialog_functions.dart';
 import 'package:frontend/app/shared/presentation/widgets/clickable.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
@@ -1074,8 +1075,7 @@ class _DesktopWalletTransactionsPageState
                     isCredit ? Pngs.walletDeposit : Pngs.bankWithdrawal;
                 final dt = DateTime.parse(txn['created_at']);
                 final amountUnit = (txn['amount_unit'] ?? 'BB Cash').toString();
-                final displayAmount =
-                    (txn['display_amount'] ?? txn['amount'] ?? '0').toString();
+                final displayAmount = formatAmount(txn['amount']);
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
