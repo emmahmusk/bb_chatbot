@@ -272,7 +272,7 @@ class _DesktopWalletTransactionsPageState
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Available: ${walletCoinBalance.toStringAsFixed(2)} BBC',
+                          'Available: ${formatAmount(walletCoinBalance)} BBC',
                           style: TextStyle(
                             fontSize: 12,
                             color: colors.always8B949E,
@@ -300,7 +300,7 @@ class _DesktopWalletTransactionsPageState
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Available: ${walletBalance.toStringAsFixed(2)} BB Cash',
+                          'Available: ${formatAmount(walletBalance)} BB Cash',
                           style: TextStyle(
                             fontSize: 12,
                             color: colors.always8B949E,
