@@ -24,37 +24,45 @@ class CompetitionPaginationBar extends ConsumerWidget {
     final colors = ref.watch(appThemeProvider).colors;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: colors.always161B22,
         border: Border(top: BorderSide(color: colors.always30363D)),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CustomOutlinedButton.big(
-            text: 'Previous',
-            onTap: hasPrevious ? onPrevious : null,
-            textColor: hasPrevious ? colors.alwaysE6EDF3 : colors.always6E7681,
-            borderColor: hasPrevious ? colors.always30363D : colors.always2D333B,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Center(
-              child: Text(
-                'Page $currentPage',
-                style: TextStyle(
-                  color: colors.always8B949E,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+          SizedBox(
+            height: 28,
+            child: CustomOutlinedButton(
+              text: 'Previous',
+              onTap: hasPrevious ? onPrevious : null,
+              textColor: hasPrevious ? colors.alwaysE6EDF3 : colors.always6E7681,
+              borderColor: hasPrevious ? colors.always30363D : colors.always2D333B,
+              fontSize: 11,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
             ),
           ),
-          CustomOutlinedButton.big(
-            text: 'Next',
-            onTap: hasNext ? onNext : null,
-            textColor: hasNext ? colors.alwaysE6EDF3 : colors.always6E7681,
-            borderColor: hasNext ? colors.always30363D : colors.always2D333B,
+          const SizedBox(width: 8),
+          Text(
+            'Page $currentPage',
+            style: TextStyle(
+              color: colors.always8B949E,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 28,
+            child: CustomOutlinedButton(
+              text: 'Next',
+              onTap: hasNext ? onNext : null,
+              textColor: hasNext ? colors.alwaysE6EDF3 : colors.always6E7681,
+              borderColor: hasNext ? colors.always30363D : colors.always2D333B,
+              fontSize: 11,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+            ),
           ),
         ],
       ),

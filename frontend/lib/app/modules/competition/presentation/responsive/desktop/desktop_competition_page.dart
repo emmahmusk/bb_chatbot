@@ -242,16 +242,28 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                   },
                 ),
                 const SizedBox(width: 12),
-                CustomOutlinedButton.big(
-                  text: 'Apply',
-                  onTap: _applyFilters,
-                  textColor: colors.alwaysE6EDF3,
+                OutlinedButton(
+                  onPressed: _applyFilters,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colors.alwaysE6EDF3,
+                    side: BorderSide(color: colors.always52AAFF),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                    minimumSize: const Size(0, 32),
+                  ),
+                  child: const Text('Apply'),
                 ),
-                const SizedBox(width: 12),
-                CustomOutlinedButton.big(
-                  text: 'Reset',
-                  onTap: _resetFilters,
-                  textColor: colors.alwaysE6EDF3,
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: _resetFilters,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colors.alwaysE6EDF3,
+                    side: BorderSide(color: colors.always52AAFF),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                    minimumSize: const Size(0, 32),
+                  ),
+                  child: const Text('Reset'),
                 ),
               ],
             ),
@@ -510,12 +522,22 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
             ],
           ),
           const SizedBox(height: 8),
-          Flexible(
-            child: _buildLeaderboard(
-              leaderboardState: leaderboardState,
-              leaderboardCurrentPage: leaderboardCurrentPage,
-              onLeaderboardNext: onLeaderboardNext,
-              onLeaderboardPrevious: onLeaderboardPrevious,
+          Container(
+            constraints: const BoxConstraints(
+              maxHeight: 360,
+              minHeight: 120,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Material(
+                color: Colors.transparent,
+                child: _buildLeaderboard(
+                  leaderboardState: leaderboardState,
+                  leaderboardCurrentPage: leaderboardCurrentPage,
+                  onLeaderboardNext: onLeaderboardNext,
+                  onLeaderboardPrevious: onLeaderboardPrevious,
+                ),
+              ),
             ),
           ),
         ],
