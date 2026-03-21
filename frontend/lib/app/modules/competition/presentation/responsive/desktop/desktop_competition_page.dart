@@ -638,9 +638,15 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                 ),
                 const SizedBox(height: 16),
                 if (rows.isEmpty)
-                  Text(
-                    'No participants yet.',
-                    style: TextStyle(color: colors.always8B949E, fontSize: 16, fontWeight: FontWeight.w500),
+                  Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Text(
+                        'No leaderboard data yet. Once users participate, rankings will appear here.',
+                        style: TextStyle(color: colors.always8B949E, fontSize: 16, fontWeight: FontWeight.w500),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   ),
                 if (rows.isNotEmpty)
                   SingleChildScrollView(
@@ -916,31 +922,6 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                 'Entry fee: ${item.entryFee} BBC',
                 style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 11),
               ),
-              const Spacer(),
-              OutlinedButton(
-                onPressed: () => _openCompetition(item.id),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colors.alwaysE6EDF3,
-                  side: BorderSide(color: colors.always52AAFF),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                  minimumSize: const Size(0, 28),
-                ),
-                child: const Text('Details'),
-              ),
-              const SizedBox(width: 6),
-              ElevatedButton(
-                onPressed: _canJoin(item) && !_isJoining ? () => _joinCompetition(item) : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: item.userJoined ? colors.always52AAFF : colors.always30363D,
-                  foregroundColor: colors.alwaysWhite,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                  minimumSize: const Size(0, 28),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: Text(_joinLabel(item)),
-              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -966,6 +947,36 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                   ),
                 ),
               ],
+            ],
+          ),
+          // Details and Join buttons row at the bottom right
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () => _openCompetition(item.id),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colors.alwaysE6EDF3,
+                  side: BorderSide(color: colors.always52AAFF),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  minimumSize: const Size(0, 28),
+                ),
+                child: const Text('Details'),
+              ),
+              const SizedBox(width: 6),
+              ElevatedButton(
+                onPressed: _canJoin(item) && !_isJoining ? () => _joinCompetition(item) : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: item.userJoined ? colors.always52AAFF : colors.always30363D,
+                  foregroundColor: colors.alwaysWhite,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  minimumSize: const Size(0, 28),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: Text(_joinLabel(item)),
+              ),
             ],
           ),
         ],
