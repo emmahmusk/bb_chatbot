@@ -24,26 +24,7 @@ class DesktopWalletTransactionsPage extends ConsumerStatefulWidget {
       _DesktopWalletTransactionsPageState();
 }
 
-class _DesktopWalletTransactionsPageState
-      // Helper for action button icons
-      Widget buildWalletActionIcon(String assetPath) {
-        return ColorFiltered(
-          colorFilter: ColorFilter.mode(
-            ref.watch(appThemeProvider).colors.alwaysWhite,
-            BlendMode.srcIn,
-          ),
-          child: Image.asset(
-            assetPath,
-            width: 16,
-            height: 16,
-            fit: BoxFit.contain,
-          ),
-        );
-      }
-
-      bool get canGoPrev => currentPage > 1 && prevUrl != null;
-      bool get canGoNext => nextUrl != null;
-    extends ConsumerState<DesktopWalletTransactionsPage> {
+class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTransactionsPage> {
   double walletBalance = 0.0;
   double walletCoinBalance = 0.0;
   double startingCoinBalance = 500.0;
@@ -56,6 +37,25 @@ class _DesktopWalletTransactionsPageState
   String? prevUrl;
   int? totalCount;
 
+  // Helper for action button icons
+  Widget buildWalletActionIcon(String assetPath) {
+    return ColorFiltered(
+      colorFilter: ColorFilter.mode(
+        ref.watch(appThemeProvider).colors.alwaysWhite,
+        BlendMode.srcIn,
+      ),
+      child: Image.asset(
+        assetPath,
+        width: 16,
+        height: 16,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
+  bool get canGoPrev => currentPage > 1 && prevUrl != null;
+  bool get canGoNext => nextUrl != null;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +63,8 @@ class _DesktopWalletTransactionsPageState
     fetchConversionFormula();
     fetchWalletHistory(); // page = currentPage (1)
   }
+
+  // ...existing methods and widget build code remain unchanged, all inside the class body...
 
   Future<void> fetchPlatformSettings() async {
     try {
