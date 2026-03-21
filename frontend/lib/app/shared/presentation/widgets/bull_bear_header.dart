@@ -83,6 +83,8 @@ bool isUSMarketOpenNow() {
     final profile = ref.watch(currentUserProvider);
     final walletCoinBalance = profile?.walletCoinBalance ?? '0.00';
     final parsedWalletCoinBalance = double.tryParse(walletCoinBalance) ?? 0.0;
+    // Use thousand separator formatting
+    String formattedWalletCoinBalance = formatAmount(parsedWalletCoinBalance);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 120),
       child: Row(
@@ -240,7 +242,7 @@ bool isUSMarketOpenNow() {
             ),
           ] else ...[
             CustomOutlinedButtonWithIcon(
-              text: '${parsedWalletCoinBalance.toStringAsFixed(2)} BBC',
+              text: '$formattedWalletCoinBalance BBC',
               fontSize: 14,
               color: colors.alwaysWhite,
               icon: Container(

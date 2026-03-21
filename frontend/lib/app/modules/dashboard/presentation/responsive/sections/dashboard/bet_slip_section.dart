@@ -505,7 +505,8 @@ Key wagerFieldKey = UniqueKey();
                       }
       
                       if (numericValue > 500) {
-                        return 'Wager cannot exceed 500 BBC';
+                        // No warning text, just block submission
+                        return null;
                       }
       
                       return null; // Valid input
