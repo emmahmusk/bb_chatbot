@@ -210,6 +210,8 @@ def get_user_bet_stats(user=None):
         ggr_value = profile.total_wager - profile.total_payout
 
         data.append({
+            "user_id": user_obj.id,
+            "profile_id": profile.id,
             "username": user_obj.username,
             "email": user_obj.email,
             "balance": round(balance, 2),

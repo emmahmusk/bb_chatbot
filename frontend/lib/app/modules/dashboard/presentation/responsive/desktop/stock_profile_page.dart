@@ -33,7 +33,7 @@ class _StockProfilePageState extends ConsumerState<StockProfilePage> {
   bool isLoading = true;
   String htmlContent = '';
   late InAppWebViewController webViewController;
-  String preferredOdds = 'D'; // Default
+  String preferredOdds = 'P'; // Default to Probability
   bool isOddsLoaded = false;
 
   List<String>? expiryDates;
@@ -408,8 +408,6 @@ Future<void> handleOverUnderTap(String outcomeType) async {
     
 
     double? localSelectedStrike = selectedStrike;
-    final prefs = await SharedPreferences.getInstance();
-  final saved = prefs.getString('odds_type');
   
     await showDialog<void>(
       context: context,
@@ -555,27 +553,22 @@ Future<void> handleOverUnderTap(String outcomeType) async {
                                       final impliedOddsOver = double.tryParse(sp['implied_odds_over']?.toString() ?? '0') ?? 0.0;
                                       final impliedOddsUnder = double.tryParse(sp['implied_odds_under']?.toString() ?? '0') ?? 0.0;
                                       
-                                      // Get formatted odds based on preference
-                                      var odds_over;
-                                      var odds_under;
-                                      
-                                      if(saved=='A'){
-                                            odds_over=sp['odds_over']['american'];
-                                            odds_under=sp['odds_under']['american'];
-                                        }else if(saved =='D'){
-                                            odds_over=sp['odds_over']['decimal'];
-                                            odds_under=sp['odds_under']['decimal'];
-                                        }else if(saved =='F'){
-                                          odds_over=sp['odds_over']['fractional'];
-                                            odds_under=sp['odds_under']['fractional'];
-                                        }else if(saved =='P'){
-                                          // Calculate probability percentage
-                                          odds_over = impliedOddsOver > 0 ? '${(impliedOddsOver * 100).toStringAsFixed(2)}%' : 'N/A';
-                                          odds_under = impliedOddsUnder > 0 ? '${(impliedOddsUnder * 100).toStringAsFixed(2)}%' : 'N/A';
-                                        }else{
-                                          odds_over=sp['odds_over']['decimal'];
-                                          odds_under=sp['odds_under']['decimal'];
-                                        }
+                                      final oddsOverMap = Map<String, dynamic>.from(
+                                        (sp['odds_over'] as Map?) ?? const <String, dynamic>{},
+                                      );
+                                      final oddsUnderMap = Map<String, dynamic>.from(
+                                        (sp['odds_under'] as Map?) ?? const <String, dynamic>{},
+                                      );
+
+                                      final oddsOver = getOdds(
+                                        oddsOverMap,
+                                        impliedOdds: impliedOddsOver,
+                                      );
+
+                                      final oddsUnder = getOdds(
+                                        oddsUnderMap,
+                                        impliedOdds: impliedOddsUnder,
+                                      );
                                       
                                       return RadioListTile<double>(
                                         value: targetPrice,
@@ -612,7 +605,7 @@ Future<void> handleOverUnderTap(String outcomeType) async {
                                                           ),
                                                           child:   Center(
                                                             child: Text(
-                                                              "$odds_over",
+                                                              oddsOver,
                                                               style: TextStyle(
                                                                 color:   Colors.white,
                                                                 fontSize: 12, 
@@ -637,7 +630,7 @@ Future<void> handleOverUnderTap(String outcomeType) async {
                                                               ),
                                                               child:   Center(
                                                                 child: Text(
-                                                                  "$odds_under",
+                                                                  oddsUnder,
                                                                   style: TextStyle(
                                                                     color:  Colors.white,
                                                                     fontSize: 12, 

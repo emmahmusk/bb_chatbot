@@ -51,10 +51,10 @@ Future<void> _hydrateSession() async {
   final prefs = await SharedPreferences.getInstance();
 
    // ✅ Set default only if not already set
-  final oddsType = prefs.getString('odds_type') ?? 'D';
+  final oddsType = prefs.getString('odds_type') ?? 'P';
   
   if (oddsType.isEmpty) {
-    await prefs.setString('odds_type', 'D');
+    await prefs.setString('odds_type', 'P');
   }
   print("Selected Odds type is: $oddsType");
   
@@ -68,6 +68,7 @@ Future<void> _hydrateSession() async {
   final phoneNumber = prefs.getString('phone_number') ?? "N/A";
   final physicalAddress = prefs.getString('physical_address') ?? "N/A";
    final walletBalance = prefs.getString('wallet_balance') ?? "N/A";
+  final walletCoinBalance = prefs.getString('wallet_coin_balance') ?? "0.00";
   if (userId != null && profileId != null && emailVerified != null) {
     final profile = Profile(
       id: profileId,
@@ -78,7 +79,8 @@ Future<void> _hydrateSession() async {
       dateOfBirth: dateOfBirth,
       phoneNumber: phoneNumber,
       physicalAddress: physicalAddress,
-      walletBalance: walletBalance
+      walletBalance: walletBalance,
+      walletCoinBalance: walletCoinBalance,
     );
 
     ref.read(currentUserProvider.notifier).state = profile;

@@ -28,6 +28,7 @@ from user.models import PlatformSettings
 from user.wallet_utils import get_or_create_wallet_with_starting_coins
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.utils import timezone
+from admin_panel.permissions import IsAdmin
 
 from . import analytics as utils
 from .utils import (
@@ -179,7 +180,7 @@ class AdminUserListView(APIView):
     def get(self, request):
         # if not hasattr(request.user, "profile") or not request.user.profile.is_admin:
         #     return Response({"error": "You do not have permission to view this resource."}, status=status.HTTP_403_FORBIDDEN)
-        profiles = Profile.objects.select_related("user").all()
+        profiles = Profile.objects.select_related("user").order_by("user__id")
         serialized_profiles = FullProfileSerializer(profiles, many=True, context={"request": request}).data
 
         return Response({
@@ -237,7 +238,9 @@ class AdminBetFeedView(APIView):
 class AdminKYCViewSet(viewsets.ModelViewSet):
     queryset = KYCProfile.objects.select_related("user", "user__profile")
     serializer_class = KYCFileReviewSerializer
-    permission_classes = [IsAuthenticated]  # change to IsAdminUser if needed
+    permission_classes = [IsAdmin]
+    lookup_field = "user_id"
+    lookup_url_kwarg = "pk"
 
     def get_serializer_class(self):
         if self.action in ["review_kyc"]:
@@ -452,7 +455,7 @@ class AdminFundUserWalletAPIView(APIView):
         except Exception:
             return Response({"detail": "Invalid amount format."}, status=status.HTTP_400_BAD_REQUEST)
 
-        wallet, _ = Wallet.objects.get_or_create(user=user)
+        wallet, _ = get_or_create_wallet_with_starting_coins(user=user)
         reference = f"TRX-ADMINFUND-{user.id}-{now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
         # Update balance
@@ -1024,6 +1027,7 @@ class UpdatePlatformSettingsView(APIView):
                 "max_crs": str(settings_obj.max_crs),
                 "minimum_stake": str(settings_obj.minimum_stake),
                 "max_risk_tolerance": str(settings_obj.max_risk_tolerance),
+                "global_max_risk_tolerance": str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance)),
                 "starting_coin_balance": str(settings_obj.starting_coin_balance),
             },
             status=status.HTTP_200_OK,
@@ -1041,6 +1045,7 @@ class UpdatePlatformSettingsView(APIView):
             "max_crs",
             "minimum_stake",
             "max_risk_tolerance",
+            "global_max_risk_tolerance",
             "starting_coin_balance",
         }
 
@@ -1077,6 +1082,27 @@ class UpdatePlatformSettingsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        candidate_global_limit = Decimal(
+            str(
+                request.data.get(
+                    "global_max_risk_tolerance",
+                    getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance),
+                )
+            )
+        )
+        candidate_per_market_limit = Decimal(
+            str(request.data.get("max_risk_tolerance", settings_obj.max_risk_tolerance))
+        )
+
+        if candidate_per_market_limit > candidate_global_limit:
+            return Response(
+                {
+                    "success": False,
+                    "error": "max_risk_tolerance cannot exceed global_max_risk_tolerance.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         settings_obj.save(update_fields=updated_fields)
 
         return Response(
@@ -1089,13 +1115,12 @@ class UpdatePlatformSettingsView(APIView):
                     "max_crs": str(settings_obj.max_crs),
                     "minimum_stake": str(settings_obj.minimum_stake),
                     "max_risk_tolerance": str(settings_obj.max_risk_tolerance),
+                    "global_max_risk_tolerance": str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance)),
                     "starting_coin_balance": str(settings_obj.starting_coin_balance),
                 },
             },
             status=status.HTTP_200_OK,
         )
-    wallet, _ = get_or_create_wallet_with_starting_coins(user=user)
-
     # Optional: keep POST for backward compatibility
     def post(self, request):
         return self.patch(request)

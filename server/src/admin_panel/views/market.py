@@ -7,15 +7,18 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.core.management import call_command  # To run Django management commands
 from django.core.cache import cache
-from django.db.models import Q
+from django.db.models import Q, F, Value, DecimalField
+from django.db.models.functions import Abs, Coalesce, Least
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny  # Or a more custom admin permission
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from betengine.models import Stock, Market
+from betengine.models import Stock, Market, Bet
 from betengine.utils import american_to_decimal_odds, american_to_fractional_odds
 from betengine.serializers import StockAdminSerializer
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from admin_panel.permissions import IsAdmin
+from user.models import PlatformSettings
 # Import your serializers
 from django.utils import timezone
 from mkt.utils import get_side_and_american_odds
@@ -245,6 +248,279 @@ class GroupedMarketView(APIView):
 
         cache.set(cache_key, response_data, self.CACHE_TIMEOUT)
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+class StockSettlementDetailView(APIView):
+    """
+    Returns settlement-focused market details for a stock, grouped by expiry date.
+    No nudge/odds-adjustment metadata is returned.
+    """
+    permission_classes = [IsAdmin]
+
+    def get(self, request, *args, **kwargs):
+        symbol = request.query_params.get("symbol")
+        if not symbol:
+            return Response(
+                {"detail": "symbol parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        status_filter = (request.query_params.get("status") or "").lower().strip()
+        valid_statuses = {"pending", "won", "lost", "void", "settled", "unsettled"}
+        if status_filter and status_filter not in valid_statuses:
+            return Response(
+                {"detail": "status must be one of: pending, won, lost, void, settled, unsettled"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        expiry_date_filter = (request.query_params.get("expiry_date") or "").strip()
+        target_price_filter = (request.query_params.get("target_price") or "").strip()
+        username_filter = (request.query_params.get("username") or "").strip()
+        user_id_filter = (request.query_params.get("user_id") or "").strip()
+
+        parsed_expiry_date = None
+        if expiry_date_filter:
+            try:
+                parsed_expiry_date = datetime.strptime(expiry_date_filter, "%Y-%m-%d").date()
+            except ValueError:
+                return Response(
+                    {"detail": "expiry_date must be in YYYY-MM-DD format"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        parsed_target_price = None
+        if target_price_filter:
+            try:
+                parsed_target_price = Decimal(target_price_filter)
+            except (InvalidOperation, TypeError, ValueError):
+                return Response(
+                    {"detail": "target_price must be a valid number"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        parsed_user_id = None
+        if user_id_filter:
+            try:
+                parsed_user_id = int(user_id_filter)
+            except (TypeError, ValueError):
+                return Response(
+                    {"detail": "user_id must be an integer"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        try:
+            stock = Stock.objects.get(symbol__iexact=symbol)
+        except Stock.DoesNotExist:
+            return Response(
+                {"detail": f"Stock '{symbol}' not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        markets = Market.objects.filter(stock=stock)
+        if parsed_expiry_date:
+            markets = markets.filter(expiry_date=parsed_expiry_date)
+        if parsed_target_price is not None:
+            markets = markets.filter(target_price=parsed_target_price)
+
+        markets = markets.prefetch_related("bets__user").order_by("expiry_date", "target_price")
+
+        status_sets = {
+            "all": {"pending", "won", "lost", "void"},
+            "settled": {"won", "lost", "void"},
+            "unsettled": {"pending"},
+        }
+        today = timezone.now().date()
+
+        def _build_market_payload(market_obj, filtered_bets):
+            status_counts = {"pending": 0, "won": 0, "lost": 0, "void": 0}
+            total_handle = Decimal("0.00")
+            total_payout = Decimal("0.00")
+            settlement_rows = []
+            user_ids = set()
+            user_summary_map = defaultdict(
+                lambda: {
+                    "user_id": None,
+                    "username": "-",
+                    "total_bets": 0,
+                    "status_counts": {"pending": 0, "won": 0, "lost": 0, "void": 0},
+                    "total_wagered": Decimal("0.00"),
+                    "total_payout": Decimal("0.00"),
+                }
+            )
+
+            for bet in filtered_bets:
+                normalized_status = (bet.status or "pending").lower()
+                if normalized_status in status_counts:
+                    status_counts[normalized_status] += 1
+
+                amount_wagered = Decimal(str(bet.amount_wagered or 0))
+                payout_amount = Decimal(str(bet.payout_amount or 0))
+                total_handle += amount_wagered
+                total_payout += payout_amount
+
+                user_id = getattr(bet.user, "id", None)
+                username = getattr(bet.user, "username", "-")
+                if user_id is not None:
+                    user_ids.add(user_id)
+                user_bucket = user_summary_map[(user_id, username)]
+                user_bucket["user_id"] = user_id
+                user_bucket["username"] = username
+                user_bucket["total_bets"] += 1
+                if normalized_status in user_bucket["status_counts"]:
+                    user_bucket["status_counts"][normalized_status] += 1
+                user_bucket["total_wagered"] += amount_wagered
+                user_bucket["total_payout"] += payout_amount
+
+                settlement_rows.append(
+                    {
+                        "bet_id": bet.id,
+                        "user_id": user_id,
+                        "username": getattr(bet.user, "username", "-"),
+                        "chosen_outcome": bet.chosen_outcome,
+                        "status": normalized_status,
+                        "amount_wagered": float(round_two_places(amount_wagered)),
+                        "payout_amount": float(round_two_places(payout_amount)),
+                        "potential_payout": float(round_two_places(bet.get_potential_payout() or 0)),
+                        "placed_at": bet.created_at.strftime("%Y-%m-%d %H:%M:%S") if bet.created_at else None,
+                        "settled_at": bet.settled_at.strftime("%Y-%m-%d %H:%M:%S") if bet.settled_at else None,
+                    }
+                )
+
+            user_summaries = []
+            for summary in user_summary_map.values():
+                total_wagered = summary["total_wagered"]
+                total_payout_user = summary["total_payout"]
+                user_summaries.append(
+                    {
+                        "user_id": summary["user_id"],
+                        "username": summary["username"],
+                        "total_bets": summary["total_bets"],
+                        "status_counts": summary["status_counts"],
+                        "total_wagered": float(round_two_places(total_wagered)),
+                        "total_payout": float(round_two_places(total_payout_user)),
+                        "ggr": float(round_two_places(total_wagered - total_payout_user)),
+                    }
+                )
+
+            user_summaries.sort(key=lambda row: (-row["total_bets"], row["username"]))
+
+            return {
+                "market_id": market_obj.id,
+                "target_price": float(market_obj.target_price or 0),
+                "is_active": market_obj.is_active,
+                "total_bets": len(settlement_rows),
+                "unique_users_count": len(user_ids),
+                "status_counts": status_counts,
+                "total_handle": float(round_two_places(total_handle)),
+                "total_payout": float(round_two_places(total_payout)),
+                "ggr": float(round_two_places(total_handle - total_payout)),
+                "user_settlement_summary": user_summaries,
+                "settlements": settlement_rows,
+            }
+
+        def _group_payload_for_status(allowed_statuses, overdue_only=False):
+            grouped_local = defaultdict(list)
+
+            for market in markets:
+                if overdue_only:
+                    market_expiry = market.expiry_date
+                    if not market_expiry or market_expiry > today:
+                        continue
+
+                market_bets = list(market.bets.all())
+
+                if username_filter:
+                    market_bets = [
+                        bet for bet in market_bets
+                        if username_filter.lower() in (getattr(bet.user, "username", "") or "").lower()
+                    ]
+                if parsed_user_id is not None:
+                    market_bets = [bet for bet in market_bets if getattr(bet.user, "id", None) == parsed_user_id]
+
+                market_bets = [
+                    bet for bet in market_bets
+                    if (bet.status or "pending").lower() in allowed_statuses
+                ]
+
+                if not market_bets:
+                    continue
+
+                market_payload = _build_market_payload(market, market_bets)
+                expiry_str = market.expiry_date.strftime("%a, %d %b %Y") if market.expiry_date else "Unknown"
+                grouped_local[expiry_str].append(market_payload)
+
+            grouped_settlements_local = []
+            for expiry in sorted(
+                grouped_local.keys(),
+                key=lambda x: datetime.strptime(x, "%a, %d %b %Y") if x != "Unknown" else datetime.max,
+            ):
+                expiry_markets = grouped_local[expiry]
+                expiry_user_ids = set()
+                total_expiry_bets = 0
+                total_expiry_handle = Decimal("0.00")
+                total_expiry_payout = Decimal("0.00")
+
+                for market_row in expiry_markets:
+                    total_expiry_bets += market_row["total_bets"]
+                    total_expiry_handle += Decimal(str(market_row["total_handle"] or 0))
+                    total_expiry_payout += Decimal(str(market_row["total_payout"] or 0))
+                    for user_row in market_row["user_settlement_summary"]:
+                        if user_row["user_id"] is not None:
+                            expiry_user_ids.add(user_row["user_id"])
+
+                grouped_settlements_local.append(
+                    {
+                        "expiry_date": expiry,
+                        "summary": {
+                            "total_markets": len(expiry_markets),
+                            "total_bets": total_expiry_bets,
+                            "unique_users_count": len(expiry_user_ids),
+                            "total_handle": float(round_two_places(total_expiry_handle)),
+                            "total_payout": float(round_two_places(total_expiry_payout)),
+                            "ggr": float(round_two_places(total_expiry_handle - total_expiry_payout)),
+                        },
+                        "markets": expiry_markets,
+                    }
+                )
+
+            return grouped_settlements_local
+
+        grouped_settlements_settled = _group_payload_for_status(status_sets["settled"])
+        grouped_settlements_unsettled = _group_payload_for_status(
+            status_sets["unsettled"], overdue_only=True
+        )
+
+        if status_filter == "settled":
+            grouped_settlements = grouped_settlements_settled
+        elif status_filter == "unsettled":
+            grouped_settlements = grouped_settlements_unsettled
+        elif status_filter in {"pending", "won", "lost", "void"}:
+            grouped_settlements = _group_payload_for_status({status_filter})
+        else:
+            grouped_settlements = _group_payload_for_status(status_sets["all"])
+
+        return Response(
+            {
+                "stock": StockAdminSerializer(stock).data,
+                "filters_applied": {
+                    "symbol": stock.symbol,
+                    "status": status_filter or None,
+                    "expiry_date": parsed_expiry_date.isoformat() if parsed_expiry_date else None,
+                    "target_price": float(parsed_target_price) if parsed_target_price is not None else None,
+                    "username": username_filter or None,
+                    "user_id": parsed_user_id,
+                },
+                "has_grouped_settlements": len(grouped_settlements) > 0,
+                "has_grouped_settlements_settled": len(grouped_settlements_settled) > 0,
+                "has_grouped_settlements_unsettled": len(grouped_settlements_unsettled) > 0,
+                "grouped_settlements_by_bucket": {
+                    "settled": grouped_settlements_settled,
+                    "unsettled": grouped_settlements_unsettled,
+                },
+                "grouped_settlements": grouped_settlements,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 # ✅ Auto-invalidate cache when a Market updates or deletes
@@ -712,9 +988,26 @@ class SuspendedMarketsView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request, *args, **kwargs):
+        settings_obj = PlatformSettings.get_instance()
+        default_per_market_limit = Decimal(str(settings_obj.max_risk_tolerance or 0))
+        global_limit = Decimal(
+            str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance) or 0)
+        )
+
         markets = (
             Market.objects.select_related("stock")
-            .filter(Q(is_suspended_over=True) | Q(is_suspended_under=True))
+            .annotate(
+                net_exposure_value=Abs(F("exposure_over") - F("exposure_under")),
+                effective_per_market_limit=Least(
+                    Coalesce(
+                        F("max_risk_tolerance"),
+                        Value(default_per_market_limit),
+                        output_field=DecimalField(max_digits=12, decimal_places=2),
+                    ),
+                    Value(global_limit),
+                ),
+            )
+            .filter(net_exposure_value__gte=F("effective_per_market_limit"))
             .order_by("stock__symbol", "expiry_date")
         )
 
@@ -725,9 +1018,53 @@ class SuspendedMarketsView(APIView):
 class SuspendedMarketDetailView(APIView):
     """Retrieve or update suspended state for a single market.
 
-    PATCH body accepts any of: `is_active`, `is_suspended_over`, `is_suspended_under`, `requires_admin_override`.
+    PATCH body accepts any of: `is_active`, `is_suspended_over`, `is_suspended_under`,
+    `requires_admin_override`, `max_risk_tolerance`.
     """
     permission_classes = [IsAdminUser]
+
+    @staticmethod
+    def _sync_market_flags_for_effective_limit(market):
+        settings_obj = PlatformSettings.get_instance()
+        default_per_market_limit = Decimal(str(settings_obj.max_risk_tolerance or 0))
+        global_limit = Decimal(
+            str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance) or 0)
+        )
+        configured_limit = Decimal(
+            str(market.max_risk_tolerance if market.max_risk_tolerance is not None else default_per_market_limit)
+        )
+        effective_limit = min(configured_limit, global_limit)
+
+        over = Decimal(str(market.exposure_over or 0))
+        under = Decimal(str(market.exposure_under or 0))
+        diff = over - under
+        net_exposure = abs(diff)
+        dominant_side = "over" if diff > 0 else "under" if diff < 0 else None
+
+        desired_over = False
+        desired_under = False
+        desired_override = False
+
+        if effective_limit > 0 and net_exposure >= effective_limit:
+            desired_override = True
+            if dominant_side == "over":
+                desired_over = True
+            elif dominant_side == "under":
+                desired_under = True
+
+        update_fields = []
+        if market.is_suspended_over != desired_over:
+            market.is_suspended_over = desired_over
+            update_fields.append("is_suspended_over")
+        if market.is_suspended_under != desired_under:
+            market.is_suspended_under = desired_under
+            update_fields.append("is_suspended_under")
+        if market.requires_admin_override != desired_override:
+            market.requires_admin_override = desired_override
+            update_fields.append("requires_admin_override")
+
+        if update_fields:
+            market.save(update_fields=update_fields)
 
     def get_object(self, market_id):
         try:
@@ -752,6 +1089,12 @@ class SuspendedMarketDetailView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         serializer.save()
+
+        if "max_risk_tolerance" in request.data and not any(
+            key in request.data
+            for key in ["is_suspended_over", "is_suspended_under", "requires_admin_override"]
+        ):
+            self._sync_market_flags_for_effective_limit(market)
 
         # Optionally clear grouped cache for the affected stock
         try:

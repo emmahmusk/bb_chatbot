@@ -95,17 +95,16 @@ class CustomRouteChipHeader extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         mainAxisSize: MainAxisSize.max,
         children: [
           // Left group: Trending, Expiring Soon, All Stocks
           Expanded(
-            flex: 7,
-            child: Row(
-               mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.max,
+            flex: 3,
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 10,
+              runSpacing: 8,
               children: [
-                SizedBox(width: 350),
                 // Trending
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
@@ -135,7 +134,7 @@ class CustomRouteChipHeader extends ConsumerWidget {
                         color: colors.alwaysWhite.withOpacity(0.1),
                       ),
                       child: Text(
-                        'Trending',
+                        'Trending Predictions',
                         style: TextStyle(
                           color: colors.alwaysWhite,
                           fontSize: 12,
@@ -145,7 +144,6 @@ class CustomRouteChipHeader extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
             
                 // Expiring Soon
                 MouseRegion(
@@ -183,7 +181,6 @@ class CustomRouteChipHeader extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
             
                 // All Stocks
                 MouseRegion(
@@ -223,49 +220,76 @@ class CustomRouteChipHeader extends ConsumerWidget {
                     ),
                   ),
                 ),
+
+                // Competitions
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () {
+                      context.go('/dashboard/competitions');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colors.alwaysWhite),
+                        borderRadius: BorderRadius.circular(50),
+                        color: colors.alwaysWhite.withOpacity(0.1),
+                      ),
+                      child: Text(
+                        'Competitions',
+                        style: TextStyle(
+                          color: colors.alwaysWhite,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
 
-          // Right-aligned: My Bets
+          const SizedBox(width: 24),
+
+          // Right-aligned: My Predictions
           Expanded(
-              flex: 3,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(width: 100),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                        onTap: () async {
-                          if (!isAuthenticated()) {
-                            showCenterDialog(context, child: const LoginDialog());
-                            return;
-                          }
-                      
-                          ref.read(betHistoryProvider.notifier).get();
-                          context.go('/dashboard/all-bets');
-                        },
-                        child:  Container(
-                            padding: const EdgeInsets.only(top: 6,bottom:6,left:20, right: 12),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: colors.alwaysWhite),
-                              borderRadius: BorderRadius.circular(50),
-                              color: colors.alwaysWhite.withOpacity(0.1),
-                            ),
-                            child: Text(
-                              'My Bets',
-                              style: TextStyle(
-                                color: colors.alwaysWhite,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 40),
+                child: Align(
+                alignment: Alignment.center,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                      onTap: () async {
+                        if (!isAuthenticated()) {
+                          showCenterDialog(context, child: const LoginDialog());
+                          return;
+                        }
+                    
+                        ref.read(betHistoryProvider.notifier).get();
+                        context.go('/dashboard/all-bets');
+                      },
+                      child:  Container(
+                          padding: const EdgeInsets.only(top: 6,bottom:6,left:20, right: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: colors.alwaysWhite),
+                            borderRadius: BorderRadius.circular(50),
+                            color: colors.alwaysWhite.withOpacity(0.1),
+                          ),
+                          child: Text(
+                            'My Predictions',
+                            style: TextStyle(
+                              color: colors.alwaysWhite,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                       
-                  ),
-                ],
+                      ),
+                     
+                ),
+              ),
               ),
             ),
            

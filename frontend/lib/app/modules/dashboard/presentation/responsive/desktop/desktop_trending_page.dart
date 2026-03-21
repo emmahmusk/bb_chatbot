@@ -390,8 +390,6 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
     
 
     double? localSelectedStrike = selectedStrike;
-    final prefs = await SharedPreferences.getInstance();
-  final saved = prefs.getString('odds_type');
   
     await showDialog<void>(
       context: context,
@@ -532,21 +530,26 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
                                   child: ListView(
                                     children: strikes.map((sp) {
                                       final double targetPrice = double.tryParse(sp['target_price'].toString()) ?? 0.0;
-                                       var odds_over;
-                                        var odds_under;
-                                        if(saved=='A'){
-                                            odds_over=sp['odds_over']['american'];
-                                            odds_under=sp['odds_under']['american'];
-                                        }else if(saved =='D'){
-                                            odds_over=sp['odds_over']['decimal'];
-                                            odds_under=sp['odds_under']['decimal'];
-                                        }else if(saved =='F'){
-                                          odds_over=sp['odds_over']['fractional'];
-                                            odds_under=sp['odds_under']['fractional'];
-                                        }else{
-                                          odds_over=sp['odds_over']['decimal'];
-                                          odds_under=sp['odds_under']['decimal'];
-                                        }
+                                      final oddsOverMap = Map<String, dynamic>.from(
+                                        (sp['odds_over'] as Map?) ?? const <String, dynamic>{},
+                                      );
+                                      final oddsUnderMap = Map<String, dynamic>.from(
+                                        (sp['odds_under'] as Map?) ?? const <String, dynamic>{},
+                                      );
+
+                                      final oddsOver = getOdds(
+                                        oddsOverMap['american']?.toString(),
+                                        oddsOverMap['decimal']?.toString(),
+                                        oddsOverMap['fractional']?.toString(),
+                                        impliedOdds: double.tryParse(sp['implied_odds_over']?.toString() ?? ''),
+                                      );
+
+                                      final oddsUnder = getOdds(
+                                        oddsUnderMap['american']?.toString(),
+                                        oddsUnderMap['decimal']?.toString(),
+                                        oddsUnderMap['fractional']?.toString(),
+                                        impliedOdds: double.tryParse(sp['implied_odds_under']?.toString() ?? ''),
+                                      );
                                       
                                       return RadioListTile<double>(
                                         value: targetPrice,
@@ -583,7 +586,7 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
                                                           ),
                                                           child:   Center(
                                                             child: Text(
-                                                              "$odds_over",
+                                                              oddsOver,
                                                               style: TextStyle(
                                                                 color:   Colors.white,
                                                                 fontSize: 12, 
@@ -608,7 +611,7 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
                                                               ),
                                                               child:   Center(
                                                                 child: Text(
-                                                                  "$odds_under",
+                                                                  oddsUnder,
                                                                   style: TextStyle(
                                                                     color:  Colors.white,
                                                                     fontSize: 12, 
@@ -685,7 +688,7 @@ void initState() {
   loadPreferredOddsType();
   super.initState();
 }
-String preferredOdds = 'D'; // Default to Decimal
+String preferredOdds = 'P'; // Default to Probability
 
 Future<void> loadPreferredOddsType() async {
   final prefs = await SharedPreferences.getInstance();
@@ -697,7 +700,7 @@ Future<void> loadPreferredOddsType() async {
       print('DEBUG: preferredOdds set to: $preferredOdds');
     });
   } else {
-    print('DEBUG: Odds type not found or invalid, using default D. Saved value: $saved');
+    print('DEBUG: Odds type not found or invalid, using default P. Saved value: $saved');
   }
 }
 
@@ -924,7 +927,7 @@ Future<void> fetchAndReplaceMarket(
         const Padding(
           padding: EdgeInsets.only(bottom: 12.0),
           child: Text(
-            "Trending Bets",
+            "Trending Predictions",
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,

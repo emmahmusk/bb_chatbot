@@ -1,5 +1,5 @@
 import logging
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 import re  # For financial calculations
 import uuid
 import pytz
@@ -7,8 +7,8 @@ from datetime import datetime, time
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from user.models import PlatformSettings, Wallet, Transaction
-from django.db.models import Sum, OuterRef, Subquery, IntegerField, Q, F, Value
+from user.models import CompetitionMember, PlatformSettings, Wallet, Transaction
+from django.db.models import Sum, OuterRef, Subquery, IntegerField, Q, F, Value, Count
 from django.db.models.functions import Coalesce, Abs
 from django.db.models import ProtectedError
 from rest_framework import generics, pagination, status
@@ -24,7 +24,6 @@ from betengine.utils import (  # If you need to convert back/forth
     populate_market_from_option_data,
     decimal_to_american_odds
 )
-from mkt.polygon_data_fetcher import PolygonDataFetcher
 from mkt.utils import fetch_alpha_vantage_options
 from taggit.models import Tag
 
@@ -32,16 +31,169 @@ from datetime import datetime, timedelta
 from user.models import KYCProfile
 from user.wallet_coins import cash_to_coins
 from user.wallet_utils import get_or_create_wallet_with_starting_coins
-from .models import Bet, Market, ParlayBet, Stock
+from .models import Bet, Competition, CompetitionStatus, Market, ParlayBet, Stock
 from .serializers import (  # Import Polygon's Ticker model for type hinting
     BetResolutionSerializer,
     BetSerializer,
+    CompetitionLeaderboardEntrySerializer,
+    CompetitionMemberSerializer,
+    CompetitionSerializer,
     MarketOddsSerializer,
     ParlayBetResolutionSerializer,
     ParlayBetSerializer,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _get_market_risk_limits(market, settings_obj=None):
+    if settings_obj is None:
+        settings_obj = PlatformSettings.get_instance()
+
+    default_per_market_limit = Decimal(str(settings_obj.max_risk_tolerance or 0))
+    global_limit = Decimal(
+        str(getattr(settings_obj, "global_max_risk_tolerance", settings_obj.max_risk_tolerance) or 0)
+    )
+    configured_per_market_limit = Decimal(
+        str(market.max_risk_tolerance if market.max_risk_tolerance is not None else default_per_market_limit)
+    )
+
+    effective_per_market_limit = min(configured_per_market_limit, global_limit)
+    return {
+        "effective_per_market_limit": effective_per_market_limit,
+        "configured_per_market_limit": configured_per_market_limit,
+        "global_limit": global_limit,
+    }
+
+
+def _max_wager_allowed_by_risk_limit(market, chosen_outcome: str, odds_decimal: Decimal, risk_limit) -> Decimal:
+    """
+    Returns the maximum wager allowed for a side so resulting net exposure remains within risk limit.
+    net_exposure = abs(exposure_over - exposure_under)
+    liability added by wager = wager * (decimal_odds - 1)
+    """
+    try:
+        limit = Decimal(str(risk_limit or 0))
+        if limit <= 0:
+            return Decimal("0.00")
+
+        per_unit_liability = Decimal(str(odds_decimal)) - Decimal("1")
+        if per_unit_liability <= 0:
+            return Decimal("0.00")
+
+        current_diff = Decimal(str(market.exposure_over)) - Decimal(str(market.exposure_under))
+
+        if chosen_outcome == "over":
+            lower_liability = -limit - current_diff
+            upper_liability = limit - current_diff
+        else:
+            lower_liability = current_diff - limit
+            upper_liability = current_diff + limit
+
+        feasible_lower = max(Decimal("0"), lower_liability)
+        feasible_upper = upper_liability
+
+        if feasible_upper < feasible_lower:
+            return Decimal("0.00")
+
+        max_wager = feasible_upper / per_unit_liability
+        if max_wager <= 0:
+            return Decimal("0.00")
+
+        return max_wager.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    except Exception:
+        return Decimal("0.00")
+
+
+def _get_exposure_snapshot(market):
+    over = Decimal(str(market.exposure_over or 0))
+    under = Decimal(str(market.exposure_under or 0))
+    diff = over - under
+    net = abs(diff)
+    dominant_side = "over" if diff > 0 else "under" if diff < 0 else None
+    return over, under, diff, net, dominant_side
+
+
+def _sync_market_side_locks(market, risk_limit):
+    """
+    Side-specific lock behavior:
+    - Trigger lock when net_exposure reaches max risk tolerance.
+    - Lock only the dominant side; keep opposite side open for hedging.
+    - Auto-unlock when opposite-side activity brings net_exposure below max risk tolerance.
+    """
+    try:
+        limit = Decimal(str(risk_limit or 0))
+    except Exception:
+        limit = Decimal("0")
+
+    _, _, _, net, dominant_side = _get_exposure_snapshot(market)
+
+    desired_over = False
+    desired_under = False
+    desired_override = False
+
+    lock_threshold = limit if limit > 0 else Decimal("0")
+
+    if limit > 0 and net >= lock_threshold:
+        desired_override = True
+        if dominant_side == "over":
+            desired_over = True
+        elif dominant_side == "under":
+            desired_under = True
+
+    update_fields = []
+    if market.is_suspended_over != desired_over:
+        market.is_suspended_over = desired_over
+        update_fields.append("is_suspended_over")
+    if market.is_suspended_under != desired_under:
+        market.is_suspended_under = desired_under
+        update_fields.append("is_suspended_under")
+    if market.requires_admin_override != desired_override:
+        market.requires_admin_override = desired_override
+        update_fields.append("requires_admin_override")
+
+    if update_fields:
+        market.save(update_fields=update_fields)
+        try:
+            cache.delete(f"market_grouped_{market.stock.symbol}")
+        except Exception:
+            pass
+
+
+def _max_wager_allowed_for_current_exposure(market, chosen_outcome: str, odds_decimal: Decimal, risk_limit) -> Decimal:
+    """
+    When net is already over limit, only opposite-side bets that reduce net exposure are allowed.
+    Otherwise, use normal limit-preserving cap.
+    """
+    per_unit_liability = Decimal(str(odds_decimal)) - Decimal("1")
+    if per_unit_liability <= 0:
+        return Decimal("0.00")
+
+    try:
+        limit = Decimal(str(risk_limit or 0))
+    except Exception:
+        limit = Decimal("0")
+
+    _, _, _, current_net, dominant_side = _get_exposure_snapshot(market)
+
+    if limit > 0 and current_net > limit:
+        if dominant_side == chosen_outcome:
+            return Decimal("0.00")
+
+        # For opposite-side hedging, require liability to stay below 2*current_net
+        # so net exposure strictly decreases (prevents over-hedging to the other extreme).
+        max_liability_for_reduction = (current_net * Decimal("2")) - Decimal("0.00000001")
+        max_wager = max_liability_for_reduction / per_unit_liability
+        if max_wager <= 0:
+            return Decimal("0.00")
+        return max_wager.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+
+    return _max_wager_allowed_by_risk_limit(
+        market=market,
+        chosen_outcome=chosen_outcome,
+        odds_decimal=odds_decimal,
+        risk_limit=risk_limit,
+    )
 
 class PopulateMarketsView(APIView):
     def post(self, request):
@@ -660,15 +812,26 @@ class PlaceSingleBetAPIView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
+                settings_obj = PlatformSettings.get_instance()
+                risk_limit = _get_market_risk_limits(market, settings_obj)["effective_per_market_limit"]
+
+                _sync_market_side_locks(market, risk_limit)
+
                 # Disallow bets on a suspended side
                 if chosen_outcome == "over" and market.is_suspended_over:
                     return Response(
-                        {"status": "error", "message": "Over side for this market is suspended."},
+                        {
+                            "status": "error",
+                            "message": "This side is temporarily unavailable.",
+                        },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 if chosen_outcome == "under" and market.is_suspended_under:
                     return Response(
-                        {"status": "error", "message": "Under side for this market is suspended."},
+                        {
+                            "status": "error",
+                            "message": "This side is temporarily unavailable.",
+                        },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
@@ -705,49 +868,22 @@ class PlaceSingleBetAPIView(APIView):
 
                 # --- Guardrail calculation ---
                 # net_exposure = abs(exposure_over - exposure_under) represents unmatched (unhedged) positions.
-                # Users can hedge by betting the opposite side, which reduces net_exposure and may unlock markets.
-                # This is compared against PlatformSettings.max_risk_tolerance to ensure platform risk limits aren't exceeded.
-                settings_obj = PlatformSettings.get_instance()
-                risk_limit = settings_obj.max_risk_tolerance
-
+                # Side lock/unlock behavior is handled by _sync_market_side_locks after exposure update.
                 potential_payout = amount_wagered * odds_decimal
                 liability = potential_payout - amount_wagered
-
-                if chosen_outcome == "over":
-                    new_exposure_over = market.exposure_over + liability
-                    new_net_exposure = abs(new_exposure_over - market.exposure_under)
-                else:  # under
-                    new_exposure_under = market.exposure_under + liability
-                    new_net_exposure = abs(market.exposure_over - new_exposure_under)
-
-                # Check net_exposure against platform risk tolerance yardstick
-                if new_net_exposure >= risk_limit:
-                    market.is_suspended_over = True
-                    market.is_suspended_under = True
-                    market.requires_admin_override = True
-                    market.save(update_fields=["is_suspended_over", "is_suspended_under", "requires_admin_override"])
-                    try:
-                        cache.delete(f"market_grouped_{market.stock.symbol}")
-                    except Exception:
-                        pass
-                    return Response(
-                        {"status": "error", "message": "Exposure limit reached for this market."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
 
                 # --- Lock wallet ---
                 wallet = Wallet.objects.select_for_update().get(user=user)
 
-                if wallet.balance < amount_wagered:
+                if wallet.coin_balance < amount_wagered:
                     return Response(
-                        {"status": "error", "message": "Insufficient wallet balance."},
+                        {"status": "error", "message": "Insufficient BB coin balance."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-                # Deduct wallet
-                wallet.balance -= amount_wagered
-                wallet.locked_balance += amount_wagered
-                wallet.save(update_fields=["balance", "locked_balance", "updated_at"])
+                # Deduct from BB coins only
+                wallet.coin_balance -= amount_wagered
+                wallet.save(update_fields=["coin_balance", "updated_at"])
 
                 reference = f"TRX-BET-DR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
@@ -765,7 +901,7 @@ class PlaceSingleBetAPIView(APIView):
                     wallet=wallet,
                     amount=amount_wagered,
                     transaction_type=Transaction.DEBIT,
-                    description=f"placed bet @ id: #{bet.id} | {market.expiry_date} | {chosen_outcome.capitalize()} ${market.target_price}",
+                    description=f"placed bet @ id: #{bet.id} | {market.expiry_date} | {chosen_outcome.capitalize()} ${market.target_price} (-{amount_wagered} BBC)",
                     reference=reference,
                 )
 
@@ -776,6 +912,7 @@ class PlaceSingleBetAPIView(APIView):
                     market.exposure_under += liability
 
                 market.save(update_fields=["exposure_over", "exposure_under"])
+                _sync_market_side_locks(market, risk_limit)
 
             serializer = BetSerializer(bet)
             return Response(
@@ -783,6 +920,9 @@ class PlaceSingleBetAPIView(APIView):
                     "status": "success",
                     "message": "Bet placed successfully!",
                     "bet": serializer.data,
+                    "wallet_balance": str(wallet.balance),
+                    "wallet_coin_balance": str(wallet.coin_balance),
+                    "debited_from": "coin_balance",
                 },
                 status=status.HTTP_201_CREATED,
             )
@@ -848,16 +988,15 @@ class PlaceParlayBetAPIView(APIView):
                 )
 
             settings_obj = PlatformSettings.get_instance()
-            risk_limit = settings_obj.max_risk_tolerance
 
             combined_decimal_odds = Decimal("1")
 
             with transaction.atomic():
 
                 wallet = Wallet.objects.select_for_update().get(user=user)
-                if wallet.balance < amount_wagered:
+                if wallet.coin_balance < amount_wagered:
                     return Response(
-                        {"status": "error", "message": "Insufficient balance."},
+                        {"status": "error", "message": "Insufficient BB coin balance."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
@@ -876,15 +1015,24 @@ class PlaceParlayBetAPIView(APIView):
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
+                    risk_limit = _get_market_risk_limits(market, settings_obj)["effective_per_market_limit"]
+                    _sync_market_side_locks(market, risk_limit)
+
                     # Disallow bets on suspended sides
                     if chosen_outcome == "over" and market.is_suspended_over:
                         return Response(
-                            {"status": "error", "message": f"Over side suspended for market {market_id}."},
+                            {
+                                "status": "error",
+                                "message": "This side is temporarily unavailable.",
+                            },
                             status=status.HTTP_400_BAD_REQUEST,
                         )
                     if chosen_outcome == "under" and market.is_suspended_under:
                         return Response(
-                            {"status": "error", "message": f"Under side suspended for market {market_id}."},
+                            {
+                                "status": "error",
+                                "message": "This side is temporarily unavailable.",
+                            },
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
@@ -915,28 +1063,11 @@ class PlaceParlayBetAPIView(APIView):
                         new_exposure_under = market.exposure_under + liability
                         new_net_exposure = abs(market.exposure_over - new_exposure_under)
 
-                    # Validate net_exposure against PlatformSettings.max_risk_tolerance
-                    if new_net_exposure >= risk_limit:
-                        # mark market suspended and require admin override
-                        market.is_suspended_over = True
-                        market.is_suspended_under = True
-                        market.requires_admin_override = True
-                        market.save(update_fields=["is_suspended_over", "is_suspended_under", "requires_admin_override"])
-                        try:
-                            cache.delete(f"market_grouped_{market.stock.symbol}")
-                        except Exception:
-                            pass
-                        return Response(
-                            {"status": "error", "message": f"Exposure limit reached for market {market_id}."},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
                     markets_locked.append((market, chosen_outcome, odds_str, liability))
 
-                # --- Deduct wallet ---
-                wallet.balance -= amount_wagered
-                wallet.locked_balance += amount_wagered
-                wallet.save(update_fields=["balance", "locked_balance", "updated_at"])
+                # --- Deduct wallet (BB coins only) ---
+                wallet.coin_balance -= amount_wagered
+                wallet.save(update_fields=["coin_balance", "updated_at"])
 
                 reference = f"TRX-PBET-DR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
@@ -951,7 +1082,7 @@ class PlaceParlayBetAPIView(APIView):
                     wallet=wallet,
                     amount=amount_wagered,
                     transaction_type=Transaction.DEBIT,
-                    description=f"placed bet(parlay) @ id: #{parlay_bet.id} with {len(legs_data)} leg(s)",
+                    description=f"placed bet(parlay) @ id: #{parlay_bet.id} with {len(legs_data)} leg(s) (-{amount_wagered} BBC)",
                     reference=reference,
                 )
 
@@ -975,6 +1106,8 @@ class PlaceParlayBetAPIView(APIView):
                         market.exposure_under += liability
 
                     market.save(update_fields=["exposure_over", "exposure_under"])
+                    risk_limit = _get_market_risk_limits(market, settings_obj)["effective_per_market_limit"]
+                    _sync_market_side_locks(market, risk_limit)
 
                 parlay_bet.combined_odds = decimal_to_american_odds(combined_decimal_odds)
                 parlay_bet.save()
@@ -985,6 +1118,9 @@ class PlaceParlayBetAPIView(APIView):
                     "status": "success",
                     "message": "Parlay bet placed successfully!",
                     "parlay_bet": serializer.data,
+                    "wallet_balance": str(wallet.balance),
+                    "wallet_coin_balance": str(wallet.coin_balance),
+                    "debited_from": "coin_balance",
                 },
                 status=status.HTTP_201_CREATED,
             )
@@ -1062,7 +1198,7 @@ class BetResolutionAPIView(APIView):
                 if bet_won:
                     bet.status = "won"
                     bet.payout_amount = bet.get_potential_payout()
-                    payout_coins = cash_to_coins(bet.payout_amount)
+                    payout_coins = bet.payout_amount
 
                     # ✅ Credit wallet in BullBear Coins
                     wallet = Wallet.objects.select_for_update().get(user=user)
@@ -1094,7 +1230,7 @@ class BetResolutionAPIView(APIView):
                     "message": f"Bet {bet.id} resolved as {bet.status}.",
                     "final_stock_price": str(final_price),
                     "payout_amount": str(bet.payout_amount),
-                    "payout_coins": str(cash_to_coins(bet.payout_amount)) if bet.status == "won" else "0.00",
+                    "payout_coins": str(bet.payout_amount) if bet.status == "won" else "0.00",
                     "market_target_price": str(target_price),
                     "stock_symbol": stock.symbol,
                 },
@@ -1130,11 +1266,19 @@ class ResolveExpiredMarketsAPIView(APIView):
 
     def post(self, request, *args, **kwargs):
         today = timezone.now().date()
-        expired_markets = Market.objects.filter(expiry_date__lte=today, is_active=True)
+        expired_markets = (
+            Market.objects
+            .filter(expiry_date__lte=today, bets__status="pending")
+            .select_related("stock")
+            .distinct()
+        )
 
         total_markets = expired_markets.count()
         resolved_bets = 0
+        resolved_parlays = 0
         updated_markets = 0
+        skipped_missing_price = []
+        skipped_parlays_missing_price = []
 
         if not total_markets:
             return Response(
@@ -1142,28 +1286,45 @@ class ResolveExpiredMarketsAPIView(APIView):
                 status=status.HTTP_200_OK
             )
 
-        for market in expired_markets.select_related("stock"):
+        for market in expired_markets:
 
             stock_price = market.stock.last_price
             if stock_price is None:
+                skipped_missing_price.append(
+                    {
+                        "market_id": market.id,
+                        "symbol": market.stock.symbol,
+                        "expiry_date": str(market.expiry_date),
+                        "reason": "missing_stock_price",
+                    }
+                )
                 continue  # skip if stock price unavailable
-
-            winning_side = "over" if stock_price > market.target_price else "under"
 
             with transaction.atomic():
 
                 # Lock market row for safety
                 market = Market.objects.select_for_update().get(id=market.id)
 
-                pending_bets = Bet.objects.filter(market=market, status="pending")
+                pending_bets = Bet.objects.filter(market=market, status="pending", is_parlay_leg=False)
 
                 for bet in pending_bets:
-                    bet.status = "won" if bet.chosen_outcome == winning_side else "lost"
-                    bet.payout_amount = (
-                        bet.get_potential_payout()
-                        if bet.status == "won"
-                        else Decimal("0.00")
-                    )
+                    final_price = Decimal(str(stock_price))
+                    target_price = Decimal(str(market.target_price))
+
+                    if bet.chosen_outcome == "over":
+                        bet_won = final_price >= target_price
+                    elif bet.chosen_outcome == "under":
+                        bet_won = final_price <= target_price
+                    else:
+                        bet.status = "void"
+                        bet.payout_amount = Decimal("0.00")
+                        bet.settled_at = timezone.now()
+                        bet.save(update_fields=["status", "payout_amount", "settled_at"])
+                        resolved_bets += 1
+                        continue
+
+                    bet.status = "won" if bet_won else "lost"
+                    bet.payout_amount = bet.get_potential_payout() if bet_won else Decimal("0.00")
                     bet.settled_at = timezone.now()
 
                     bet.save(update_fields=["status", "payout_amount", "settled_at"])
@@ -1192,36 +1353,120 @@ class ResolveExpiredMarketsAPIView(APIView):
 
                 updated_markets += 1
 
+        # Resolve pending parlays whose legs have all expired and have price data.
+        pending_parlays = ParlayBet.objects.filter(status="pending").prefetch_related("legs__market__stock")
+
+        for parlay in pending_parlays:
+            legs = list(parlay.legs.all())
+
+            if not legs:
+                continue
+
+            if any(leg.market.expiry_date > today for leg in legs):
+                continue
+
+            missing_price_legs = [leg for leg in legs if leg.market.stock.last_price is None]
+            if missing_price_legs:
+                skipped_parlays_missing_price.append(
+                    {
+                        "parlay_id": parlay.id,
+                        "missing_symbols": list({leg.market.stock.symbol for leg in missing_price_legs}),
+                        "reason": "missing_stock_price",
+                    }
+                )
+                continue
+
+            with transaction.atomic():
+                parlay = ParlayBet.objects.select_for_update().get(id=parlay.id)
+                legs_qs = parlay.legs.select_related("market__stock").all()
+
+                for leg in legs_qs:
+                    if leg.status != "pending":
+                        continue
+
+                    final_price = Decimal(str(leg.market.stock.last_price))
+                    target_price = Decimal(str(leg.market.target_price))
+
+                    if leg.chosen_outcome == "over":
+                        leg_won = final_price >= target_price
+                    elif leg.chosen_outcome == "under":
+                        leg_won = final_price <= target_price
+                    else:
+                        leg.status = "void"
+                        leg.payout_amount = Decimal("0.00")
+                        leg.settled_at = timezone.now()
+                        leg.save(update_fields=["status", "payout_amount", "settled_at"])
+                        continue
+
+                    leg.status = "won" if leg_won else "lost"
+                    leg.payout_amount = Decimal("0.00")
+                    leg.settled_at = timezone.now()
+                    leg.save(update_fields=["status", "payout_amount", "settled_at"])
+
+                latest_leg_statuses = list(parlay.legs.values_list("status", flat=True))
+                if any(status == "pending" for status in latest_leg_statuses):
+                    continue
+
+                if any(status == "void" for status in latest_leg_statuses):
+                    parlay.status = "void"
+                    parlay.payout_amount = Decimal("0.00")
+                elif all(status == "won" for status in latest_leg_statuses):
+                    parlay.status = "won"
+                    parlay.payout_amount = parlay.get_potential_payout()
+                else:
+                    parlay.status = "lost"
+                    parlay.payout_amount = Decimal("0.00")
+
+                parlay.settled_at = timezone.now()
+                parlay.save(update_fields=["status", "payout_amount", "settled_at"])
+                resolved_parlays += 1
+
         return Response(
             {
                 "message": f"✅ Resolved {updated_markets} expired markets",
                 "total_markets": total_markets,
                 "resolved_bets": resolved_bets,
+                "resolved_parlays": resolved_parlays,
+                "skipped_markets_count": len(skipped_missing_price),
+                "skipped_markets": skipped_missing_price,
+                "skipped_parlays_count": len(skipped_parlays_missing_price),
+                "skipped_parlays": skipped_parlays_missing_price,
             },
             status=status.HTTP_200_OK,
         )
     
 class CreditWinningBetsAPIView(APIView):
     """
-    Credits all users whose bets are won but not yet paid.
-    Creates a Transaction record for each wallet credit using UUID reference.
+    Credits all users for settled winnings not yet paid.
+    - Singles: credit each won non-parlay Bet.
+    - Parlays: credit only once at ParlayBet level after all legs are settled and parlay status is won.
     """
 
     def post(self, request, *args, **kwargs):
-        winning_bets = Bet.objects.filter(status="won", is_paid=False)
+        winning_bets = Bet.objects.filter(status="won", is_paid=False, is_parlay_leg=False)
+        winning_parlays = (
+            ParlayBet.objects
+            .filter(status="won")
+            .annotate(unpaid_legs=Count("legs", filter=Q(legs__is_paid=False)))
+            .filter(unpaid_legs__gt=0)
+            .select_related("user")
+        )
+
         total_credited = 0
+        singles_credited = 0
+        parlays_credited = 0
         total_amount = Decimal("0.00")
 
-        if not winning_bets.exists():
+        if not winning_bets.exists() and not winning_parlays.exists():
             return Response(
-                {"message": "No unpaid winning bets found."},
+                {"message": "No unpaid settled winnings found."},
                 status=status.HTTP_200_OK,
             )
 
         for bet in winning_bets.select_related("user"):
             with transaction.atomic():
                 wallet, _ = get_or_create_wallet_with_starting_coins(user=bet.user)
-                payout_coins = cash_to_coins(bet.payout_amount)
+                payout_coins = bet.payout_amount
 
                 # Generate a unique transaction reference (UUID4)
                 reference = f"TRX-BET-CR-{bet.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
@@ -1244,12 +1489,57 @@ class CreditWinningBetsAPIView(APIView):
                 bet.save(update_fields=["is_paid"])
 
                 total_credited += 1
+                singles_credited += 1
                 total_amount += bet.payout_amount
+
+        for parlay in winning_parlays:
+            with transaction.atomic():
+                parlay_locked = ParlayBet.objects.select_for_update().get(id=parlay.id)
+                leg_statuses = list(parlay_locked.legs.values_list("status", flat=True))
+
+                if not leg_statuses or any(leg_status == "pending" for leg_status in leg_statuses):
+                    continue
+
+                if any(leg_status != "won" for leg_status in leg_statuses):
+                    continue
+
+                unpaid_legs_qs = parlay_locked.legs.filter(is_paid=False)
+                if not unpaid_legs_qs.exists():
+                    continue
+
+                payout_amount = parlay_locked.payout_amount or Decimal("0.00")
+                if payout_amount <= 0:
+                    unpaid_legs_qs.update(is_paid=True)
+                    continue
+
+                wallet, _ = get_or_create_wallet_with_starting_coins(user=parlay_locked.user)
+                payout_coins = payout_amount
+
+                reference = f"TRX-PARLAY-CR-{parlay_locked.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
+
+                wallet.coin_balance += payout_coins
+                wallet.save(update_fields=["coin_balance"])
+
+                Transaction.objects.create(
+                    wallet=wallet,
+                    amount=payout_amount,
+                    transaction_type=Transaction.CREDIT,
+                    reference=reference,
+                    description=f"Payout for Parlay #{parlay_locked.id} (+{payout_coins} BBC)",
+                )
+
+                unpaid_legs_qs.update(is_paid=True)
+
+                total_credited += 1
+                parlays_credited += 1
+                total_amount += payout_amount
 
         return Response(
             {
                 "message": "success",
                 "total_credited": total_credited,
+                "singles_credited": singles_credited,
+                "parlays_credited": parlays_credited,
                 "total_amount_paid": float(total_amount),
             },
             status=status.HTTP_200_OK,
@@ -1271,6 +1561,23 @@ class ParlayBetResolutionAPIView(APIView):
         serializer = ParlayBetResolutionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         parlay_bet_id = serializer.validated_data["parlay_bet_id"]
+
+        if not getattr(settings, "POLYGON_ENABLED", False):
+            return Response(
+                {
+                    "error": "Polygon integration is disabled. Set POLYGON_ENABLED=true to enable parlay resolution."
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            from mkt.polygon_data_fetcher import PolygonDataFetcher
+        except Exception as import_error:
+            logger.warning(f"Polygon integration unavailable in ParlayBetResolutionAPIView: {import_error}")
+            return Response(
+                {"error": "Polygon integration is unavailable in this environment."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         run_in_mock_mode = settings.POLYGON_MOCK_MODE
 
@@ -1448,3 +1755,192 @@ class ParlayBetResolutionAPIView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class CompetitionListPagination(pagination.PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+class CompetitionListCreateAPIView(generics.ListCreateAPIView):
+    """
+    List competitions for discovery and allow authenticated users to create one.
+    """
+
+    serializer_class = CompetitionSerializer
+    authentication_classes = [JWTAuthentication]
+    pagination_class = CompetitionListPagination
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    def get_queryset(self):
+        queryset = Competition.objects.select_related("creator").annotate(
+            member_count=Count("members")
+        )
+
+        status_value = self.request.query_params.get("status")
+        q_value = self.request.query_params.get("q")
+        registration_open = self.request.query_params.get("registration_open")
+
+        if status_value:
+            queryset = queryset.filter(status=status_value)
+
+        if q_value:
+            queryset = queryset.filter(
+                Q(name__icontains=q_value) | Q(description__icontains=q_value)
+            )
+
+        if registration_open in ["true", "1", "yes"]:
+            now = timezone.now()
+            queryset = queryset.filter(
+                status=CompetitionStatus.REGISTRATION,
+            ).filter(
+                Q(registration_close_date__isnull=True, start_date__gt=now)
+                | Q(registration_close_date__gt=now)
+            )
+
+        ordering = self.request.query_params.get("ordering", "-created_at")
+        if ordering in ["created_at", "-created_at", "start_date", "-start_date", "end_date", "-end_date"]:
+            queryset = queryset.order_by(ordering)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(creator=self.request.user, status=CompetitionStatus.REGISTRATION)
+
+
+class CompetitionDetailAPIView(generics.RetrieveAPIView):
+    serializer_class = CompetitionSerializer
+    permission_classes = [AllowAny]
+    queryset = Competition.objects.select_related("creator").annotate(
+        member_count=Count("members")
+    )
+    lookup_field = "pk"
+
+
+class CompetitionJoinAPIView(APIView):
+    """
+    Join a competition if registration is open and capacity remains.
+    """
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, competition_id):
+        try:
+            competition = Competition.objects.select_for_update().get(pk=competition_id)
+        except Competition.DoesNotExist:
+            return Response(
+                {"error": "Competition not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        competition.update_status()
+
+        existing_membership = CompetitionMember.objects.filter(
+            competition=competition,
+            user=request.user,
+        ).first()
+        if existing_membership:
+            payload = {
+                "competition_id": competition.id,
+                "joined": True,
+                "current_member_count": competition.members.count(),
+                "max_members": competition.max_members,
+                "message": "You already joined this competition.",
+            }
+            return Response(payload, status=status.HTTP_200_OK)
+
+        if not competition.is_registration_open:
+            return Response(
+                {"error": "Registration is closed for this competition."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        current_member_count = CompetitionMember.objects.filter(
+            competition=competition
+        ).count()
+        if current_member_count >= competition.max_members:
+            return Response(
+                {"error": "Competition is full."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        entry_fee = Decimal(str(competition.entry_fee or 0))
+        if entry_fee > 0:
+            wallet, _ = get_or_create_wallet_with_starting_coins(user=request.user)
+            wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+            if wallet.coin_balance < entry_fee:
+                return Response(
+                    {"error": "Insufficient coin balance for entry fee."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            wallet.coin_balance -= entry_fee
+            wallet.save(update_fields=["coin_balance"])
+
+            reference = (
+                f"TRX-COMP-ENTRY-{competition.id}-"
+                f"{timezone.now().strftime('%Y%m%d%H%M%S')}-"
+                f"{uuid.uuid4().hex[:6].upper()}"
+            )
+            Transaction.objects.create(
+                wallet=wallet,
+                amount=entry_fee,
+                transaction_type=Transaction.DEBIT,
+                reference=reference,
+                description=f"Entry fee for competition #{competition.id} ({competition.name})",
+                status=Transaction.SUCCESSFUL,
+            )
+
+        CompetitionMember.objects.create(competition=competition, user=request.user)
+
+        payload = {
+            "competition_id": competition.id,
+            "joined": True,
+            "current_member_count": current_member_count + 1,
+            "max_members": competition.max_members,
+            "message": "Successfully joined competition.",
+        }
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class CompetitionLeaderboardAPIView(generics.ListAPIView):
+    """
+    Returns participants and their stats for a competition leaderboard page.
+    """
+
+    serializer_class = CompetitionLeaderboardEntrySerializer
+    permission_classes = [AllowAny]
+    pagination_class = CompetitionListPagination
+
+    def get_queryset(self):
+        competition_id = self.kwargs.get("competition_id")
+        queryset = CompetitionMember.objects.filter(
+            competition_id=competition_id,
+            is_disqualified=False,
+        ).select_related("user", "competition")
+
+        # Sort by finalized rank if available; otherwise by join date.
+        return queryset.order_by("final_rank", "joined_at")
+
+
+class CompetitionMembershipListAPIView(generics.ListAPIView):
+    """
+    Returns all competitions joined by the authenticated user.
+    """
+
+    serializer_class = CompetitionMemberSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    pagination_class = CompetitionListPagination
+
+    def get_queryset(self):
+        return CompetitionMember.objects.filter(user=self.request.user).select_related(
+            "competition", "user"
+        )

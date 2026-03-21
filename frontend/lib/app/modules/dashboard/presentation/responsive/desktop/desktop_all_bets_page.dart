@@ -12,9 +12,29 @@ class DesktopAllBetsPage extends ConsumerStatefulWidget {
   ConsumerState<DesktopAllBetsPage> createState() => _DesktopAllBetsPageState();
 }
 
-class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
+class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage>
+  with SingleTickerProviderStateMixin {
   String selectedTab = 'Live';
   final ScrollController _scrollController = ScrollController();
+  late final AnimationController _blinkController;
+
+  @override
+  void initState() {
+    super.initState();
+    _blinkController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+      lowerBound: 0.25,
+      upperBound: 1.0,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _blinkController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +53,7 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "My Bets",
+              "My Predictions",
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -57,10 +77,19 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
                       style: const TextStyle(color: Colors.white)),
                 ),
                 data: (bets) {
+                  final today = DateUtils.dateOnly(DateTime.now());
+
                   final filtered = bets
-                      .where((b) => selectedTab == 'Live'
-                          ? b.status == 'pending'
-                          : b.status != 'pending')
+                      .where((b) {
+                        final isPending = b.status.toLowerCase() == 'pending';
+                        final isExpired = _isExpired(b, today);
+
+                        if (selectedTab == 'Live') {
+                          return isPending && !isExpired;
+                        }
+
+                        return !isPending || isExpired;
+                      })
                       .toList();
 
                   return Scrollbar(
@@ -114,12 +143,12 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
 
   Widget buildBetItem(BetHistoryModel item) {
     final double amount = double.tryParse(item.wagerAmount) ?? 0.0;
-    final double parsedOdds = double.tryParse(item.odds) ?? 0.0;
-    final int odds = parsedOdds.round();
-
-    final double potentialPayout = odds < 0
-        ? (amount / odds.abs()) * 100 + amount
-        : (amount * (odds / 100)) + amount;
+    final bool isSettled = item.status != 'pending';
+    final double settledPayout = double.tryParse(item.payoutAmount) ?? 0.0;
+    final double potentialPayout = _calculatePotentialPayout(
+      wagerAmount: amount,
+      oddsText: item.odds,
+    );
 
     return Container(
       margin: const EdgeInsets.all(8.0),
@@ -202,21 +231,46 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
           _infoRow("Odd", "${item.outcome} - ${item.odds}"),
           _infoRow("Strike Price", "\$${item.strikePrice}"),
           _infoRow("Exp date", item.expiryDate),
-          _infoRow("Wager Amount", "\$${item.wagerAmount}"),
+          _infoRow("Wager Amount", "${item.wagerAmount} BBC"),
           _infoRow("Single/Parlay", item.isParlay ? "Parlay" : "Single"),
 
           /// ✅ NEW ROW (ONLY ADDITION)
-          _infoRow("Status", _statusText(item.status)),
+          _statusRow(item),
 
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 10.0),
             child: Divider(color: Colors.grey, thickness: 1),
           ),
           _infoRow(
-              "Potential Payout", "\$${potentialPayout.toStringAsFixed(2)}"),
+            isSettled ? "Payout" : "Potential Payout",
+            "${(isSettled ? settledPayout : potentialPayout).toStringAsFixed(2)} BBC",
+          ),
         ],
       ),
     );
+  }
+
+  double _calculatePotentialPayout({
+    required double wagerAmount,
+    required String oddsText,
+  }) {
+    final trimmed = oddsText.trim();
+    if (wagerAmount <= 0 || trimmed.isEmpty || trimmed == 'N/A') return 0.0;
+
+    final parsedOdds = double.tryParse(trimmed);
+    if (parsedOdds == null) return 0.0;
+
+    if (parsedOdds < 0 || parsedOdds >= 100) {
+      return parsedOdds < 0
+          ? (wagerAmount / parsedOdds.abs()) * 100 + wagerAmount
+          : (wagerAmount * (parsedOdds / 100)) + wagerAmount;
+    }
+
+    if (parsedOdds > 1) {
+      return wagerAmount * parsedOdds;
+    }
+
+    return 0.0;
   }
 
   String _statusText(String status) {
@@ -225,19 +279,89 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage> {
         return 'WON';
       case 'lost':
         return 'LOST';
+      case 'void':
+        return 'VOID';
       default:
         return 'LIVE';
     }
   }
 
-  Widget _infoRow(String label, String value) {
+  bool _isExpired(BetHistoryModel item, DateTime today) {
+    try {
+      final expiry = DateUtils.dateOnly(DateTime.parse(item.expiryDate));
+      return expiry.isBefore(today);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Widget _statusRow(BetHistoryModel item) {
+    final normalized = item.status.toLowerCase();
+
+    if (normalized == 'won') {
+      return _infoRow(
+        "Status",
+        "WON",
+        valueStyle: const TextStyle(
+          color: Color(0xFF22C55E),
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+
+    if (normalized == 'lost') {
+      return _infoRow(
+        "Status",
+        "LOST",
+        valueStyle: const TextStyle(
+          color: Color(0xFFEF4444),
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("Status", style: TextStyle(color: Colors.white)),
+          Row(
+            children: [
+              FadeTransition(
+                opacity: _blinkController,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF22C55E),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                "LIVE",
+                style: TextStyle(
+                  color: Color(0xFF22C55E),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value, {TextStyle? valueStyle}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Colors.white)),
-          Text(value, style: const TextStyle(color: Colors.white)),
+          Text(value, style: valueStyle ?? const TextStyle(color: Colors.white)),
         ],
       ),
     );

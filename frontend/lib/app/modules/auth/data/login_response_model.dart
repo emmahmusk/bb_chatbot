@@ -40,6 +40,7 @@ class Profile extends Cachable {
   final String phoneNumber;
   final String physicalAddress;
   final String walletBalance;
+  final String walletCoinBalance;
 
   Profile({
     required this.id,
@@ -51,6 +52,7 @@ class Profile extends Cachable {
     required this.phoneNumber,
     required this.physicalAddress,
     required this.walletBalance,
+    required this.walletCoinBalance,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {
@@ -64,6 +66,7 @@ class Profile extends Cachable {
       phoneNumber: json['phone_number'] ?? "N/A",
       physicalAddress: json['physical_address'] ?? "N/A",
       walletBalance: json['wallet_balance'] ?? "N/A",
+      walletCoinBalance: json['wallet_coin_balance'] ?? "0.00",
     );
   }
 
@@ -77,6 +80,8 @@ class Profile extends Cachable {
         'date_of_birth': dateOfBirth,
         'phone_number': phoneNumber,
         'physical_address': physicalAddress,
+        'wallet_balance': walletBalance,
+        'wallet_coin_balance': walletCoinBalance,
       };
 }
 

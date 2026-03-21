@@ -16,7 +16,8 @@ class PlatformSettings(models.Model):
     max_profit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("15000.00"))
     max_crs = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("30.00"))
     minimum_stake = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("1.00"))
-    max_risk_tolerance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("3000.00"), help_text="Maximum allowed exposure per market side globally.")
+    max_risk_tolerance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("3000.00"), help_text="Default per-market maximum allowed net exposure.")
+    global_max_risk_tolerance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("5000.00"), help_text="Global ceiling for market max risk tolerance.")
     starting_coin_balance = models.DecimalField(max_digits=16, decimal_places=2, default=Decimal("500.00"))
 
     def save(self, *args, **kwargs):
@@ -257,6 +258,109 @@ class CRSRiskAuditLog(models.Model):
 
     def __str__(self):
         return f"CRS Audit for {self.user.email} by {self.changed_by or 'System'}"
+
+
+class CompetitionMember(models.Model):
+    """
+    Represents a user's membership in a competition.
+    Tracks join date, ranking, and qualification status.
+    
+    This model is in user/models.py (not betengine) because it fundamentally
+    represents a user-to-competition relationship from the user domain perspective.
+    """
+    
+    competition = models.ForeignKey(
+        "betengine.Competition",
+        on_delete=models.CASCADE,
+        related_name="members",
+        help_text="The competition this user is participating in"
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="competition_memberships",
+        help_text="The user participating in the competition"
+    )
+    joined_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When the user joined this competition"
+    )
+    
+    # Final ranking (filled when competition ends)
+    final_rank = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Final rank on competition leaderboard (1st, 2nd, etc.)"
+    )
+    final_score = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Final score based on competition's scoring_method"
+    )
+    
+    is_disqualified = models.BooleanField(
+        default=False,
+        help_text="If True, user is disqualified and won't appear on leaderboard"
+    )
+    
+    class Meta:
+        unique_together = ("competition", "user")
+        ordering = ["-joined_at"]
+        verbose_name_plural = "Competition Members"
+        indexes = [
+            models.Index(fields=["competition", "final_rank"]),
+            models.Index(fields=["user", "competition"]),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} in {self.competition.name}"
+    
+    def get_member_stats(self):
+        """
+        Calculate member's stats for the competition period.
+        Returns dict with profit/loss, win rate, bet count, etc.
+        
+        NOTE: Requires 'betengine.Bet' model to be available.
+        """
+        from decimal import Decimal, ROUND_HALF_UP
+        from django.db.models import Sum
+        from betengine.models import Bet
+        
+        def round_two_places(value):
+            return float(Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        
+        # Get all bets placed by this user during competition period
+        bets = Bet.objects.filter(
+            user=self.user,
+            created_at__gte=self.competition.start_date,
+            created_at__lte=self.competition.end_date,
+        )
+        
+        total_wagered = bets.aggregate(Sum("amount_wagered"))["amount_wagered__sum"] or Decimal("0")
+        total_payout = bets.filter(status="won").aggregate(Sum("payout_amount"))["payout_amount__sum"] or Decimal("0")
+        
+        won_count = bets.filter(status="won").count()
+        lost_count = bets.filter(status="lost").count()
+        void_count = bets.filter(status="void").count()
+        total_bets = bets.count()
+        
+        net_profit = total_payout - total_wagered
+        win_rate = (won_count / total_bets * 100) if total_bets > 0 else Decimal("0")
+        roi = (net_profit / total_wagered * 100) if total_wagered > 0 else Decimal("0")
+        
+        return {
+            "total_bets": total_bets,
+            "won": won_count,
+            "lost": lost_count,
+            "void": void_count,
+            "total_wagered": round_two_places(total_wagered),
+            "total_payout": round_two_places(total_payout),
+            "net_profit": round_two_places(net_profit),
+            "win_rate": round_two_places(win_rate),
+            "roi": round_two_places(roi),
+        }
 
 
 # user/models.py
