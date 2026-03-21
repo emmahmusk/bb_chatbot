@@ -25,6 +25,24 @@ class DesktopWalletTransactionsPage extends ConsumerStatefulWidget {
 }
 
 class _DesktopWalletTransactionsPageState
+      // Helper for action button icons
+      Widget buildWalletActionIcon(String assetPath) {
+        return ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            ref.watch(appThemeProvider).colors.alwaysWhite,
+            BlendMode.srcIn,
+          ),
+          child: Image.asset(
+            assetPath,
+            width: 16,
+            height: 16,
+            fit: BoxFit.contain,
+          ),
+        );
+      }
+
+      bool get canGoPrev => currentPage > 1 && prevUrl != null;
+      bool get canGoNext => nextUrl != null;
     extends ConsumerState<DesktopWalletTransactionsPage> {
   double walletBalance = 0.0;
   double walletCoinBalance = 0.0;

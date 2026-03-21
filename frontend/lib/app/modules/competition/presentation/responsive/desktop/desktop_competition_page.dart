@@ -395,6 +395,18 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncFromRoute();
     });
+    // Listen to search field changes for immediate filter application
+    _searchController.addListener(() {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 600), _applyFilters);
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
   }
 
   @override
@@ -967,9 +979,15 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
               ),
               const SizedBox(width: 6),
               ElevatedButton(
-                onPressed: _canJoin(item) && !_isJoining ? () => _joinCompetition(item) : null,
+                onPressed: !_isJoining && !item.userJoined && item.isRegistrationOpen && !item.isFull
+                    ? () => _joinCompetition(item)
+                    : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: item.userJoined ? colors.always52AAFF : colors.always30363D,
+                  backgroundColor: item.userJoined
+                      ? colors.always8B949E // greyed out if joined
+                      : (item.isRegistrationOpen && !item.isFull
+                          ? colors.always52AAFF
+                          : colors.always30363D),
                   foregroundColor: colors.alwaysWhite,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                   textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
