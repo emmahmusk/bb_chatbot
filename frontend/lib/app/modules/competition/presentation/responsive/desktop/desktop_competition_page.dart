@@ -510,7 +510,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
             ],
           ),
           const SizedBox(height: 8),
-          Expanded(
+          Flexible(
             child: _buildLeaderboard(
               leaderboardState: leaderboardState,
               leaderboardCurrentPage: leaderboardCurrentPage,
