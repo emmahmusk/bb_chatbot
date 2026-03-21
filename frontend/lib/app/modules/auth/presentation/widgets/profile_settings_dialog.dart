@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app/modules/settings/presentation/settings_routes.dart';
 import 'package:frontend/app/shared/classes/media/pngs.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
+import 'package:frontend/app/shared/functions/format_amount.dart';
 import 'package:frontend/app/shared/presentation/widgets/clickable.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_divider.dart';
 import 'package:frontend/app/shared/presentation/widgets/profile_logo.dart';
@@ -42,6 +43,8 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
     final colors = ref.watch(appThemeProvider).colors;
     final parsedWalletBalance = double.tryParse(walletBalance) ?? 0.0;
     final parsedWalletCoinBalance = double.tryParse(walletCoinBalance) ?? 0.0;
+    final formattedWalletBalance = formatAmount(parsedWalletBalance);
+    final formattedWalletCoinBalance = formatAmount(parsedWalletCoinBalance);
 
     return Container(
       width: 350,
@@ -89,7 +92,7 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '${parsedWalletBalance.toStringAsFixed(2)} BB Cash',
+                          '$formattedWalletBalance BB Cash',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -119,7 +122,7 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '${parsedWalletCoinBalance.toStringAsFixed(2)} BBC',
+                          '$formattedWalletCoinBalance BBC',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,

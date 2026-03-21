@@ -84,7 +84,7 @@ bool isUSMarketOpenNow() {
     final profile = ref.watch(currentUserProvider);
     final walletCoinBalance = profile?.walletCoinBalance ?? '0.00';
     final parsedWalletCoinBalance = double.tryParse(walletCoinBalance) ?? 0.0;
-    // Use thousand separator formatting
+    // Use thousand separator formatting (no extra decimals)
     String formattedWalletCoinBalance = formatAmount(parsedWalletCoinBalance);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 120),

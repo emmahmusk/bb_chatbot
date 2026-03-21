@@ -886,14 +886,14 @@ class _DesktopWalletTransactionsPageState
           text: text,
           color: colors.alwaysWhite,
           onTap: onTap,
-        ),
-      );
-    }
-
-    Widget buildWalletActionIcon(String assetPath) {
-      return SizedBox(
-        width: 16,
-        height: 16,
+                Text(
+                  '${formatAmount(walletBalance)} BB Cash',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                    color: colors.alwaysWhite,
+                  ),
+                ),
         child: ColorFiltered(
           colorFilter: ColorFilter.mode(colors.alwaysWhite, BlendMode.srcIn),
           child: Image.asset(
@@ -913,14 +913,14 @@ class _DesktopWalletTransactionsPageState
           height: 40,
           child: CircularProgressIndicator(color: Color(0xFFFFFFFF)),
         ),
-      );
-    }
-
-    final canGoPrev = prevUrl != null && currentPage > 1;
-    final canGoNext = nextUrl != null;
-
-    return ListView(
-      children: [
+                    Text(
+                      '${formatAmount(walletCoinBalance)} BBC',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        color: colors.alwaysFFD33D,
+                      ),
+                    ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
