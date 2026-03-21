@@ -1162,7 +1162,6 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
     );
   }
   }
-}
 
 class WalletTransactionsItem extends ConsumerWidget {
   const WalletTransactionsItem({
