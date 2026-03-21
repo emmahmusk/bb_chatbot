@@ -52,6 +52,25 @@ class DesktopCompetitionPage extends ConsumerStatefulWidget {
 enum _CompetitionTab { discover, myCompetitions }
 
 class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage> {
+      void _openCreateDialog() {
+        if (!isAuthenticated()) {
+          showCenterDialog(context, child: const LoginDialog());
+          return;
+        }
+        showDialog<void>(
+          context: context,
+          builder: (_) => CompetitionCreateDialog(
+            onCreated: (created) async {
+              setState(() {
+                _selectedCompetitionId = created.id;
+              });
+              _updateRoute(competitionId: created.id);
+              await ref.read(competitionDetailProvider.notifier).load(created.id);
+              await ref.read(competitionLeaderboardProvider.notifier).load(created.id, page: 1, pageSize: _pageSize);
+            },
+          ),
+        );
+      }
     @override
     Widget build(BuildContext context) {
       final colors = ref.watch(appThemeProvider).colors;
