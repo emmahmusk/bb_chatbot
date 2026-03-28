@@ -306,6 +306,7 @@ class CompetitionCreateInput {
   final String entryFee;
   final String scoringMethod;
   final bool isPrivate;
+  final String startingCoinBalance;
 
   const CompetitionCreateInput({
     required this.name,
@@ -317,6 +318,7 @@ class CompetitionCreateInput {
     required this.entryFee,
     required this.scoringMethod,
     required this.isPrivate,
+    required this.startingCoinBalance,
   });
 
   Map<String, dynamic> toJson() {
@@ -331,6 +333,7 @@ class CompetitionCreateInput {
       'entry_fee': entryFee,
       'scoring_method': scoringMethod,
       'is_private': isPrivate,
+      'starting_coin_balance': startingCoinBalance,
     };
   }
 }

@@ -167,6 +167,7 @@ class CompetitionSerializer(serializers.ModelSerializer):
             "entry_fee",
             "scoring_method",
             "is_private",
+            "starting_coin_balance",
             "is_registration_open",
             "is_full",
             "user_joined",
