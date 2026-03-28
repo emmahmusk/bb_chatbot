@@ -1,3 +1,30 @@
+from .models import KYCProfile, Profile, Wallet, CompetitionMember
+
+# Serializer for CompetitionMember to expose competition_coin_balance and related fields
+class CompetitionMemberSerializer(serializers.ModelSerializer):
+    competition_coin_balance = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
+    competition_id = serializers.IntegerField(source="competition.id", read_only=True)
+    competition_name = serializers.CharField(source="competition.name", read_only=True)
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True)
+    joined_at = serializers.DateTimeField(read_only=True)
+    final_rank = serializers.IntegerField(read_only=True)
+    final_score = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
+    is_disqualified = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = CompetitionMember
+        fields = [
+            "competition_id",
+            "competition_name",
+            "user_id",
+            "username",
+            "competition_coin_balance",
+            "joined_at",
+            "final_rank",
+            "final_score",
+            "is_disqualified",
+        ]
 from django.contrib.auth.models import User
 
 from rest_framework import serializers

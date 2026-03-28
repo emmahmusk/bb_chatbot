@@ -79,13 +79,29 @@ bool isUSMarketOpenNow() {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-
     final colors = ref.watch(appThemeProvider).colors;
     final profile = ref.watch(currentUserProvider);
-    final walletCoinBalance = profile?.walletCoinBalance ?? '0.00';
-    final parsedWalletCoinBalance = double.tryParse(walletCoinBalance) ?? 0.0;
-    // Use thousand separator formatting (no extra decimals)
-    String formattedWalletCoinBalance = formatAmount(parsedWalletCoinBalance);
+
+    // Detect if on competition page
+    final location = GoRouterState.of(context).uri.toString();
+    final isCompetitionPage = location.contains('/dashboard/competitions');
+
+    String formattedWalletCoinBalance;
+    if (isCompetitionPage) {
+      // Try to get the user's competition wallet balance from their memberships
+      final myCompetitions = ref.watch(competitionMyProvider);
+      String compBalance = '0.00';
+      if (myCompetitions.isSuccess && myCompetitions.data.results.isNotEmpty) {
+        // For demo: just use the first competition joined (in real use, match by competitionId)
+        compBalance = myCompetitions.data.results.first.competitionCoinBalance;
+      }
+      final parsed = double.tryParse(compBalance) ?? 0.0;
+      formattedWalletCoinBalance = formatAmount(parsed);
+    } else {
+      final walletCoinBalance = profile?.walletCoinBalance ?? '0.00';
+      final parsedWalletCoinBalance = double.tryParse(walletCoinBalance) ?? 0.0;
+      formattedWalletCoinBalance = formatAmount(parsedWalletCoinBalance);
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 120),
       child: Row(
@@ -215,6 +231,14 @@ bool isUSMarketOpenNow() {
               ),
             ),
           ),
+                          const SizedBox(width: 12),
+                          CustomOutlinedButton(
+                            text: 'Competitions',
+                            color: colors.alwaysWhite,
+                            onTap: () {
+                              context.go(DashboardRoutes.competitions);
+                            },
+                          ),
           const SizedBox(width: 24),
           if (user == null) ...[
             CustomOutlinedButton.big(

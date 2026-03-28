@@ -121,6 +121,7 @@ class CompetitionMembershipModel {
   final int? finalRank;
   final String? finalScore;
   final bool isDisqualified;
+  final String competitionCoinBalance;
 
   const CompetitionMembershipModel({
     required this.id,
@@ -132,6 +133,7 @@ class CompetitionMembershipModel {
     required this.finalRank,
     required this.finalScore,
     required this.isDisqualified,
+    required this.competitionCoinBalance,
   });
 
   factory CompetitionMembershipModel.fromJson(Map<String, dynamic> json) {
@@ -149,6 +151,7 @@ class CompetitionMembershipModel {
           : int.tryParse(json['final_rank'].toString()),
       finalScore: json['final_score']?.toString(),
       isDisqualified: (json['is_disqualified'] ?? false) == true,
+      competitionCoinBalance: json['competition_coin_balance']?.toString() ?? '0.00',
     );
   }
 }

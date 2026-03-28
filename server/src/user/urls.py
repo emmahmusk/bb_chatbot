@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import api, views
+from .api_competition_member import CompetitionMemberListAPIView
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -29,4 +30,7 @@ urlpatterns = [
     path("wallet/coins/convert-to-cash/", api.WalletCoinConvertToCashView.as_view(), name="wallet-coins-convert-to-cash"),
     path("wallet/coins/redeem/", api.WalletCoinRedeemView.as_view(), name="wallet-coins-redeem"),
     path("wallet/coins/conversion-preview/", api.WalletCoinConversionPreviewView.as_view(), name="wallet-coins-conversion-preview"),
+
+    # Competition membership wallet API
+    path("competition/memberships/", CompetitionMemberListAPIView.as_view(), name="competition-memberships"),
 ]
