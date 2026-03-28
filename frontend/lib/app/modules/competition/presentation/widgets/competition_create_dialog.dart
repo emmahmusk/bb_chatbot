@@ -19,6 +19,7 @@ class CompetitionCreateDialog extends ConsumerStatefulWidget {
       _CompetitionCreateDialogState();
 }
 
+
 class _CompetitionCreateDialogState
     extends ConsumerState<CompetitionCreateDialog> {
   final _formKey = GlobalKey<FormState>();
@@ -26,6 +27,7 @@ class _CompetitionCreateDialogState
   final _descriptionController = TextEditingController();
   final _maxMembersController = TextEditingController(text: '50');
   final _entryFeeController = TextEditingController(text: '0.00');
+  final _startingCoinBalanceController = TextEditingController(text: '500.00');
 
   DateTime? _startDate;
   DateTime? _endDate;
@@ -40,6 +42,7 @@ class _CompetitionCreateDialogState
     _descriptionController.dispose();
     _maxMembersController.dispose();
     _entryFeeController.dispose();
+    _startingCoinBalanceController.dispose();
     super.dispose();
   }
 
@@ -100,6 +103,7 @@ class _CompetitionCreateDialogState
       entryFee: _entryFeeController.text.trim(),
       scoringMethod: _scoringMethod,
       isPrivate: _isPrivate,
+      startingCoinBalance: _startingCoinBalanceController.text.trim(),
     );
 
     final result = await ref
@@ -207,6 +211,21 @@ class _CompetitionCreateDialogState
                       child: _input(
                         controller: _entryFeeController,
                         label: 'Entry Fee',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) {
+                          final parsed = num.tryParse((value ?? '').trim());
+                          if (parsed == null || parsed < 0) {
+                            return 'Use 0 or greater';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _input(
+                        controller: _startingCoinBalanceController,
+                        label: 'Starting Coin Balance',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         validator: (value) {
                           final parsed = num.tryParse((value ?? '').trim());
