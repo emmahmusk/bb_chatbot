@@ -1,5 +1,14 @@
 from .models import KYCProfile, Profile, Wallet, CompetitionMember
 
+from django.contrib.auth.models import User
+
+from rest_framework import serializers
+
+from betengine.models import Bet
+from betengine.serializers import MarketSerializer
+
+from decimal import Decimal
+
 # Serializer for CompetitionMember to expose competition_coin_balance and related fields
 class CompetitionMemberSerializer(serializers.ModelSerializer):
     competition_coin_balance = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
@@ -25,16 +34,6 @@ class CompetitionMemberSerializer(serializers.ModelSerializer):
             "final_score",
             "is_disqualified",
         ]
-from django.contrib.auth.models import User
-
-from rest_framework import serializers
-
-from betengine.models import Bet
-from betengine.serializers import MarketSerializer
-
-from .models import KYCProfile, Profile, Wallet
-
-from decimal import Decimal
 
 class PasswordResetOTPRequestSerializer(serializers.Serializer):
     """
