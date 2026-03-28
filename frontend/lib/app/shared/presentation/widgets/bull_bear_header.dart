@@ -273,7 +273,7 @@ bool isUSMarketOpenNow() {
                   ),
                 ),
               ),
-              onTap: () {},
+              onPressed: () {},
             ),
 
             const SizedBox(width: 24),
