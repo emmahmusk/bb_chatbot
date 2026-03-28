@@ -254,9 +254,8 @@ bool isUSMarketOpenNow() {
               text: 'Get Started',
               height: 44,
               width: 120,
-              fontSize: 12,
-              borderRadius: 50,
               fontSize: 14,
+              borderRadius: 50,
               color: colors.alwaysWhite,
               icon: Container(
                 width: 20,
@@ -274,7 +273,6 @@ bool isUSMarketOpenNow() {
                   ),
                 ),
               ),
-              iconPosition: IconPosition.left,
               onTap: () {},
             ),
 
