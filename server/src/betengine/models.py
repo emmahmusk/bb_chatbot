@@ -599,6 +599,12 @@ class Competition(models.Model):
     Represents a stock prediction competition/league where users can join
     and compete against each other over a specific time period.
     """
+    starting_coin_balance = models.DecimalField(
+            max_digits=16,
+            decimal_places=2,
+            default=Decimal("500.00"),
+            help_text="Starting BB coin balance for each user in this competition. Set by creator."
+        )
 
     name = models.CharField(
         max_length=255,
