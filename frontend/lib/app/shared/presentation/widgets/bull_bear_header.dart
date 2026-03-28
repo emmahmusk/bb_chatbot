@@ -118,159 +118,144 @@ bool isUSMarketOpenNow() {
             ),
           ),
           const Spacer(),
+          // Move Competitions button to the left of Market open/closed button
+          CustomOutlinedButton(
+            text: 'Competitions',
+            color: colors.alwaysWhite,
+            onTap: () {
+              context.go(DashboardRoutes.competitions);
+            },
+          ),
+          const SizedBox(width: 12),
           CustomOutlinedButtonWithIcon(
             icon: Image.asset(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Clickable(
-                    onClick: () => context.go(DashboardRoutes.trending),
-                    child: Image.asset(
-                      Pngs.bullbearLogo,
-                      width: 98,
-                      height: 47,
-                      fit: BoxFit.cover,
+              Pngs.moon,
+              width: 16,
+              height: 16,
+              fit: BoxFit.cover,
+            ),
+            text: isUSMarketOpenNow() ? 'Market open' : 'Market closed',
+            color: colors.alwaysWhite,
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    backgroundColor: const Color(0xFF1F242C),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                  ),
-                  const Spacer(),
-                  // Move Competitions button to the left of Market open/closed button
-                  CustomOutlinedButton(
-                    text: 'Competitions',
-                    color: colors.alwaysWhite,
-                    onTap: () {
-                      context.go(DashboardRoutes.competitions);
-                    },
-                  ),
-                  const SizedBox(width: 12),
-                  CustomOutlinedButtonWithIcon(
-                    icon: Image.asset(
-                      Pngs.moon,
-                      width: 16,
-                      height: 16,
-                      fit: BoxFit.cover,
-                    ),
-                    text: isUSMarketOpenNow() ? 'Market open' : 'Market closed',
-                    color: colors.alwaysWhite,
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) {
-                          return AlertDialog(
-                            backgroundColor: const Color(0xFF1F242C),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            titlePadding: const EdgeInsets.only(top: 20, left: 24, right: 24),
-                            title: const Column(
-                              children: [
-                                Text(
-                                  "US Market Hours",
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                                SizedBox(height: 12),
-                                Divider(color: Colors.white, thickness: 1),
-                              ],
-                            ),
-                            contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                            content: const Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  "The US stock market is open from:\n\n"
-                                  "🕘 - 9:30 AM to 4:00 PM\n"
-                                  "🗓️ - Monday to Friday\n"
-                                  "🌎 - Timezone: Eastern Time (ET)\n\n"
-                                  "Note: Times may vary slightly due to Daylight Saving Time (EDT/EST).",
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                                SizedBox(height: 20),
-                                Divider(color: Colors.white, thickness: 1),
-                                SizedBox(height: 20),
-                              ],
-                            ),
-                            actionsAlignment: MainAxisAlignment.center,
-                            actions: [
-                              OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Colors.white),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: const Text(
-                                  "OK",
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: Clickable(
-                      onClick: () {
-                        context.go('/dashboard/trending');
-                        showCenterDialog(context, child: SearchDialog());
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 12,
+                    titlePadding: const EdgeInsets.only(top: 20, left: 24, right: 24),
+                    title: const Column(
+                      children: [
+                        Text(
+                          "US Market Hours",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white),
                         ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(50),
-                          border: Border.all(
-                            color: colors.always30363D,
-                            width: 1,
+                        SizedBox(height: 12),
+                        Divider(color: Colors.white, thickness: 1),
+                      ],
+                    ),
+                    contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                    content: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "The US stock market is open from:\n\n"
+                          "🕘 - 9:30 AM to 4:00 PM\n"
+                          "🗓️ - Monday to Friday\n"
+                          "🌎 - Timezone: Eastern Time (ET)\n\n"
+                          "Note: Times may vary slightly due to Daylight Saving Time (EDT/EST).",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        SizedBox(height: 20),
+                        Divider(color: Colors.white, thickness: 1),
+                        SizedBox(height: 20),
+                      ],
+                    ),
+                    actionsAlignment: MainAxisAlignment.center,
+                    actions: [
+                      OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.white),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          color: colors.always30363D.withValues(alpha: 0.2),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Image.asset(
-                              Pngs.search,
-                              width: 20,
-                              height: 20,
-                              fit: BoxFit.cover,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Search stocks or profiles',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w300,
-                                color: colors.alwaysWhite.withValues(alpha: 0.4),
-                              ),
-                            ),
-                          ],
+                        child: const Text(
+                          "OK",
+                          style: TextStyle(color: Colors.white),
                         ),
                       ),
-                    ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Clickable(
+              onClick: () {
+                context.go('/dashboard/trending');
+                showCenterDialog(context, child: SearchDialog());
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(50),
+                  border: Border.all(
+                    color: colors.always30363D,
+                    width: 1,
                   ),
-                  const SizedBox(width: 24),
-                  if (user == null) ...[
-                    CustomOutlinedButton.big(
-                      text: 'Log in',
-                      onTap: () {
-                        showCenterDialog(
-                          context,
-                          child: LoginDialog(),
-                        );
-                      },
+                  color: colors.always30363D.withValues(alpha: 0.2),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      Pngs.search,
+                      width: 20,
+                      height: 20,
+                      fit: BoxFit.cover,
                     ),
                     const SizedBox(width: 8),
-                    CustomButton(
-                      text: 'Get Started',
-                      height: 44,
-                      width: 120,
-                      fontSize: 12,
-                      borderRadius: 50,
+                    Text(
+                      'Search stocks or profiles',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w300,
+                        color: colors.alwaysWhite.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 24),
+          if (user == null) ...[
+            CustomOutlinedButton.big(
+              text: 'Log in',
+              onTap: () {
+                showCenterDialog(
+                  context,
+                  child: LoginDialog(),
+                );
+              },
+            ),
+            const SizedBox(width: 8),
+            CustomButton(
+              text: 'Get Started',
+              height: 44,
+              width: 120,
+              fontSize: 12,
+              borderRadius: 50,
               fontSize: 14,
               color: colors.alwaysWhite,
               icon: Container(
