@@ -261,20 +261,19 @@ class CRSRiskAuditLog(models.Model):
 
 
 class CompetitionMember(models.Model):
-        competition_coin_balance = models.DecimalField(
-            max_digits=16,
-            decimal_places=2,
-            default=Decimal("0.00"),
-            help_text="Current BB coin balance for this user in this competition. Acts as a mini-wallet."
-        )
     """
     Represents a user's membership in a competition.
     Tracks join date, ranking, and qualification status.
-    
+
     This model is in user/models.py (not betengine) because it fundamentally
     represents a user-to-competition relationship from the user domain perspective.
     """
-    
+    competition_coin_balance = models.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Current BB coin balance for this user in this competition. Acts as a mini-wallet."
+    )
     competition = models.ForeignKey(
         "betengine.Competition",
         on_delete=models.CASCADE,
