@@ -7,6 +7,7 @@ import 'package:frontend/app/modules/dashboard/data/dtos/single_bet_dto.dart';
 import 'package:frontend/app/modules/dashboard/data/models/markets_model.dart';
 import 'package:frontend/app/modules/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:frontend/app/modules/dashboard/presentation/providers/get_bet_list_provider.dart';
+import 'package:frontend/app/modules/competition/presentation/providers/competition_my_provider.dart';
 import 'package:frontend/app/modules/dashboard/presentation/widgets/trending/bet_slip_item.dart';
 import 'package:frontend/app/shared/functions/alert_functions.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
@@ -585,6 +586,11 @@ Key wagerFieldKey = UniqueKey();
       
                     final repo = ref.read(dashboardRepositoryProvider);
                     final double? wagerAmount = double.tryParse(wager);
+                    final routeUri = GoRouterState.of(context).uri;
+                    final competitionId = int.tryParse(
+                      routeUri.queryParameters['competitionId'] ?? '',
+                    );
+                    final isCompetitionMode = competitionId != null;
       
                     if (wagerAmount == null || wagerAmount <= 0) {
                       showTopRightAlert(
@@ -610,6 +616,7 @@ Key wagerFieldKey = UniqueKey();
                               "market_id": selectedStocks.first.marketId,
                               "chosen_outcome": selectedStocks.first.chosenOutcome,
                               "amount_wagered": wagerAmount,
+                              if (competitionId != null) "competition_id": competitionId,
                             });
 
                             final res = await http.post(
@@ -626,7 +633,7 @@ Key wagerFieldKey = UniqueKey();
                                 final responseBody = jsonDecode(res.body);
                                 final currentUser = ref.read(currentUserProvider);
 
-                               if (currentUser != null) {
+                               if (currentUser != null && !isCompetitionMode) {
                                 final serverCoinBalance = responseBody['wallet_coin_balance'];
                                 final serverCashBalance = responseBody['wallet_balance'];
 
@@ -657,8 +664,20 @@ Key wagerFieldKey = UniqueKey();
                                 await prefs.setString('wallet_balance', updatedCashBalance);
                                 await prefs.setString('wallet_coin_balance', updatedCoinBalance.toStringAsFixed(2));
                               }
+                              if (isCompetitionMode) {
+                                await ref.read(competitionMyProvider.notifier).refresh();
+                              }
                               showTopRightAlert(context, "Single bet placed!", false);
-                                context.go('/dashboard/trending');        
+                                context.go(
+                                  competitionId == null
+                                      ? '/dashboard/trending'
+                                      : Uri(
+                                          path: '/dashboard/trending',
+                                          queryParameters: {
+                                            'competitionId': '$competitionId',
+                                          },
+                                        ).toString(),
+                                );
                                await showDialog(
                                 context: context,
                                 useRootNavigator: true,
@@ -697,6 +716,7 @@ Key wagerFieldKey = UniqueKey();
                             final body = json.encode({
                               "amount_wagered": wager,
                               "legs": legs,
+                              if (competitionId != null) "competition_id": competitionId,
                             });
 
                             final res = await http.post(
@@ -714,7 +734,7 @@ Key wagerFieldKey = UniqueKey();
                               final responseBody = jsonDecode(res.body);
                               // ✅ Step 1: Subtract wager from wallet
                               final currentUser = ref.read(currentUserProvider);
-                              if (currentUser != null) {
+                              if (currentUser != null && !isCompetitionMode) {
                                 final serverCoinBalance = responseBody['wallet_coin_balance'];
                                 final serverCashBalance = responseBody['wallet_balance'];
 
@@ -744,6 +764,9 @@ Key wagerFieldKey = UniqueKey();
                                 final prefs = await SharedPreferences.getInstance();
                                 await prefs.setString('wallet_balance', updatedCashBalance);
                                 await prefs.setString('wallet_coin_balance', updatedCoinBalance.toStringAsFixed(2));
+                              }
+                              if (isCompetitionMode) {
+                                await ref.read(competitionMyProvider.notifier).refresh();
                               }
                               showTopRightAlert(context, "Parlay bet placed!", false);
                               // Create a list of ParlayBetItem(s)
