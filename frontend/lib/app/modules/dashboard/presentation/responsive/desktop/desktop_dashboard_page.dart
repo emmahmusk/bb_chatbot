@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/app/modules/competition/presentation/providers/competition_my_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app/modules/dashboard/presentation/providers/get_bet_list_provider.dart';
 import 'package:frontend/app/modules/dashboard/presentation/responsive/sections/dashboard/bet_slip_section.dart';
@@ -93,14 +94,29 @@ class CustomRouteChipHeader extends ConsumerWidget {
     final colors = ref.watch(appThemeProvider).colors;
     final routeUri = GoRouterState.of(context).uri;
     final activeCompetitionId = routeUri.queryParameters['competitionId'];
+    final routePath = routeUri.path;
+    final isOnCompetitionRoute = routePath == DashboardRoutes.competitions;
+    final myCompetitions = ref.watch(competitionMyProvider);
+
+    String? effectiveCompetitionId = activeCompetitionId;
+    if ((effectiveCompetitionId == null || effectiveCompetitionId.isEmpty) &&
+      isOnCompetitionRoute &&
+      myCompetitions.isSuccess &&
+      myCompetitions.data.results.isNotEmpty) {
+      effectiveCompetitionId =
+        myCompetitions.data.results.first.competition.toString();
+    }
+
+    final isCompetitionMode =
+      effectiveCompetitionId != null && effectiveCompetitionId.isNotEmpty;
 
     String _routeWithCompetitionContext(String path) {
-      if (activeCompetitionId == null || activeCompetitionId.isEmpty) {
+      if (effectiveCompetitionId == null || effectiveCompetitionId.isEmpty) {
         return path;
       }
       return Uri(
         path: path,
-        queryParameters: {'competitionId': activeCompetitionId},
+        queryParameters: {'competitionId': effectiveCompetitionId},
       ).toString();
     }
 
@@ -109,6 +125,44 @@ class CustomRouteChipHeader extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.max,
         children: [
+          if (isCompetitionMode) ...[
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  final savedPage = prefs.getString('trendingPage') ?? '1';
+
+                  ref.read(getMarketsProviderNew.notifier).get(
+                    queryParams: {
+                      'trending': 'true',
+                      'page': savedPage,
+                    },
+                  );
+
+                  context.go('/dashboard/trending');
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: colors.alwaysWhite),
+                    borderRadius: BorderRadius.circular(50),
+                    color: colors.alwaysWhite.withOpacity(0.1),
+                  ),
+                  child: Text(
+                    'Main Wallet',
+                    style: TextStyle(
+                      color: colors.alwaysWhite,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+
           // Left group: Trending, Expiring Soon, All Stocks
           Expanded(
             flex: 3,
