@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/app/modules/competition/presentation/providers/competition_my_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend/app/modules/dashboard/presentation/dashboard_routes.dart';
 import 'package:frontend/app/modules/dashboard/presentation/providers/get_bet_list_provider.dart';
 import 'package:frontend/app/modules/dashboard/presentation/responsive/sections/dashboard/bet_slip_section.dart';
 import 'package:frontend/app/shared/presentation/widgets/bull_bear_header.dart';
