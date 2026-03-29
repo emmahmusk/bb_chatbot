@@ -382,6 +382,13 @@ class ParlayBet(models.Model):
     """
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="parlay_bets")
+    competition = models.ForeignKey(
+        "Competition",
+        on_delete=models.SET_NULL,
+        related_name="competition_parlay_bets",
+        null=True,
+        blank=True,
+    )
     
     # P.1 FIX: Increased max_digits to safely accommodate liabilities > $100,000.
     amount_wagered = models.DecimalField(max_digits=15, decimal_places=4, null=True)
@@ -458,6 +465,13 @@ class Bet(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="bets")
     market = models.ForeignKey(Market, on_delete=models.PROTECT, related_name="bets", null=True, blank=True)
+    competition = models.ForeignKey(
+        "Competition",
+        on_delete=models.SET_NULL,
+        related_name="competition_bets",
+        null=True,
+        blank=True,
+    )
     
     # FIX: Increased max_digits to 15 and decimal_places to 4 for consistency and safety
     amount_wagered = models.DecimalField(max_digits=15, decimal_places=4, help_text="Amount user wagered", null=True)
