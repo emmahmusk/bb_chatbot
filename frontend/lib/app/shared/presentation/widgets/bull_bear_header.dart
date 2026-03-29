@@ -119,7 +119,13 @@ bool isUSMarketOpenNow() {
           ),
           const Spacer(),
           // Move Competitions button to the left of Market open/closed button
-          CustomOutlinedButton(
+          CustomOutlinedButtonWithIcon(
+            icon: Image.asset(
+              Pngs.plus,
+              width: 16,
+              height: 16,
+              fit: BoxFit.cover,
+            ),
             text: 'Competitions',
             color: colors.alwaysWhite,
             onTap: () {
