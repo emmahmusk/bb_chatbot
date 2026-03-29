@@ -76,6 +76,26 @@ bool isUSMarketOpenNow() {
     super.dispose();
   }
 
+  Widget _competitionButtonIcon() {
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: Image.asset(
+        Pngs.competitionPodium,
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
+        errorBuilder: (context, error, stackTrace) {
+          return Image.asset(
+            Pngs.plus,
+            width: 14,
+            height: 14,
+            fit: BoxFit.contain,
+          );
+        },
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -147,12 +167,7 @@ bool isUSMarketOpenNow() {
           ),
           const SizedBox(width: 24),
           CustomOutlinedButtonWithIcon(
-            icon: Image.asset(
-              Pngs.plus,
-              width: 16,
-              height: 16,
-              fit: BoxFit.cover,
-            ),
+            icon: _competitionButtonIcon(),
             text: 'Competitions',
             color: colors.alwaysWhite,
             onTap: () {

@@ -26,4 +26,5 @@ class Pngs {
   static const checkCircle = 'assets/media/pngs/check-circle.png';
   static const copy = 'assets/media/pngs/copy-02.png';
   static const lock = 'assets/media/pngs/lock.png';
+  static const competitionPodium = 'assets/media/pngs/competition_podium.png';
 }
