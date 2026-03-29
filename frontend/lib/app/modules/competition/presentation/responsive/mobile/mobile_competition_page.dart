@@ -13,6 +13,7 @@ import 'package:frontend/app/modules/competition/presentation/widgets/competitio
 import 'package:frontend/app/modules/competition/presentation/widgets/competition_pagination_bar.dart';
 import 'package:frontend/app/shared/extensions/context_extension.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
+import 'package:frontend/app/shared/functions/format_amount.dart';
 import 'package:frontend/app/shared/functions/dialog_functions.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
 import 'package:frontend/app/shared/presentation/widgets/empty_state.dart';
