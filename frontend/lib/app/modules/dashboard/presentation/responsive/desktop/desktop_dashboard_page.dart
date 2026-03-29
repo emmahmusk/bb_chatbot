@@ -150,13 +150,20 @@ class CustomRouteChipHeader extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(50),
                     color: colors.alwaysWhite.withOpacity(0.1),
                   ),
-                  child: Text(
-                    'Main Wallet',
-                    style: TextStyle(
-                      color: colors.alwaysWhite,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.arrow_back, color: colors.alwaysWhite, size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Main Page',
+                        style: TextStyle(
+                          color: colors.alwaysWhite,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
