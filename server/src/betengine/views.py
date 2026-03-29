@@ -1847,11 +1847,13 @@ class CompetitionJoinAPIView(APIView):
             user=request.user,
         ).first()
         if existing_membership:
+            wallet, _ = get_or_create_wallet_with_starting_coins(user=request.user)
             payload = {
                 "competition_id": competition.id,
                 "joined": True,
                 "current_member_count": competition.members.count(),
                 "max_members": competition.max_members,
+                "remaining_bb_cash_balance": str(wallet.balance),
                 "message": "You already joined this competition.",
             }
             return Response(payload, status=status.HTTP_200_OK)
@@ -1871,18 +1873,24 @@ class CompetitionJoinAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        wallet, _ = get_or_create_wallet_with_starting_coins(user=request.user)
+        wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+
         entry_fee = Decimal(str(competition.entry_fee or 0))
         if entry_fee > 0:
-            wallet, _ = get_or_create_wallet_with_starting_coins(user=request.user)
-            wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
-            if wallet.coin_balance < entry_fee:
+            if wallet.balance < entry_fee:
                 return Response(
-                    {"error": "Insufficient coin balance for entry fee."},
+                    {
+                        "error": (
+                            "Insufficient BB cash balance for entry fee. "
+                            "Please fund your BB cash wallet to join this competition."
+                        )
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            wallet.coin_balance -= entry_fee
-            wallet.save(update_fields=["coin_balance"])
+            wallet.balance -= entry_fee
+            wallet.save(update_fields=["balance"])
 
             reference = (
                 f"TRX-COMP-ENTRY-{competition.id}-"
@@ -1898,13 +1906,18 @@ class CompetitionJoinAPIView(APIView):
                 status=Transaction.SUCCESSFUL,
             )
 
-        CompetitionMember.objects.create(competition=competition, user=request.user)
+        CompetitionMember.objects.create(
+            competition=competition,
+            user=request.user,
+            competition_coin_balance=competition.starting_coin_balance,
+        )
 
         payload = {
             "competition_id": competition.id,
             "joined": True,
             "current_member_count": current_member_count + 1,
             "max_members": competition.max_members,
+            "remaining_bb_cash_balance": str(wallet.balance),
             "message": "Successfully joined competition.",
         }
         return Response(payload, status=status.HTTP_201_CREATED)

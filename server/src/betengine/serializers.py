@@ -226,6 +226,11 @@ class CompetitionSerializer(serializers.ModelSerializer):
 class CompetitionMemberSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username", read_only=True)
     competition_name = serializers.CharField(source="competition.name", read_only=True)
+    competition_coin_balance = serializers.DecimalField(
+        max_digits=16,
+        decimal_places=2,
+        read_only=True,
+    )
 
     class Meta:
         model = CompetitionMember
@@ -235,6 +240,7 @@ class CompetitionMemberSerializer(serializers.ModelSerializer):
             "competition_name",
             "user",
             "username",
+            "competition_coin_balance",
             "joined_at",
             "final_rank",
             "final_score",

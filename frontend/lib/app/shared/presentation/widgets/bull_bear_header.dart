@@ -84,17 +84,34 @@ bool isUSMarketOpenNow() {
     final profile = ref.watch(currentUserProvider);
 
     // Detect if on competition page
-    final location = GoRouterState.of(context).uri.toString();
+    final routeUri = GoRouterState.of(context).uri;
+    final location = routeUri.toString();
     final isCompetitionPage = location.contains('/dashboard/competitions');
 
     String formattedWalletCoinBalance;
     if (isCompetitionPage) {
-      // Try to get the user's competition wallet balance from their memberships
+      // Prefer the currently selected competition from route; fallback to first joined.
       final myCompetitions = ref.watch(competitionMyProvider);
       String compBalance = '0.00';
       if (myCompetitions.isSuccess && myCompetitions.data.results.isNotEmpty) {
-        // For demo: just use the first competition joined (in real use, match by competitionId)
-        compBalance = myCompetitions.data.results.first.competitionCoinBalance;
+        final selectedCompetitionId = int.tryParse(
+          routeUri.queryParameters['competitionId'] ?? '',
+        );
+        String? selectedCompetitionBalance;
+        if (selectedCompetitionId != null) {
+          for (final membership in myCompetitions.data.results) {
+            if (membership.competition == selectedCompetitionId) {
+              selectedCompetitionBalance = membership.competitionCoinBalance;
+              break;
+            }
+          }
+        }
+
+        if (selectedCompetitionBalance != null) {
+          compBalance = selectedCompetitionBalance;
+        } else {
+          compBalance = myCompetitions.data.results.first.competitionCoinBalance;
+        }
       }
       final parsed = double.tryParse(compBalance) ?? 0.0;
       formattedWalletCoinBalance = formatAmount(parsed);
