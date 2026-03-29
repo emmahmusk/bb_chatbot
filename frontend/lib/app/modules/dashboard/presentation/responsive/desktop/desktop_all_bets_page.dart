@@ -231,7 +231,7 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage>
           _infoRow("Odd", "${item.outcome} - ${item.odds}"),
           _infoRow("Strike Price", "\$${item.strikePrice}"),
           _infoRow("Exp date", item.expiryDate),
-          _infoRow("Wager Amount", "${item.wagerAmount} BBC"),
+          _infoRow("Wager Amount", "\$${item.wagerAmount}"),
           _infoRow("Single/Parlay", item.isParlay ? "Parlay" : "Single"),
 
           /// ✅ NEW ROW (ONLY ADDITION)
@@ -243,7 +243,7 @@ class _DesktopAllBetsPageState extends ConsumerState<DesktopAllBetsPage>
           ),
           _infoRow(
             isSettled ? "Payout" : "Potential Payout",
-            "${(isSettled ? settledPayout : potentialPayout).toStringAsFixed(2)} BBC",
+            "\$${(isSettled ? settledPayout : potentialPayout).toStringAsFixed(2)}",
           ),
         ],
       ),

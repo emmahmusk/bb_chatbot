@@ -546,7 +546,7 @@ Key wagerFieldKey = UniqueKey();
                       // ),
                       const Spacer(),
                       Text(
-                        wagerAmount!=0? '${payout.toStringAsFixed(2)} BBC':"0.00 BBC",
+                        wagerAmount!=0? '\$${payout.toStringAsFixed(2)}':"\$0.00",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -687,8 +687,8 @@ Key wagerFieldKey = UniqueKey();
                                   ticker: selectedStocks.first.companySymbol,
                                   expDate: selectedStocks.first.expiryDate,
                                   odds: getCumulativeOdds(selectedStocks).toStringAsFixed(2),
-                                  wagerAmount: '${wagerAmount.toString()} BBC',
-                                  payout: '${payout.toStringAsFixed(2)} BBC',
+                                  wagerAmount: '\$${wagerAmount.toString()}',
+                                  payout: '\$${payout.toStringAsFixed(2)}',
                                   logoUrl: selectedStocks.first.logoUrl,
                                   symbol: selectedStocks.first.companySymbol,
                                 ),
@@ -783,9 +783,9 @@ Key wagerFieldKey = UniqueKey();
                                   barrierDismissible: true,
                                   builder: (context) => ParlaySuccessDialog(
                                     bets: parlayItems,
-                                    wagerAmount: "${wagerAmount.toStringAsFixed(0)} BBC",
+                                    wagerAmount: "\$${wagerAmount.toStringAsFixed(0)}",
                                     odds: getCumulativeOdds(selectedStocks).toStringAsFixed(2),
-                                    potentialPayout: "${ payout.toStringAsFixed(2)} BBC",
+                                    potentialPayout: "\$${ payout.toStringAsFixed(2)}",
                                   ),
                                 );
                                 Future.delayed(Duration(milliseconds: 50), () {

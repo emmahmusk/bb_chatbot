@@ -77,22 +77,10 @@ bool isUSMarketOpenNow() {
   }
 
   Widget _competitionButtonIcon() {
-    return SizedBox(
-      width: 18,
-      height: 18,
-      child: Image.asset(
-        Pngs.competitionPodium,
-        fit: BoxFit.contain,
-        alignment: Alignment.center,
-        errorBuilder: (context, error, stackTrace) {
-          return Image.asset(
-            Pngs.plus,
-            width: 14,
-            height: 14,
-            fit: BoxFit.contain,
-          );
-        },
-      ),
+    return const Icon(
+      Icons.emoji_events_outlined,
+      size: 18,
+      color: Colors.white,
     );
   }
 
@@ -306,7 +294,7 @@ bool isUSMarketOpenNow() {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    formattedWalletCoinBalance,
+                    '\$$formattedWalletCoinBalance',
                     style: TextStyle(
                       color: colors.alwaysWhite,
                       fontWeight: FontWeight.w600,
