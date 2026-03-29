@@ -46,6 +46,52 @@ from .serializers import (  # Import Polygon's Ticker model for type hinting
 logger = logging.getLogger(__name__)
 
 
+def _credit_winnings(user, amount: Decimal, reference: str, description: str, competition=None):
+    """
+    Credits winnings to the appropriate wallet bucket.
+    - Competition-context bets/parlays are credited to CompetitionMember.competition_coin_balance.
+    - Non-competition bets/parlays are credited to Wallet.coin_balance.
+    """
+    wallet, _ = get_or_create_wallet_with_starting_coins(user=user)
+    wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+
+    credited_to = "coin_balance"
+
+    if competition is not None:
+        competition_member = CompetitionMember.objects.select_for_update().filter(
+            competition=competition,
+            user=user,
+        ).first()
+
+        if competition_member is not None:
+            competition_member.competition_coin_balance += amount
+            competition_member.save(update_fields=["competition_coin_balance"])
+            credited_to = "competition_coin_balance"
+        else:
+            logger.warning(
+                "Competition member not found for payout credit. Falling back to main wallet. "
+                "user_id=%s competition_id=%s amount=%s",
+                user.id,
+                getattr(competition, "id", None),
+                amount,
+            )
+            wallet.coin_balance += amount
+            wallet.save(update_fields=["coin_balance"])
+    else:
+        wallet.coin_balance += amount
+        wallet.save(update_fields=["coin_balance"])
+
+    Transaction.objects.create(
+        wallet=wallet,
+        amount=amount,
+        transaction_type=Transaction.CREDIT,
+        reference=reference,
+        description=description,
+    )
+
+    return credited_to
+
+
 def _get_market_risk_limits(market, settings_obj=None):
     if settings_obj is None:
         settings_obj = PlatformSettings.get_instance()
@@ -785,6 +831,7 @@ class PlaceSingleBetAPIView(APIView):
         market_id = request.data.get("market_id")
         amount_wagered = request.data.get("amount_wagered")
         chosen_outcome = request.data.get("chosen_outcome")
+        competition_id = request.data.get("competition_id")
 
         if not all([market_id, amount_wagered, chosen_outcome]):
             return Response(
@@ -875,15 +922,59 @@ class PlaceSingleBetAPIView(APIView):
                 # --- Lock wallet ---
                 wallet = Wallet.objects.select_for_update().get(user=user)
 
-                if wallet.coin_balance < amount_wagered:
-                    return Response(
-                        {"status": "error", "message": "Insufficient BB coin balance."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                competition_member = None
+                debited_from = "coin_balance"
 
-                # Deduct from BB coins only
-                wallet.coin_balance -= amount_wagered
-                wallet.save(update_fields=["coin_balance", "updated_at"])
+                if competition_id is not None:
+                    try:
+                        competition_id = int(competition_id)
+                    except (TypeError, ValueError):
+                        return Response(
+                            {
+                                "status": "error",
+                                "message": "Invalid competition_id.",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    competition_member = CompetitionMember.objects.select_for_update().filter(
+                        competition_id=competition_id,
+                        user=user,
+                    ).first()
+
+                    if not competition_member:
+                        return Response(
+                            {
+                                "status": "error",
+                                "message": "You are not a member of this competition.",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    if competition_member.competition_coin_balance < amount_wagered:
+                        return Response(
+                            {
+                                "status": "error",
+                                "message": "Insufficient competition wallet balance.",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    competition_member.competition_coin_balance -= amount_wagered
+                    competition_member.save(update_fields=["competition_coin_balance"])
+                    debited_from = "competition_coin_balance"
+                else:
+                    if wallet.coin_balance < amount_wagered:
+                        return Response(
+                            {
+                                "status": "error",
+                                "message": "Insufficient BB coin balance.",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    wallet.coin_balance -= amount_wagered
+                    wallet.save(update_fields=["coin_balance", "updated_at"])
 
                 reference = f"TRX-BET-DR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
@@ -895,6 +986,7 @@ class PlaceSingleBetAPIView(APIView):
                     chosen_outcome=chosen_outcome,
                     status="pending",
                     is_parlay_leg=False,
+                    competition=competition_member.competition if competition_member is not None else None,
                 )
 
                 Transaction.objects.create(
@@ -922,7 +1014,12 @@ class PlaceSingleBetAPIView(APIView):
                     "bet": serializer.data,
                     "wallet_balance": str(wallet.balance),
                     "wallet_coin_balance": str(wallet.coin_balance),
-                    "debited_from": "coin_balance",
+                    "competition_coin_balance": (
+                        str(competition_member.competition_coin_balance)
+                        if competition_member is not None
+                        else None
+                    ),
+                    "debited_from": debited_from,
                 },
                 status=status.HTTP_201_CREATED,
             )
@@ -972,6 +1069,7 @@ class PlaceParlayBetAPIView(APIView):
 
         amount_wagered = request.data.get("amount_wagered")
         legs_data = request.data.get("legs")
+        competition_id = request.data.get("competition_id")
 
         if not all([amount_wagered, legs_data]) or not isinstance(legs_data, list) or len(legs_data) < 2:
             return Response(
@@ -994,11 +1092,52 @@ class PlaceParlayBetAPIView(APIView):
             with transaction.atomic():
 
                 wallet = Wallet.objects.select_for_update().get(user=user)
-                if wallet.coin_balance < amount_wagered:
-                    return Response(
-                        {"status": "error", "message": "Insufficient BB coin balance."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                competition_member = None
+                debited_from = "coin_balance"
+
+                if competition_id is not None:
+                    try:
+                        competition_id = int(competition_id)
+                    except (TypeError, ValueError):
+                        return Response(
+                            {
+                                "status": "error",
+                                "message": "Invalid competition_id.",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    competition_member = CompetitionMember.objects.select_for_update().filter(
+                        competition_id=competition_id,
+                        user=user,
+                    ).first()
+
+                    if not competition_member:
+                        return Response(
+                            {
+                                "status": "error",
+                                "message": "You are not a member of this competition.",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    if competition_member.competition_coin_balance < amount_wagered:
+                        return Response(
+                            {
+                                "status": "error",
+                                "message": "Insufficient competition wallet balance.",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                else:
+                    if wallet.coin_balance < amount_wagered:
+                        return Response(
+                            {
+                                "status": "error",
+                                "message": "Insufficient BB coin balance.",
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                 markets_locked = []
 
@@ -1065,14 +1204,20 @@ class PlaceParlayBetAPIView(APIView):
 
                     markets_locked.append((market, chosen_outcome, odds_str, liability))
 
-                # --- Deduct wallet (BB coins only) ---
-                wallet.coin_balance -= amount_wagered
-                wallet.save(update_fields=["coin_balance", "updated_at"])
+                # --- Deduct wallet ---
+                if competition_member is not None:
+                    competition_member.competition_coin_balance -= amount_wagered
+                    competition_member.save(update_fields=["competition_coin_balance"])
+                    debited_from = "competition_coin_balance"
+                else:
+                    wallet.coin_balance -= amount_wagered
+                    wallet.save(update_fields=["coin_balance", "updated_at"])
 
                 reference = f"TRX-PBET-DR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
                 parlay_bet = ParlayBet.objects.create(
                     user=user,
+                    competition=competition_member.competition if competition_member is not None else None,
                     amount_wagered=amount_wagered,
                     status="pending",
                     combined_odds="Calculating...",
@@ -1098,6 +1243,7 @@ class PlaceParlayBetAPIView(APIView):
                         status="pending",
                         is_parlay_leg=True,
                         parlay_bet=parlay_bet,
+                        competition=competition_member.competition if competition_member is not None else None,
                     )
 
                     if chosen_outcome == "over":
@@ -1120,7 +1266,12 @@ class PlaceParlayBetAPIView(APIView):
                     "parlay_bet": serializer.data,
                     "wallet_balance": str(wallet.balance),
                     "wallet_coin_balance": str(wallet.coin_balance),
-                    "debited_from": "coin_balance",
+                    "competition_coin_balance": (
+                        str(competition_member.competition_coin_balance)
+                        if competition_member is not None
+                        else None
+                    ),
+                    "debited_from": debited_from,
                 },
                 status=status.HTTP_201_CREATED,
             )
@@ -1199,22 +1350,23 @@ class BetResolutionAPIView(APIView):
                     bet.status = "won"
                     bet.payout_amount = bet.get_potential_payout()
                     payout_coins = bet.payout_amount
-
-                    # ✅ Credit wallet in BullBear Coins
-                    wallet = Wallet.objects.select_for_update().get(user=user)
-                    wallet.coin_balance += payout_coins
-                    wallet.save(update_fields=["coin_balance"])
                     reference = f"TRX-BET-CR-{user.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
-                    # ✅ Log transaction
-                    Transaction.objects.create(
-                        wallet=wallet,
+                    credited_to = _credit_winnings(
+                        user=user,
                         amount=bet.payout_amount,
-                        transaction_type=Transaction.CREDIT,
-                        description=f"Payout for winning bet #{bet.id} (+{payout_coins} BBC)",
                         reference=reference,
+                        description=f"Payout for winning bet #{bet.id} (+{payout_coins} BBC)",
+                        competition=bet.competition,
                     )
+                    bet.is_paid = True
 
-                    logger.info(f"✅ Bet {bet.id} WON. Credited {payout_coins} BBC to {user.username}.")
+                    logger.info(
+                        "✅ Bet %s WON. Credited %s BBC to %s via %s.",
+                        bet.id,
+                        payout_coins,
+                        user.username,
+                        credited_to,
+                    )
 
                 else:
                     bet.status = "lost"
@@ -1222,7 +1374,7 @@ class BetResolutionAPIView(APIView):
                     logger.info(f"❌ Bet {bet.id} LOST for {user.username}.")
 
                 bet.settled_at = timezone.now()
-                bet.save(update_fields=["status", "payout_amount", "settled_at"])
+                bet.save(update_fields=["status", "payout_amount", "settled_at", "is_paid"])
 
             return Response(
                 {
@@ -1231,6 +1383,7 @@ class BetResolutionAPIView(APIView):
                     "final_stock_price": str(final_price),
                     "payout_amount": str(bet.payout_amount),
                     "payout_coins": str(bet.payout_amount) if bet.status == "won" else "0.00",
+                    "credited_to": credited_to if bet.status == "won" else None,
                     "market_target_price": str(target_price),
                     "stock_symbol": stock.symbol,
                 },
@@ -1449,7 +1602,7 @@ class CreditWinningBetsAPIView(APIView):
             .filter(status="won")
             .annotate(unpaid_legs=Count("legs", filter=Q(legs__is_paid=False)))
             .filter(unpaid_legs__gt=0)
-            .select_related("user")
+            .select_related("user", "competition")
         )
 
         total_credited = 0
@@ -1463,25 +1616,19 @@ class CreditWinningBetsAPIView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        for bet in winning_bets.select_related("user"):
+        for bet in winning_bets.select_related("user", "competition", "market__stock"):
             with transaction.atomic():
-                wallet, _ = get_or_create_wallet_with_starting_coins(user=bet.user)
                 payout_coins = bet.payout_amount
 
                 # Generate a unique transaction reference (UUID4)
                 reference = f"TRX-BET-CR-{bet.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
-                # Update wallet coin balance
-                wallet.coin_balance += payout_coins
-                wallet.save(update_fields=["coin_balance"])
-
-                # Create Transaction log
-                Transaction.objects.create(
-                    wallet=wallet,
+                _credit_winnings(
+                    user=bet.user,
                     amount=bet.payout_amount,
-                    transaction_type=Transaction.CREDIT,
                     reference=reference,
-                    description=f"Payout for Bet #{bet.id} ({bet.market.stock.symbol}) (+{payout_coins} BBC)"
+                    description=f"Payout for Bet #{bet.id} ({bet.market.stock.symbol}) (+{payout_coins} BBC)",
+                    competition=bet.competition,
                 )
 
                 # Mark bet as paid
@@ -1512,20 +1659,16 @@ class CreditWinningBetsAPIView(APIView):
                     unpaid_legs_qs.update(is_paid=True)
                     continue
 
-                wallet, _ = get_or_create_wallet_with_starting_coins(user=parlay_locked.user)
                 payout_coins = payout_amount
 
                 reference = f"TRX-PARLAY-CR-{parlay_locked.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
-                wallet.coin_balance += payout_coins
-                wallet.save(update_fields=["coin_balance"])
-
-                Transaction.objects.create(
-                    wallet=wallet,
+                _credit_winnings(
+                    user=parlay_locked.user,
                     amount=payout_amount,
-                    transaction_type=Transaction.CREDIT,
                     reference=reference,
                     description=f"Payout for Parlay #{parlay_locked.id} (+{payout_coins} BBC)",
+                    competition=parlay_locked.competition,
                 )
 
                 unpaid_legs_qs.update(is_paid=True)

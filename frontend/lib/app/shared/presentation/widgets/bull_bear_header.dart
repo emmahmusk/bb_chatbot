@@ -86,17 +86,28 @@ bool isUSMarketOpenNow() {
     // Detect if on competition page
     final routeUri = GoRouterState.of(context).uri;
     final location = routeUri.toString();
+    final selectedCompetitionId = int.tryParse(
+      routeUri.queryParameters['competitionId'] ?? '',
+    );
     final isCompetitionPage = location.contains('/dashboard/competitions');
+    final isCompetitionMode = isCompetitionPage || selectedCompetitionId != null;
+
+    String trendingRouteWithContext() {
+      if (selectedCompetitionId == null) {
+        return DashboardRoutes.trending;
+      }
+      return Uri(
+        path: DashboardRoutes.trending,
+        queryParameters: {'competitionId': '$selectedCompetitionId'},
+      ).toString();
+    }
 
     String formattedWalletCoinBalance;
-    if (isCompetitionPage) {
+    if (isCompetitionMode) {
       // Prefer the currently selected competition from route; fallback to first joined.
       final myCompetitions = ref.watch(competitionMyProvider);
       String compBalance = '0.00';
       if (myCompetitions.isSuccess && myCompetitions.data.results.isNotEmpty) {
-        final selectedCompetitionId = int.tryParse(
-          routeUri.queryParameters['competitionId'] ?? '',
-        );
         String? selectedCompetitionBalance;
         if (selectedCompetitionId != null) {
           for (final membership in myCompetitions.data.results) {
@@ -126,7 +137,7 @@ bool isUSMarketOpenNow() {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Clickable(
-            onClick: () => context.go(DashboardRoutes.trending),
+            onClick: () => context.go(trendingRouteWithContext()),
             child: Image.asset(
               Pngs.bullbearLogo,
               width: 98,
@@ -148,6 +159,16 @@ bool isUSMarketOpenNow() {
               context.go(DashboardRoutes.competitions);
             },
           ),
+          if (isCompetitionMode) ...[
+            const SizedBox(width: 12),
+            CustomOutlinedButton(
+              text: 'Main Wallet',
+              color: colors.alwaysWhite,
+              onTap: () {
+                context.go(DashboardRoutes.trending);
+              },
+            ),
+          ],
           const SizedBox(width: 12),
           CustomOutlinedButtonWithIcon(
             icon: Image.asset(
@@ -221,7 +242,7 @@ bool isUSMarketOpenNow() {
           Expanded(
             child: Clickable(
               onClick: () {
-                context.go('/dashboard/trending');
+                context.go(trendingRouteWithContext());
                 showCenterDialog(context, child: SearchDialog());
               },
               child: Container(

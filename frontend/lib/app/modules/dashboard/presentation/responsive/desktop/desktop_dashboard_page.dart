@@ -91,6 +91,18 @@ class CustomRouteChipHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = ref.watch(appThemeProvider).colors;
+    final routeUri = GoRouterState.of(context).uri;
+    final activeCompetitionId = routeUri.queryParameters['competitionId'];
+
+    String _routeWithCompetitionContext(String path) {
+      if (activeCompetitionId == null || activeCompetitionId.isEmpty) {
+        return path;
+      }
+      return Uri(
+        path: path,
+        queryParameters: {'competitionId': activeCompetitionId},
+      ).toString();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -123,7 +135,7 @@ class CustomRouteChipHeader extends ConsumerWidget {
                       );
 
                       // ✅ Navigate to the trending page
-                      context.go('/dashboard/trending');
+                      context.go(_routeWithCompetitionContext('/dashboard/trending'));
                     },
 
                     child: Container(
@@ -161,7 +173,7 @@ class CustomRouteChipHeader extends ConsumerWidget {
                           'page': savedPage,
                         },
                       );
-                       context.go('/dashboard/expiring-soon');
+                       context.go(_routeWithCompetitionContext('/dashboard/expiring-soon'));
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
@@ -199,7 +211,7 @@ class CustomRouteChipHeader extends ConsumerWidget {
                         );
 
                         // ✅ Navigate to All Stocks page
-                        context.go('/dashboard/all-stocks');
+                        context.go(_routeWithCompetitionContext('/dashboard/all-stocks'));
                       },
 
                     child: Container(
@@ -244,7 +256,7 @@ class CustomRouteChipHeader extends ConsumerWidget {
                         }
                     
                         ref.read(betHistoryProvider.notifier).get();
-                        context.go('/dashboard/all-bets');
+                        context.go(_routeWithCompetitionContext('/dashboard/all-bets'));
                       },
                       child:  Container(
                           padding: const EdgeInsets.only(top: 6,bottom:6,left:20, right: 12),
