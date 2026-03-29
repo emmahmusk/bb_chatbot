@@ -640,7 +640,7 @@ class _CompetitionMobileList extends ConsumerWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      '${item.memberCount}/${item.maxMembers} members • ${item.entryFee} BBC',
+                      '${item.memberCount}/${item.maxMembers} members • \$${item.entryFee}',
                       style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 12),
                     ),
                     const SizedBox(height: 10),

@@ -292,7 +292,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Available: ${formatAmount(walletCoinBalance)} BBC',
+                          'Available: \$${formatAmount(walletCoinBalance)}',
                           style: TextStyle(
                             fontSize: 12,
                             color: colors.always8B949E,
@@ -410,7 +410,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                             ),
                           ),
                           Text(
-                            '$conversionFromAmount BBC',
+                            '\$$conversionFromAmount',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -698,7 +698,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                               ),
                             ),
                             Text(
-                              '$conversionToAmount BBC',
+                              '\$$conversionToAmount',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -996,7 +996,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '${formatAmount(walletCoinBalance)} BBC',
+                    '\$${formatAmount(walletCoinBalance)}',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w500,
@@ -1007,7 +1007,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
               ),
               const SizedBox(height: 4),
               Text(
-                'New users start with ${startingCoinBalance.toStringAsFixed(2)} BBC (set by admin)',
+                'New users start with \$${startingCoinBalance.toStringAsFixed(2)} (set by admin)',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w400,
