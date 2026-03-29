@@ -1898,7 +1898,11 @@ class CompetitionJoinAPIView(APIView):
                 status=Transaction.SUCCESSFUL,
             )
 
-        CompetitionMember.objects.create(competition=competition, user=request.user)
+        CompetitionMember.objects.create(
+            competition=competition,
+            user=request.user,
+            competition_coin_balance=competition.starting_coin_balance,
+        )
 
         payload = {
             "competition_id": competition.id,
