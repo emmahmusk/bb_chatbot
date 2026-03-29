@@ -21,7 +21,7 @@ RUN apt-get install -y gdal-bin libgdal-dev
 
 # Install Pipenv and run
 RUN pip install pipenv --no-cache-dir
-RUN pipenv install --system --deploy --ignore-pipfile
+RUN pipenv install --system --skip-lock
 
 # Add Django entrypoint script to docker
 COPY ./scripts/entrypoint.sh /entrypoint.sh
