@@ -497,6 +497,47 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
             item.description ?? 'No description provided.',
             style: TextStyle(color: colors.always8B949E),
           ),
+          if ((double.tryParse(item.firstPlacePrize) ?? 0) > 0 ||
+              (double.tryParse(item.secondPlacePrize) ?? 0) > 0 ||
+              (double.tryParse(item.thirdPlacePrize) ?? 0) > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if ((double.tryParse(item.firstPlacePrize) ?? 0) > 0)
+                    Row(
+                      children: [
+                        const Icon(Icons.emoji_events, color: Colors.amber, size: 16),
+                        const SizedBox(width: 8),
+                        Text('1st Place: \$${item.firstPlacePrize}', style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 13, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  if ((double.tryParse(item.secondPlacePrize) ?? 0) > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        children: [
+                          Icon(Icons.emoji_events, color: Colors.grey[400], size: 16),
+                          const SizedBox(width: 8),
+                          Text('2nd Place: \$${item.secondPlacePrize}', style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  if ((double.tryParse(item.thirdPlacePrize) ?? 0) > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        children: [
+                          Icon(Icons.emoji_events, color: Colors.brown[300], size: 16),
+                          const SizedBox(width: 8),
+                          Text('3rd Place: \$${item.thirdPlacePrize}', style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -506,6 +547,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
               _pill('Scoring: ${item.scoringMethod}'),
               _pill('Members: ${item.memberCount}/${item.maxMembers}'),
               _pill('Fee: \$${item.entryFee}'),
+              _pill('Starting Balance: ${item.startingCoinBalance} BBC'),
             ],
           ),
           const SizedBox(height: 12),
@@ -1134,7 +1176,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                       radius: 15,
                       backgroundColor: colors.always2D333B,
                       child: Text(
-                        ' 24{rank}',
+                        '',
                         style: TextStyle(
                           color: colors.alwaysWhite,
                           fontWeight: FontWeight.w700,
@@ -1153,12 +1195,12 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                       ),
                     ),
                     Text(
-                      'ROI  24{row.roi.toStringAsFixed(2)}%',
+                      'ROI  %',
                       style: TextStyle(color: colors.always52AAFF, fontSize: 12),
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      'P/L  24{row.netProfit.toStringAsFixed(2)}',
+                      'P/L  ',
                       style: TextStyle(
                         color: row.netProfit >= 0
                             ? colors.always27D07F
