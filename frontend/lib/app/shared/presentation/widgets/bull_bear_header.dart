@@ -313,6 +313,56 @@ bool isUSMarketOpenNow() {
                 );
               },
             ),
+          ] else ...[
+            // Login / Signup for unauthenticated users
+            Clickable(
+              onClick: () => showCenterDialog(context, child: LoginDialog()),
+              child: Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(50),
+                  border: Border.all(color: colors.always30363D, width: 1),
+                  color: colors.always30363D.withValues(alpha: 0.2),
+                ),
+                child: Center(
+                  child: Text(
+                    'Log in',
+                    style: TextStyle(
+                      color: colors.alwaysWhite,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Clickable(
+              onClick: () => showCenterDialog(context, child: CreateAccountDialog()),
+              child: Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(50),
+                  gradient: LinearGradient(
+                    colors: [colors.always2867DF, colors.alwaysE954F6],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    'Sign up',
+                    style: TextStyle(
+                      color: colors.alwaysWhite,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ]
         ],
       ),
