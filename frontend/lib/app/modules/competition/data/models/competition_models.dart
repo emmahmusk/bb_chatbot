@@ -15,6 +15,7 @@ class CompetitionModel {
   final String secondPlacePrize;
   final String thirdPlacePrize;
   final String scoringMethod;
+  final String startingCoinBalance;
   final bool isPrivate;
   final bool isRegistrationOpen;
   final bool isFull;
@@ -39,6 +40,7 @@ class CompetitionModel {
     required this.secondPlacePrize,
     required this.thirdPlacePrize,
     required this.scoringMethod,
+    required this.startingCoinBalance,
     required this.isPrivate,
     required this.isRegistrationOpen,
     required this.isFull,
@@ -82,6 +84,7 @@ class CompetitionModel {
       secondPlacePrize: json['second_place_prize']?.toString() ?? '0.00',
       thirdPlacePrize: json['third_place_prize']?.toString() ?? '0.00',
       scoringMethod: json['scoring_method']?.toString() ?? 'net_profit',
+      startingCoinBalance: json['starting_coin_balance']?.toString() ?? '500.00',
       isPrivate: parseBool(json['is_private']),
       isRegistrationOpen: parseBool(json['is_registration_open']),
       isFull: parseBool(json['is_full']),
