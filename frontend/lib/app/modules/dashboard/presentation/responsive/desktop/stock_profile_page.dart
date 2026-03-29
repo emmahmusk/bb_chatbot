@@ -850,7 +850,10 @@ String getOdds(Map<String, dynamic> oddsData, {double? impliedOdds}) {
         //   selectedStrike = strike;
         // });
         var id =data['results'][0]['id'];
-        context.go('/dashboard/stock-profile?id=$id');
+        final currentUri = GoRouterState.of(context).uri;
+        final compId = currentUri.queryParameters['competitionId'];
+        final route = compId != null ? '/dashboard/stock-profile?id=$id&competitionId=$compId' : '/dashboard/stock-profile?id=$id';
+        context.go(route);
       } else{
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

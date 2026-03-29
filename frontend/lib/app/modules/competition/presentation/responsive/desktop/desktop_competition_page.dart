@@ -505,7 +505,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
               _pill('Status: ${item.status}'),
               _pill('Scoring: ${item.scoringMethod}'),
               _pill('Members: ${item.memberCount}/${item.maxMembers}'),
-              _pill('Fee: ${item.entryFee} BBC'),
+              _pill('Fee: \$${item.entryFee}'),
             ],
           ),
           const SizedBox(height: 12),
@@ -974,7 +974,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
           Row(
             children: [
               Text(
-                'Entry fee: ${formatAmount(num.tryParse(item.entryFee) ?? 0)} BBC',
+                'Entry fee: \$${formatAmount(num.tryParse(item.entryFee) ?? 0)}',
                 style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 11),
               ),
             ],

@@ -296,7 +296,10 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
         final updatedMarket = MarketModel.fromJson(data['results'][0]);
         final id = updatedMarket.id.toString();
 
-        context.go('/dashboard/stock-profile?id=$id');
+        final currentUri = GoRouterState.of(context).uri;
+        final compId = currentUri.queryParameters['competitionId'];
+        final route = compId != null ? '/dashboard/stock-profile?id=$id&competitionId=$compId' : '/dashboard/stock-profile?id=$id';
+        context.go(route);
 
         // ✅ Optionally update Riverpod state
         // ref.read(updateSingleMarketProvider)(updatedMarket);
@@ -921,7 +924,10 @@ Future<void> fetchAndReplaceMarket(
                                                        child: GestureDetector(
                                                               onTap: () {
                                                                 String id = market.id.toString();
-                                                                 context.go('/dashboard/stock-profile?id=$id');
+                                                                 final currentUri = GoRouterState.of(context).uri;
+                                                                 final compId = currentUri.queryParameters['competitionId'];
+                                                                 final route = compId != null ? '/dashboard/stock-profile?id=$id&competitionId=$compId' : '/dashboard/stock-profile?id=$id';
+                                                                 context.go(route);
                                                               },
                                                               child:  (market.stock.logoUrl != null)?
                                                                                                          ClipRRect(
