@@ -292,7 +292,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Available: \$${formatAmount(walletCoinBalance)}',
+                          'Available: ${formatAmount(walletCoinBalance)} BBC',
                           style: TextStyle(
                             fontSize: 12,
                             color: colors.always8B949E,
@@ -320,7 +320,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Available: ${formatAmount(walletBalance)} BB Cash',
+                          'Available: \$${formatAmount(walletBalance)}',
                           style: TextStyle(
                             fontSize: 12,
                             color: colors.always8B949E,
@@ -410,7 +410,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                             ),
                           ),
                           Text(
-                            '\$$conversionFromAmount',
+                            '$conversionFromAmount BBC',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -698,7 +698,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                               ),
                             ),
                             Text(
-                              '\$$conversionToAmount',
+                              '$conversionToAmount BBC',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -967,7 +967,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    '${formatAmount(walletBalance)} BB Cash',
+                    '\$${formatAmount(walletBalance)}',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
@@ -996,7 +996,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '\$${formatAmount(walletCoinBalance)}',
+                    '${formatAmount(walletCoinBalance)} BBC',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w500,
@@ -1007,7 +1007,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
               ),
               const SizedBox(height: 4),
               Text(
-                'New users start with \$${startingCoinBalance.toStringAsFixed(2)} (set by admin)',
+                'New users start with ${startingCoinBalance.toStringAsFixed(2)} BBC (set by admin)',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w400,
