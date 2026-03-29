@@ -28,6 +28,9 @@ class _CompetitionCreateDialogState
   final _maxMembersController = TextEditingController(text: '50');
   final _entryFeeController = TextEditingController(text: '0.00');
   final _startingCoinBalanceController = TextEditingController(text: '500.00');
+  final _firstPlacePrizeController = TextEditingController(text: '0.00');
+  final _secondPlacePrizeController = TextEditingController(text: '0.00');
+  final _thirdPlacePrizeController = TextEditingController(text: '0.00');
 
   DateTime? _startDate;
   DateTime? _endDate;
@@ -43,6 +46,9 @@ class _CompetitionCreateDialogState
     _maxMembersController.dispose();
     _entryFeeController.dispose();
     _startingCoinBalanceController.dispose();
+    _firstPlacePrizeController.dispose();
+    _secondPlacePrizeController.dispose();
+    _thirdPlacePrizeController.dispose();
     super.dispose();
   }
 
@@ -101,6 +107,9 @@ class _CompetitionCreateDialogState
       endDate: _endDate!,
       registrationCloseDate: _registrationCloseDate,
       entryFee: _entryFeeController.text.trim(),
+      firstPlacePrize: _firstPlacePrizeController.text.trim(),
+      secondPlacePrize: _secondPlacePrizeController.text.trim(),
+      thirdPlacePrize: _thirdPlacePrizeController.text.trim(),
       scoringMethod: _scoringMethod,
       isPrivate: _isPrivate,
       startingCoinBalance: _startingCoinBalanceController.text.trim(),
@@ -232,6 +241,49 @@ class _CompetitionCreateDialogState
                           if (parsed == null || parsed < 0) {
                             return 'Use 0 or greater';
                           }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _input(
+                        controller: _firstPlacePrizeController,
+                        label: '1st Place Prize (\$)',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) {
+                          final parsed = num.tryParse((value ?? '').trim());
+                          if (parsed == null || parsed < 0) return 'Use 0 or greater';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _input(
+                        controller: _secondPlacePrizeController,
+                        label: '2nd Place Prize (\$)',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) {
+                          final parsed = num.tryParse((value ?? '').trim());
+                          if (parsed == null || parsed < 0) return 'Use 0 or greater';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _input(
+                        controller: _thirdPlacePrizeController,
+                        label: '3rd Place Prize (\$)',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) {
+                          final parsed = num.tryParse((value ?? '').trim());
+                          if (parsed == null || parsed < 0) return 'Use 0 or greater';
                           return null;
                         },
                       ),

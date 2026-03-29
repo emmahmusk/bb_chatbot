@@ -1262,7 +1262,7 @@ class WalletTransactionsItem extends ConsumerWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '$sign$price $amountUnit',
+                      amountUnit == 'BB Cash' ? '$sign\$$price' : '$sign$price $amountUnit',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,

@@ -11,6 +11,9 @@ class CompetitionModel {
   final DateTime? registrationCloseDate;
   final String status;
   final String entryFee;
+  final String firstPlacePrize;
+  final String secondPlacePrize;
+  final String thirdPlacePrize;
   final String scoringMethod;
   final bool isPrivate;
   final bool isRegistrationOpen;
@@ -32,6 +35,9 @@ class CompetitionModel {
     required this.registrationCloseDate,
     required this.status,
     required this.entryFee,
+    required this.firstPlacePrize,
+    required this.secondPlacePrize,
+    required this.thirdPlacePrize,
     required this.scoringMethod,
     required this.isPrivate,
     required this.isRegistrationOpen,
@@ -72,6 +78,9 @@ class CompetitionModel {
       registrationCloseDate: parseDate(json['registration_close_date']),
       status: json['status']?.toString() ?? 'registration',
       entryFee: json['entry_fee']?.toString() ?? '0.00',
+      firstPlacePrize: json['first_place_prize']?.toString() ?? '0.00',
+      secondPlacePrize: json['second_place_prize']?.toString() ?? '0.00',
+      thirdPlacePrize: json['third_place_prize']?.toString() ?? '0.00',
       scoringMethod: json['scoring_method']?.toString() ?? 'net_profit',
       isPrivate: parseBool(json['is_private']),
       isRegistrationOpen: parseBool(json['is_registration_open']),
@@ -308,6 +317,9 @@ class CompetitionCreateInput {
   final DateTime endDate;
   final DateTime? registrationCloseDate;
   final String entryFee;
+  final String firstPlacePrize;
+  final String secondPlacePrize;
+  final String thirdPlacePrize;
   final String scoringMethod;
   final bool isPrivate;
   final String startingCoinBalance;
@@ -320,6 +332,9 @@ class CompetitionCreateInput {
     required this.endDate,
     required this.registrationCloseDate,
     required this.entryFee,
+    required this.firstPlacePrize,
+    required this.secondPlacePrize,
+    required this.thirdPlacePrize,
     required this.scoringMethod,
     required this.isPrivate,
     required this.startingCoinBalance,
@@ -335,6 +350,9 @@ class CompetitionCreateInput {
       if (registrationCloseDate != null)
         'registration_close_date': registrationCloseDate!.toUtc().toIso8601String(),
       'entry_fee': entryFee,
+      'first_place_prize': firstPlacePrize,
+      'second_place_prize': secondPlacePrize,
+      'third_place_prize': thirdPlacePrize,
       'scoring_method': scoringMethod,
       'is_private': isPrivate,
       'starting_coin_balance': startingCoinBalance,

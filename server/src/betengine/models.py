@@ -670,6 +670,33 @@ class Competition(models.Model):
         help_text="Entry fee in platform currency (0 for free)"
     )
     
+    first_place_prize = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        null=True,
+        blank=True,
+        help_text="1st place cash prize in dollars"
+    )
+    
+    second_place_prize = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        null=True,
+        blank=True,
+        help_text="2nd place cash prize in dollars"
+    )
+    
+    third_place_prize = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        null=True,
+        blank=True,
+        help_text="3rd place cash prize in dollars"
+    )
+    
     # Leaderboard & Rules
     scoring_method = models.CharField(
         max_length=50,
