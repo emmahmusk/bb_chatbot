@@ -294,7 +294,7 @@ bool isUSMarketOpenNow() {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '\$$formattedWalletCoinBalance',
+                    '$formattedWalletCoinBalance BBC',
                     style: TextStyle(
                       color: colors.alwaysWhite,
                       fontWeight: FontWeight.w600,
