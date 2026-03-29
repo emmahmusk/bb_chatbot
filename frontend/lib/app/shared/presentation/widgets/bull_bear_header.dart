@@ -159,16 +159,6 @@ bool isUSMarketOpenNow() {
               context.go(DashboardRoutes.competitions);
             },
           ),
-          if (isCompetitionMode) ...[
-            const SizedBox(width: 12),
-            CustomOutlinedButton(
-              text: 'Main Wallet',
-              color: colors.alwaysWhite,
-              onTap: () {
-                context.go(DashboardRoutes.trending);
-              },
-            ),
-          ],
           const SizedBox(width: 12),
           CustomOutlinedButtonWithIcon(
             icon: Image.asset(
