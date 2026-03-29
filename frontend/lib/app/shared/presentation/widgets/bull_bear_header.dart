@@ -285,14 +285,6 @@ bool isUSMarketOpenNow() {
           ]
         ],
       ),
-                  context,
-                  child: ProfileSettingsDialog(),
-                );
-              },
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
