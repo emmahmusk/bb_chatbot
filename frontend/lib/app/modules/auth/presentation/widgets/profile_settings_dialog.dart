@@ -92,7 +92,7 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '$formattedWalletBalance BB Cash',
+                          '\$$formattedWalletBalance',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,

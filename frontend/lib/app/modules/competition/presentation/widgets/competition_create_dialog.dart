@@ -225,7 +225,7 @@ class _CompetitionCreateDialogState
                     Expanded(
                       child: _input(
                         controller: _startingCoinBalanceController,
-                        label: 'Starting Coin Balance',
+                        label: 'Starting Coin Balance (BBC)',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         validator: (value) {
                           final parsed = num.tryParse((value ?? '').trim());
