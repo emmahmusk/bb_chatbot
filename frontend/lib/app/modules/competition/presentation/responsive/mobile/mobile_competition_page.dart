@@ -230,7 +230,11 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
       return;
     }
 
-    context.showSuccess(result.data.message);
+    final remainingCash =
+        num.tryParse(result.data.remainingBbCashBalance) ?? 0;
+    context.showSuccess(
+      '${result.data.message} Remaining BB cash: ${formatAmount(remainingCash)}',
+    );
     await _syncFromRoute();
   }
 

@@ -84,7 +84,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
       final leaderboardNotifier = ref.read(competitionLeaderboardProvider.notifier);
 
       return Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -287,7 +287,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 14),
             Row(
               children: [
                 const SizedBox(width: 8),
@@ -319,12 +319,10 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                 const SizedBox(width: 8),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
                       flex: 5,
@@ -398,7 +396,6 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                     ),
                   ],
                 ),
-              ),
             ),
           ],
         ),
@@ -522,7 +519,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
               'Ends: ${_formatDate(item.endDate!)}',
               style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 12),
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Row(
             children: [
               Text(
@@ -547,11 +544,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
             ],
           ),
           const SizedBox(height: 8),
-          Container(
-            constraints: const BoxConstraints(
-              maxHeight: 360,
-              minHeight: 120,
-            ),
+          Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Material(
@@ -1093,7 +1086,11 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
       context.showError(result.errorMessage);
       return;
     }
-    context.showSuccess(result.data.message);
+    final remainingCash =
+        num.tryParse(result.data.remainingBbCashBalance) ?? 0;
+    context.showSuccess(
+      '${result.data.message} Remaining BB cash: ${formatAmount(remainingCash)}',
+    );
     await _syncFromRoute();
   }
 

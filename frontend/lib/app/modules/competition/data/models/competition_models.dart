@@ -268,6 +268,7 @@ class JoinCompetitionResult {
   final int currentMemberCount;
   final int maxMembers;
   final String message;
+  final String remainingBbCashBalance;
 
   const JoinCompetitionResult({
     required this.competitionId,
@@ -275,6 +276,7 @@ class JoinCompetitionResult {
     required this.currentMemberCount,
     required this.maxMembers,
     required this.message,
+    required this.remainingBbCashBalance,
   });
 
   factory JoinCompetitionResult.fromJson(Map<String, dynamic> json) {
@@ -292,6 +294,8 @@ class JoinCompetitionResult {
           int.tryParse((json['current_member_count'] ?? 0).toString()) ?? 0,
       maxMembers: int.tryParse((json['max_members'] ?? 0).toString()) ?? 0,
       message: json['message']?.toString() ?? '',
+      remainingBbCashBalance:
+          json['remaining_bb_cash_balance']?.toString() ?? '0.00',
     );
   }
 }
