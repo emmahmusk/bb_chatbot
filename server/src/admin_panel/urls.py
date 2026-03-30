@@ -8,6 +8,12 @@ from admin_panel.views.kyc import (
 from admin_panel.views.vig import BulkOverrideVigByIdsView, OverrideVigView
 from admin_panel.views.market import MarketOddsResetView, MarketOddsNudgeView, StockListView, StockToggleUpdateView, StockRefreshView, GroupedMarketView, MarketStatusUpdateAPIView, SuspendedMarketsView, SuspendedMarketDetailView, StockSettlementDetailView
 from admin_panel.views.users import AlphaVantageVolumeView, BetVolumeAdminView, AdminBetSettlementView
+from admin_panel.views.competition import (
+    AdminCompetitionListView,
+    AdminCompetitionDetailView,
+    AdminCompetitionUpdateView,
+    AdminCompetitionDeleteView,
+)
 from admin_panel.api import AdminMarketOverrideAPIView, UpdateUserCRSView, UpdatePlatformSettingsView, AnalyticsDashboardAPIView, AnalyticsUserDashboardAPIView, AdminAnalyticsAPIView, DeleteExpiringMarketsView, KYCFileReviewListAPIView, TotalGGRAPIView, AdminSettleBetView, AdminUserListView, SignupAPIView, LoginAPIView, AdminBetFeedView, AdminKYCViewSet, AdminUserListAPIView, AnalyticsDashboardAPIViewNew
 
 urlpatterns = [
@@ -55,6 +61,14 @@ urlpatterns = [
     path("markets/<int:market_id>/reset/", MarketOddsResetView.as_view(), name="reset-market-view"),
     path("markets/suspended/", SuspendedMarketsView.as_view(), name="suspended-markets"),
     path("markets/suspended/<int:market_id>/", SuspendedMarketDetailView.as_view(), name="suspended-market-detail"),
+
+    # -----------------------------------------------------------------------
+    # Competition admin endpoints
+    # -----------------------------------------------------------------------
+    path("competitions/", AdminCompetitionListView.as_view(), name="admin-competition-list"),
+    path("competitions/<int:pk>/", AdminCompetitionDetailView.as_view(), name="admin-competition-detail"),
+    path("competitions/<int:pk>/update/", AdminCompetitionUpdateView.as_view(), name="admin-competition-update"),
+    path("competitions/<int:pk>/delete/", AdminCompetitionDeleteView.as_view(), name="admin-competition-delete"),
 ]
 
 #     # Odds related URLs
