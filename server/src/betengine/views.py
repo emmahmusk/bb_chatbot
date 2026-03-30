@@ -412,8 +412,8 @@ class MarketListAPIView(generics.ListAPIView):
     # --- Main queryset ---
     def get_queryset(self):
         today = timezone.now().date()
-        min_expiry = today + timedelta(days=7)    # >= 7 days
-        soon_max = today + timedelta(days=14)     # <= 14 days
+        min_expiry = today + timedelta(days=1)    # >= 1 day
+        soon_max = today + timedelta(days=7)     # <= 7 days
 
         # --- Cleanup expired ---
         # Market.objects.filter(expiry_date__lt=min_expiry).delete()

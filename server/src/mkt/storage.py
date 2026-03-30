@@ -50,7 +50,7 @@ def populate_option_contracts_from_batch(all_data: Dict[str, List[Dict]], job_st
     processed_symbols = set()
     total_written = 0
     today = timezone.now().date()
-    min_expiry_date = today + timedelta(days=7)
+    min_expiry_date = today + timedelta(days=1)
 
     for symbol, contracts in all_data.items():
         # Check time budget
