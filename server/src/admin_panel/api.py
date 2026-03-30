@@ -1134,7 +1134,7 @@ class DeleteExpiringMarketsView(APIView):
 
     def delete(self, request, *args, **kwargs):
         today = now().date()
-        cutoff_date = today + timedelta(days=7)
+        cutoff_date = today + timedelta(days=1)
 
         markets_to_delete = Market.objects.filter(expiry_date__lte=cutoff_date)
         count = markets_to_delete.count()

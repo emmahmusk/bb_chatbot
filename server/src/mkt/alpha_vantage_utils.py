@@ -91,7 +91,7 @@ def populate_option_contracts_from_batch(all_data: Dict[str, List[Dict[str, Any]
     processed_symbols = set()
     total_inserted = 0
     today = datetime.now().date()
-    min_expiry_date = today + timedelta(days=7)
+    min_expiry_date = today + timedelta(days=1)
 
     def to_decimal(value: str) -> Optional[Decimal]:
         if value in ("", "null", None):
