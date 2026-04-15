@@ -167,6 +167,19 @@ class TriggerSteadyAPIOptionIngestView(APIView):
         if not symbols:
             return Response({"error": "No valid symbols provided."}, status=400)
 
+        # Prevent concurrent ingestion for SteadyAPI
+        LOCK_KEY = "steadyapi_option_ingest_lock"
+        lock_ttl = getattr(settings, "STEADYAPI_INGEST_LOCK_TTL", 300)
+        
+        if cache.get(LOCK_KEY):
+            logger.info("SteadyAPI ingest job already running — skipping enqueue.")
+            return Response({
+                "message": "A SteadyAPI ingest job is currently running. Please try again in 5 minutes."
+            }, status=status.HTTP_202_ACCEPTED)
+
+        # Set the lock
+        cache.set(LOCK_KEY, True, timeout=lock_ttl)
+
         # Enqueue background task
         async_task("mkt.tasks.ingest_from_steadyapi", symbols)
         

@@ -65,8 +65,53 @@ class Stock(models.Model):
     def __str__(self):
         return self.symbol
     
-    def get_current_price(self, api_key: str = None):
+    def get_steady_price(self, api_key: str = None):
+        """
+        Fetches latest real-time price data from SteadyAPI.
+        """
+        api_key = api_key or getattr(settings, "BB_STEADY_APIKEY", None)
+        if not api_key:
+            return Decimal("0")
 
+        url = "https://steadyapi.com/api/v1/markets/quote"
+        params = {"ticker": self.symbol, "type": "STOCKS"}
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code != 200:
+                logger.error(f"SteadyAPI Quote Error: {response.status_code} for {self.symbol}")
+                return self.last_price or Decimal("0")
+            
+            data = response.json().get("body", {}).get("primaryData", {})
+            
+            def clean_decimal(val):
+                if not val: return None
+                # Remove dollar signs, plus signs, commas
+                clean = str(val).replace("$", "").replace("+", "").replace(",", "").strip()
+                try:
+                    return Decimal(clean)
+                except (InvalidOperation, ValueError, TypeError):
+                    return None
+
+            price = clean_decimal(data.get("lastSalePrice"))
+            change = clean_decimal(data.get("netChange"))
+            percent = data.get("percentageChange")
+
+            if price is not None:
+                self.last_price = price
+            if change is not None:
+                self.last_change = change
+            if percent:
+                self.last_percent_change = percent
+
+            self.save(update_fields=["last_price", "last_change", "last_percent_change"])
+            return self.last_price or Decimal("0")
+        except Exception as e:
+            logger.error(f"Error fetching SteadyAPI stock price for {self.symbol}: {e}")
+            return self.last_price or Decimal("0")
+
+    def get_current_price(self, api_key: str = None):
         api_key = api_key or getattr(settings, "ALPHA_VANTAGE_API_KEY", None)
         if not api_key:
             return Decimal("0")
