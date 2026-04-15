@@ -46,7 +46,7 @@ class AdminCompetitionListView(generics.ListAPIView):
 
     def get_queryset(self):
         qs = Competition.objects.all().order_by("-created_at")
-
+    
         status_filter = self.request.query_params.get("status")
         if status_filter:
             qs = qs.filter(status=status_filter)

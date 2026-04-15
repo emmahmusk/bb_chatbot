@@ -39,6 +39,8 @@ class ScoringMethod(TextChoices):
 
 
 def round_two_places(value):
+    if value is None:
+        return None
     return float(Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
@@ -231,8 +233,8 @@ class Market(models.Model):
         side_over, american_over = get_side_and_american_odds(self.implied_odds_over, ODDS_LADDER_JSON, vig)
         side_under, american_under = get_side_and_american_odds(self.implied_odds_under, ODDS_LADDER_JSON, vig)
 
-        self.display_odds_over = str(american_over)
-        self.display_odds_under = str(american_under)
+        self.display_odds_over = str(american_over) if american_over is not None else None
+        self.display_odds_under = str(american_under) if american_under is not None else None
     def _compute_balanced_probs(self, base_over: Decimal, base_under: Decimal, net_nudge_over: int, net_nudge_under: int) -> tuple[Decimal, Decimal]:
         """
         Computes balanced over/under probabilities ensuring they always sum to 1.00.

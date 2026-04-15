@@ -62,34 +62,37 @@ class OptionDataListView(APIView):
             except ValueError:
                 return Response({"error": "Invalid strike price"}, status=400)
 
-        queryset = queryset.order_by("-quote_date")
+        queryset = queryset.order_by("-quote_date", "strike")
 
-        paginator = OptionDataPagination()
-        result_page = paginator.paginate_queryset(queryset, request)
+        # Group the entire filtered set first, then paginate the groups
+        # Note: In a massive database this might need optimization, but for filtered stock/exp it's best
+        all_options = list(queryset)
+        grouped_dict = defaultdict(lambda: {"call": None, "put": None})
 
-        grouped = defaultdict(lambda: {"call": None, "put": None})
-
-        for option in result_page:
-            key = (option.symbol, option.expiration, option.strike, option.quote_date)
+        for option in all_options:
+            key = (option.symbol, option.expiration, float(option.strike), option.quote_date)
             option_data = OptionDataSerializer(option).data
-            if option.option_type == "call":
-                grouped[key]["call"] = option_data
-            elif option.option_type == "put":
-                grouped[key]["put"] = option_data
+            if option.option_type.lower() == "call":
+                grouped_dict[key]["call"] = option_data
+            elif option.option_type.lower() == "put":
+                grouped_dict[key]["put"] = option_data
 
         nested_results = []
-        for (symbol, expiration, strike, quote_date), pair in grouped.items():
+        for (sym, exp, strk, qd), pair in grouped_dict.items():
             if pair["call"] and pair["put"]:
                 nested_results.append({
-                    "symbol": symbol,
-                    "expiration": expiration,
-                    "strike": strike,
-                    "quote_date": quote_date,
+                    "symbol": sym,
+                    "expiration": exp,
+                    "strike": strk,
+                    "quote_date": qd,
                     "call": pair["call"],
                     "put": pair["put"]
                 })
 
-        return paginator.get_paginated_response(nested_results)
+        # Now paginate the paired results
+        paginator = OptionDataPagination()
+        result_page = paginator.paginate_queryset(nested_results, request)
+        return paginator.get_paginated_response(result_page)
 
 class PopulateStockAPIView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -148,6 +151,28 @@ class TriggerOptionIngestView(APIView):
             "message": "Ingestion and population task started.",
             "symbols": symbols,
             "date": date,
+        }, status=200)
+
+class TriggerSteadyAPIOptionIngestView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        symbols = request.data.get("symbols", [])
+
+        if not isinstance(symbols, list) or not symbols:
+            return Response({"error": "Symbols must be a non-empty list."}, status=400)
+
+        symbols = sorted({s.strip().upper() for s in symbols if isinstance(s, str) and s.strip()})
+
+        if not symbols:
+            return Response({"error": "No valid symbols provided."}, status=400)
+
+        # Enqueue background task
+        async_task("mkt.tasks.ingest_from_steadyapi", symbols)
+        
+        return Response({
+            "message": "SteadyAPI ingestion and population task started.",
+            "symbols": symbols,
         }, status=200)
 
 # class TriggerOptionIngestView(APIView):
