@@ -207,6 +207,7 @@ DATABASES = {}  # Initialize empty dictionary
 
 if DJANGO_ENV == "production":
     ALPHA_VANTAGE_API_KEY = environ.get("ALPHA_VANTAGE_API_KEY", "demo")
+    BB_STEADY_APIKEY = environ.get("BB_STEADY_APIKEY", "demo")
     POLYGON_MOCK_MODE = environ.get("POLYGON_MOCK_MODE", "true").lower() == "true"
     # Fetch Aurora RDS credentials from environment variables set by entrypoint.sh
     # IMPORTANT: Ensure your entrypoint.sh exports these with these exact names!
@@ -278,6 +279,7 @@ if DJANGO_ENV == "production":
 else:  # For development (local setup, using .env or hardcoded fallbacks)
     # These will be pulled from .env for local development, or default values if not present
     ALPHA_VANTAGE_API_KEY = environ.get("ALPHA_VANTAGE_API_KEY", "demo")  # Default to 'demo' for local dev
+    BB_STEADY_APIKEY = environ.get("BB_STEADY_APIKEY", "demo")
     POLYGON_MOCK_MODE = environ.get("POLYGON_MOCK_MODE", "true").lower() == "true"
 
     # Supabase Database Configuration (for development)

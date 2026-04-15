@@ -16,6 +16,8 @@ from .market_chart import ODDS_LADDER_JSON
 from .models import OptionData
 from betengine.models import Stock, Market, Bet
 from .utils import  calculate_implied_probability_risk_neutral, get_side_and_american_odds
+import requests
+from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 # def ingest_historical_options(symbols: list, api_key: str, date: str = None) -> list:
@@ -367,3 +369,160 @@ def ingest_and_populate(symbols, api_key, date):
 #     if processed_symbols:
 #         stock_ids = list(Stock.objects.filter(symbol__in=processed_symbols).values_list('id', flat=True))
 #         populate_market_for_stocks(stock_ids)
+
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+def ingest_from_steadyapi(symbols: List[str]):
+    """
+    Ingest options data from SteadyAPI for a list of symbols.
+    Iterates through all weekly and monthly expirations for each symbol.
+    """
+    LOCK_KEY = "steadyapi_option_ingest_lock"
+    try:
+        BASE_URL = "https://steadyapi.com/api/v3/markets/options"
+        
+        processed_symbols = []
+        
+        if not getattr(settings, "BB_STEADY_APIKEY", None):
+            logger.error("SteadyAPI: BB_STEADY_APIKEY is missing from settings!")
+            return
+        
+        headers = {
+            "Authorization": f"Bearer {settings.BB_STEADY_APIKEY}"
+        }
+        
+        # Configure session with retries
+        session = requests.Session()
+        session.headers.update(headers)
+        retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+        session.mount("https://", HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
+        
+        for ticker in symbols:
+            ticker = ticker.strip().upper()
+            try:
+                logger.info(f"SteadyAPI: Fetching expirations for {ticker}")
+                # 1. Fetch expirations
+                resp = session.get(f"{BASE_URL}?ticker={ticker}", timeout=30)
+                if resp.status_code != 200:
+                    logger.error(f"SteadyAPI: Failed to fetch expirations for {ticker}: {resp.status_code}")
+                    continue
+                
+                payload = resp.json()
+                # Be defensive: check root, meta, and body for expirations
+                expirations_data = payload.get("expirations")
+                if not expirations_data:
+                    expirations_data = payload.get("meta", {}).get("expirations")
+                if not expirations_data:
+                    expirations_data = payload.get("body", {}).get("expirations", {})
+                
+                weekly = expirations_data.get("weekly", [])
+                monthly = expirations_data.get("monthly", [])
+                all_expirations = sorted(list(set(weekly + monthly)))
+                
+                if not all_expirations:
+                    logger.info(f"SteadyAPI: No expirations found for {ticker}. Payload keys: {list(payload.keys())}")
+                    continue
+                
+                logger.info(f"SteadyAPI: Found {len(all_expirations)} expirations for {ticker}")
+                
+                for exp in all_expirations:
+                    # 2. Fetch data for each expiration
+                    try:
+                        data_resp = session.get(f"{BASE_URL}?ticker={ticker}&expiration={exp}", timeout=30)
+                        if data_resp.status_code != 200:
+                            logger.warning(f"SteadyAPI: Failed to fetch data for {ticker} exp {exp}: {data_resp.status_code}")
+                            continue
+                        
+                        payload = data_resp.json()
+                    except Exception as e:
+                        logger.warning(f"SteadyAPI: Connection/Parse error for {ticker} exp {exp}: {e}")
+                        continue
+                    
+                    body = payload.get("body", {})
+                    calls = body.get("Call", [])
+                    puts = body.get("Put", [])
+                    options_list = calls + puts
+                    
+                    if not options_list:
+                        continue
+                    
+                    # Helper for cleaning numeric strings
+                    def _clean_numeric(val, default=0.0):
+                        if val is None or val == "N/A" or val == "unch":
+                            return default
+                        if isinstance(val, str):
+                            # Remove commas and percentage signs
+                            val = val.replace(",", "").replace("%", "")
+                        try:
+                            return float(val)
+                        except (ValueError, TypeError):
+                            return default
+
+                    def _parse_steady_date(date_str):
+                        if not date_str or date_str == "N/A":
+                            return timezone.now().date()
+                        try:
+                            # Try full date format
+                            return datetime.strptime(date_str, "%m/%d/%y").date()
+                        except ValueError:
+                            # If that fails, it's likely a today-timestamp like '11:24 ET'
+                            # In this case, we use today's date.
+                            return timezone.now().date()
+
+                    # 3. Populate OptionData
+                    for opt in options_list:
+                        try:
+                            strike = _clean_numeric(opt.get("strikePrice"))
+                            option_type = opt.get("optionType")
+                            base_symbol = opt.get("baseSymbol") or ticker
+                            
+                            if not strike or not option_type or not base_symbol:
+                                continue
+
+                            # SteadyAPI provided symbol looks like "AAPL|20260515|5.00C", which is a good contract_id
+                            contract_id = opt.get("symbol") or f"{base_symbol}|{exp}|{strike}{option_type[0]}".upper()
+                            
+                            # Use the 'exp' variable directly as requested to avoid parsing errors from the body
+                            expiration = datetime.strptime(exp, "%Y-%m-%d").date() if isinstance(exp, str) else exp
+
+                            OptionData.objects.update_or_create(
+                                contract_id=contract_id,
+                                defaults={
+                                    "symbol": base_symbol,
+                                    "expiration": expiration,
+                                    "strike": strike,
+                                    "option_type": option_type.lower(),
+                                    "mark": _clean_numeric(opt.get("midpoint")),
+                                    "volume": int(_clean_numeric(opt.get("volume"))),
+                                    "open_interest": int(_clean_numeric(opt.get("openInterest"))),
+                                    "implied_volatility": _clean_numeric(opt.get("volatility")) / 100.0, # Convert % to decimal
+                                    "delta": _clean_numeric(opt.get("delta")),
+                                    "gamma": _clean_numeric(opt.get("gamma")), 
+                                    "theta": _clean_numeric(opt.get("theta")),
+                                    "vega": _clean_numeric(opt.get("vega")),
+                                    "rho": _clean_numeric(opt.get("rho")),
+                                    "quote_date": (
+                                        _parse_steady_date(opt.get("tradeTime"))
+                                    ),
+                                }
+                            )
+                        except Exception as e:
+                            logger.warning(f"SteadyAPI: Error parsing option data for {ticker} {exp}: {e}")
+                            continue
+                
+                processed_symbols.append(ticker)
+                logger.info(f"SteadyAPI: Successfully processed {ticker}")
+                
+            except Exception as e:
+                logger.exception(f"SteadyAPI: Error ingesting for {ticker}: {e}")
+
+        if processed_symbols:
+            from .populate import populate_market_for_stocks
+            stock_ids = list(Stock.objects.filter(symbol__in=processed_symbols).values_list("id", flat=True))
+            if stock_ids:
+                logger.info(f"SteadyAPI: Triggering market population for {len(stock_ids)} stocks")
+                populate_market_for_stocks(stock_ids)
+
+    finally:
+        cache.delete(LOCK_KEY)

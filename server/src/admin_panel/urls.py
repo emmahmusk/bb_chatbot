@@ -6,7 +6,7 @@ from admin_panel.views.kyc import (
     ManualKYCTriggerView
 )
 from admin_panel.views.vig import BulkOverrideVigByIdsView, OverrideVigView
-from admin_panel.views.market import MarketOddsResetView, MarketOddsNudgeView, StockListView, StockToggleUpdateView, StockRefreshView, GroupedMarketView, MarketStatusUpdateAPIView, SuspendedMarketsView, SuspendedMarketDetailView, StockSettlementDetailView
+from admin_panel.views.market import MarketOddsResetView, MarketOddsNudgeView, StockListView, StockToggleUpdateView, StockRefreshView, StockSteadyRefreshView, GroupedMarketView, MarketStatusUpdateAPIView, SuspendedMarketsView, SuspendedMarketDetailView, StockSettlementDetailView
 from admin_panel.views.users import AlphaVantageVolumeView, BetVolumeAdminView, AdminBetSettlementView
 from admin_panel.views.competition import (
     AdminCompetitionListView,
@@ -56,6 +56,7 @@ urlpatterns = [
     path("stocks/settlements/", StockSettlementDetailView.as_view(), name="stock-settlement-detail"),
     path("stock/<int:pk>/toggle/", StockToggleUpdateView.as_view(), name="stock-toggle-update"),
     path("stock/refresh/", StockRefreshView.as_view(), name="stock-ticker-refresh"),
+    path("stock/refresh-steady/", StockSteadyRefreshView.as_view(), name="stock-ticker-refresh-steady"),
     path("markets/", GroupedMarketView.as_view(), name="grouped-market-view"),
     path("markets/<int:market_id>/nudge/", MarketOddsNudgeView.as_view(), name="nudge-market-view"),
     path("markets/<int:market_id>/reset/", MarketOddsResetView.as_view(), name="reset-market-view"),

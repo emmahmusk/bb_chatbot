@@ -12,11 +12,13 @@ from user.models import Profile
 def enqueue_crs_update_on_bet_save(sender, instance, **kwargs):
     if instance.user and instance.status in ['pending', 'won', 'lost', 'void']:
         profile, _ = Profile.objects.get_or_create(user=instance.user)
-        async_task(profile.calculate_max_stake, instance.decimal_odds)  # call the instance method directly
+        if instance.decimal_odds > 1.00:
+            async_task(profile.calculate_max_stake, instance.decimal_odds)
 
 @receiver(post_save, sender=ParlayBet)
 def enqueue_crs_update_on_parlay_save(sender, instance, **kwargs):
     if instance.user and instance.status in ['pending', 'won', 'lost', 'void']:
         profile, _ = Profile.objects.get_or_create(user=instance.user)
         decimal_odds = instance.get_combined_decimal_odds()
-        async_task(profile.calculate_max_stake, decimal_odds)
+        if decimal_odds > 1.00:
+            async_task(profile.calculate_max_stake, decimal_odds)

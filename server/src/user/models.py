@@ -73,7 +73,11 @@ class Profile(models.Model):
         based on profit-driven CRS logic and global exposure limit.
         """
         if decimal_odds <= Decimal("1.00"):
-            raise ValueError("Decimal odds must be greater than 1.00")
+            # If odds are 1.00, there is no profit possible, so the profit-based 
+            # stake limit calculation (division by odds - 1) is undefined.
+            # We return the platform's base exposure limit as a safe fallback.
+            settings = PlatformSettings.get_instance()
+            return settings.base_exposure_limit.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         settings = PlatformSettings.get_instance()
         max_profit = self.crs_risk_score * settings.base_exposure_limit

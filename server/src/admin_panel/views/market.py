@@ -880,6 +880,30 @@ class StockRefreshView(APIView):
             status=status.HTTP_200_OK
         )
 
+class StockSteadyRefreshView(APIView):
+    """
+    Replicated API endpoint to refresh all stock price data using SteadyAPI.
+    Uses each stock's get_steady_price() method.
+    """
+
+    def get(self, request):
+        api_key = getattr(settings, "BB_STEADY_APIKEY", None)
+        if not api_key:
+            return Response(
+                {"error": "Missing SteadyAPI API key"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        for stock in Stock.objects.all():
+            try:
+                stock.get_steady_price(api_key=api_key)
+            except Exception as e:
+                logger.error(f"Error refreshing SteadyAPI price for {stock.symbol}: {e}")
+                continue
+        return Response(
+            {"message": "Stock data refreshed successfully via SteadyAPI"},
+            status=status.HTTP_200_OK
+        )
+
 
 
 class AdminMarketCreateAPIView(APIView):

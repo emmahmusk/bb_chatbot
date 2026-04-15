@@ -39,6 +39,8 @@ class ScoringMethod(TextChoices):
 
 
 def round_two_places(value):
+    if value is None:
+        return None
     return float(Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
@@ -63,8 +65,53 @@ class Stock(models.Model):
     def __str__(self):
         return self.symbol
     
-    def get_current_price(self, api_key: str = None):
+    def get_steady_price(self, api_key: str = None):
+        """
+        Fetches latest real-time price data from SteadyAPI.
+        """
+        api_key = api_key or getattr(settings, "BB_STEADY_APIKEY", None)
+        if not api_key:
+            return Decimal("0")
 
+        url = "https://steadyapi.com/api/v1/markets/quote"
+        params = {"ticker": self.symbol, "type": "STOCKS"}
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code != 200:
+                logger.error(f"SteadyAPI Quote Error: {response.status_code} for {self.symbol}")
+                return self.last_price or Decimal("0")
+            
+            data = response.json().get("body", {}).get("primaryData", {})
+            
+            def clean_decimal(val):
+                if not val: return None
+                # Remove dollar signs, plus signs, commas
+                clean = str(val).replace("$", "").replace("+", "").replace(",", "").strip()
+                try:
+                    return Decimal(clean)
+                except (InvalidOperation, ValueError, TypeError):
+                    return None
+
+            price = clean_decimal(data.get("lastSalePrice"))
+            change = clean_decimal(data.get("netChange"))
+            percent = data.get("percentageChange")
+
+            if price is not None:
+                self.last_price = price
+            if change is not None:
+                self.last_change = change
+            if percent:
+                self.last_percent_change = percent
+
+            self.save(update_fields=["last_price", "last_change", "last_percent_change"])
+            return self.last_price or Decimal("0")
+        except Exception as e:
+            logger.error(f"Error fetching SteadyAPI stock price for {self.symbol}: {e}")
+            return self.last_price or Decimal("0")
+
+    def get_current_price(self, api_key: str = None):
         api_key = api_key or getattr(settings, "ALPHA_VANTAGE_API_KEY", None)
         if not api_key:
             return Decimal("0")
@@ -231,8 +278,8 @@ class Market(models.Model):
         side_over, american_over = get_side_and_american_odds(self.implied_odds_over, ODDS_LADDER_JSON, vig)
         side_under, american_under = get_side_and_american_odds(self.implied_odds_under, ODDS_LADDER_JSON, vig)
 
-        self.display_odds_over = str(american_over)
-        self.display_odds_under = str(american_under)
+        self.display_odds_over = str(american_over) if american_over is not None else None
+        self.display_odds_under = str(american_under) if american_under is not None else None
     def _compute_balanced_probs(self, base_over: Decimal, base_under: Decimal, net_nudge_over: int, net_nudge_under: int) -> tuple[Decimal, Decimal]:
         """
         Computes balanced over/under probabilities ensuring they always sum to 1.00.

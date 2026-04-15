@@ -39,6 +39,7 @@ export DB_PORT=5432
 
 export POLYGON_MOCK_MODE=$(get_ssm_parameter "${SSM_BASE_PATH}/polygon/mock_mode")
 export ALPHA_VANTAGE_API_KEY=$(get_ssm_parameter "${SSM_BASE_PATH}/alpha_vantage/api_key")
+export BB_STEADY_APIKEY=$(get_ssm_parameter "${SSM_BASE_PATH}/steadyapi/api_key")
 export SUPABASE_KEY=$(get_ssm_parameter "${SSM_BASE_PATH}/supabase/key")
 export SUPABASE_URL=$(get_ssm_parameter "${SSM_BASE_PATH}/supabase/url")
 
