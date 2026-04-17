@@ -1419,174 +1419,236 @@ class ResolveExpiredMarketsAPIView(APIView):
 
     def post(self, request, *args, **kwargs):
         today = timezone.now().date()
-        expired_markets = (
-            Market.objects
-            .filter(expiry_date__lte=today, bets__status="pending")
-            .select_related("stock")
-            .distinct()
-        )
 
-        total_markets = expired_markets.count()
-        resolved_bets = 0
-        resolved_parlays = 0
-        updated_markets = 0
-        skipped_missing_price = []
-        skipped_parlays_missing_price = []
-
-        if not total_markets:
-            return Response(
-                {"message": "No expired markets found to resolve."},
-                status=status.HTTP_200_OK
+        try:
+            expired_markets = list(
+                Market.objects
+                .filter(expiry_date__lte=today, bets__status="pending")
+                .select_related("stock")
+                .distinct()
             )
 
-        for market in expired_markets:
+            total_markets = len(expired_markets)
+            resolved_bets = 0
+            resolved_parlays = 0
+            updated_markets = 0
+            skipped_missing_price = []
+            skipped_parlays_missing_price = []
 
-            stock_price = market.stock.last_price
-            if stock_price is None:
-                skipped_missing_price.append(
-                    {
-                        "market_id": market.id,
-                        "symbol": market.stock.symbol,
-                        "expiry_date": str(market.expiry_date),
-                        "reason": "missing_stock_price",
-                    }
-                )
-                continue  # skip if stock price unavailable
-
-            with transaction.atomic():
-
-                # Lock market row for safety
-                market = Market.objects.select_for_update().get(id=market.id)
-
-                pending_bets = Bet.objects.filter(market=market, status="pending", is_parlay_leg=False)
-
-                for bet in pending_bets:
-                    final_price = Decimal(str(stock_price))
-                    target_price = Decimal(str(market.target_price))
-
-                    if bet.chosen_outcome == "over":
-                        bet_won = final_price >= target_price
-                    elif bet.chosen_outcome == "under":
-                        bet_won = final_price <= target_price
-                    else:
-                        bet.status = "void"
-                        bet.payout_amount = Decimal("0.00")
-                        bet.settled_at = timezone.now()
-                        bet.save(update_fields=["status", "payout_amount", "settled_at"])
-                        resolved_bets += 1
-                        continue
-
-                    bet.status = "won" if bet_won else "lost"
-                    bet.payout_amount = bet.get_potential_payout() if bet_won else Decimal("0.00")
-                    bet.settled_at = timezone.now()
-
-                    bet.save(update_fields=["status", "payout_amount", "settled_at"])
-                    resolved_bets += 1
-
-                # --- Reset Guardrail Fields ---
-                market.exposure_over = Decimal("0.00")
-                market.exposure_under = Decimal("0.00")
-                market.is_suspended_over = False
-                market.is_suspended_under = False
-                market.requires_admin_override = False
-
-                # Mark market inactive
-                market.is_active = False
-
-                market.save(
-                    update_fields=[
-                        "exposure_over",
-                        "exposure_under",
-                        "is_suspended_over",
-                        "is_suspended_under",
-                        "requires_admin_override",
-                        "is_active",
-                    ]
+            if not total_markets:
+                return Response(
+                    {"message": "No expired markets found to resolve."},
+                    status=status.HTTP_200_OK
                 )
 
-                updated_markets += 1
+            for market in expired_markets:
 
-        # Resolve pending parlays whose legs have all expired and have price data.
-        pending_parlays = ParlayBet.objects.filter(status="pending").prefetch_related("legs__market__stock")
+                stock_price = market.stock.last_price
+                if stock_price is None:
+                    skipped_missing_price.append(
+                        {
+                            "market_id": market.id,
+                            "symbol": market.stock.symbol,
+                            "expiry_date": str(market.expiry_date),
+                            "reason": "missing_stock_price",
+                        }
+                    )
+                    continue  # skip if stock price unavailable
 
-        for parlay in pending_parlays:
-            legs = list(parlay.legs.all())
+                try:
+                    with transaction.atomic():
 
-            if not legs:
-                continue
+                        # Lock market row for safety
+                        market = Market.objects.select_for_update().get(id=market.id)
 
-            if any(leg.market.expiry_date > today for leg in legs):
-                continue
+                        pending_bets = Bet.objects.filter(market=market, status="pending", is_parlay_leg=False)
 
-            missing_price_legs = [leg for leg in legs if leg.market.stock.last_price is None]
-            if missing_price_legs:
-                skipped_parlays_missing_price.append(
-                    {
-                        "parlay_id": parlay.id,
-                        "missing_symbols": list({leg.market.stock.symbol for leg in missing_price_legs}),
-                        "reason": "missing_stock_price",
-                    }
-                )
-                continue
+                        for bet in pending_bets:
+                            final_price = Decimal(str(stock_price))
+                            target_price = Decimal(str(market.target_price))
 
-            with transaction.atomic():
-                parlay = ParlayBet.objects.select_for_update().get(id=parlay.id)
-                legs_qs = parlay.legs.select_related("market__stock").all()
+                            if bet.chosen_outcome == "over":
+                                bet_won = final_price >= target_price
+                            elif bet.chosen_outcome == "under":
+                                bet_won = final_price <= target_price
+                            else:
+                                bet.status = "void"
+                                bet.payout_amount = Decimal("0.00")
+                                bet.settled_at = timezone.now()
+                                bet.save(update_fields=["status", "payout_amount", "settled_at"])
+                                resolved_bets += 1
+                                continue
 
-                for leg in legs_qs:
-                    if leg.status != "pending":
-                        continue
+                            bet.status = "won" if bet_won else "lost"
+                            bet.payout_amount = bet.get_potential_payout() if bet_won else Decimal("0.00")
+                            bet.settled_at = timezone.now()
 
-                    final_price = Decimal(str(leg.market.stock.last_price))
-                    target_price = Decimal(str(leg.market.target_price))
+                            bet.save(update_fields=["status", "payout_amount", "settled_at"])
+                            resolved_bets += 1
 
-                    if leg.chosen_outcome == "over":
-                        leg_won = final_price >= target_price
-                    elif leg.chosen_outcome == "under":
-                        leg_won = final_price <= target_price
-                    else:
-                        leg.status = "void"
-                        leg.payout_amount = Decimal("0.00")
-                        leg.settled_at = timezone.now()
-                        leg.save(update_fields=["status", "payout_amount", "settled_at"])
-                        continue
+                        # --- Reset Guardrail Fields ---
+                        market.exposure_over = Decimal("0.00")
+                        market.exposure_under = Decimal("0.00")
+                        market.is_suspended_over = False
+                        market.is_suspended_under = False
+                        market.requires_admin_override = False
 
-                    leg.status = "won" if leg_won else "lost"
-                    leg.payout_amount = Decimal("0.00")
-                    leg.settled_at = timezone.now()
-                    leg.save(update_fields=["status", "payout_amount", "settled_at"])
+                        # Mark market inactive
+                        market.is_active = False
 
-                latest_leg_statuses = list(parlay.legs.values_list("status", flat=True))
-                if any(status == "pending" for status in latest_leg_statuses):
+                        market.save(
+                            update_fields=[
+                                "exposure_over",
+                                "exposure_under",
+                                "is_suspended_over",
+                                "is_suspended_under",
+                                "requires_admin_override",
+                                "is_active",
+                            ]
+                        )
+
+                        updated_markets += 1
+
+                except Market.DoesNotExist:
+                    logger.warning(f"Market {market.id} was deleted before it could be locked. Skipping.")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error resolving market {market.id}: {e}", exc_info=True)
                     continue
 
-                if any(status == "void" for status in latest_leg_statuses):
-                    parlay.status = "void"
-                    parlay.payout_amount = Decimal("0.00")
-                elif all(status == "won" for status in latest_leg_statuses):
-                    parlay.status = "won"
-                    parlay.payout_amount = parlay.get_potential_payout()
-                else:
-                    parlay.status = "lost"
-                    parlay.payout_amount = Decimal("0.00")
+            # Resolve pending parlays whose legs have all expired and have price data.
+            pending_parlays = ParlayBet.objects.filter(status="pending").prefetch_related("legs__market__stock")
 
-                parlay.settled_at = timezone.now()
-                parlay.save(update_fields=["status", "payout_amount", "settled_at"])
-                resolved_parlays += 1
+            for parlay in pending_parlays:
+                legs = list(parlay.legs.all())
 
-        return Response(
-            {
-                "message": f"✅ Resolved {updated_markets} expired markets",
-                "total_markets": total_markets,
-                "resolved_bets": resolved_bets,
-                "resolved_parlays": resolved_parlays,
-                "skipped_markets_count": len(skipped_missing_price),
-                "skipped_markets": skipped_missing_price,
-                "skipped_parlays_count": len(skipped_parlays_missing_price),
-                "skipped_parlays": skipped_parlays_missing_price,
-            },
-            status=status.HTTP_200_OK,
-        )
+                if not legs:
+                    continue
+
+                # Skip parlays where any leg has a null market (data integrity issue)
+                has_null_market = any(leg.market is None for leg in legs)
+                if has_null_market:
+                    logger.warning(
+                        f"Parlay {parlay.id} has leg(s) with null market. Voiding parlay."
+                    )
+                    try:
+                        with transaction.atomic():
+                            parlay_to_void = ParlayBet.objects.select_for_update().get(id=parlay.id)
+                            if parlay_to_void.status == "pending":
+                                parlay_to_void.status = "void"
+                                parlay_to_void.payout_amount = Decimal("0.00")
+                                parlay_to_void.settled_at = timezone.now()
+                                parlay_to_void.save(update_fields=["status", "payout_amount", "settled_at"])
+                                # Void any pending legs too
+                                parlay_to_void.legs.filter(status="pending").update(
+                                    status="void",
+                                    payout_amount=Decimal("0.00"),
+                                    settled_at=timezone.now(),
+                                )
+                                resolved_parlays += 1
+                    except Exception as e:
+                        logger.error(f"Error voiding parlay {parlay.id} with null market legs: {e}", exc_info=True)
+                    continue
+
+                if any(leg.market.expiry_date > today for leg in legs):
+                    continue
+
+                missing_price_legs = [leg for leg in legs if leg.market.stock.last_price is None]
+                if missing_price_legs:
+                    skipped_parlays_missing_price.append(
+                        {
+                            "parlay_id": parlay.id,
+                            "missing_symbols": list({leg.market.stock.symbol for leg in missing_price_legs}),
+                            "reason": "missing_stock_price",
+                        }
+                    )
+                    continue
+
+                try:
+                    with transaction.atomic():
+                        parlay = ParlayBet.objects.select_for_update().get(id=parlay.id)
+
+                        # Re-check status after acquiring lock (race condition guard)
+                        if parlay.status != "pending":
+                            continue
+
+                        legs_qs = parlay.legs.select_related("market__stock").all()
+
+                        for leg in legs_qs:
+                            if leg.status != "pending":
+                                continue
+
+                            # Guard against null market or null last_price inside atomic block
+                            if leg.market is None or leg.market.stock is None or leg.market.stock.last_price is None:
+                                logger.warning(
+                                    f"Parlay {parlay.id} leg {leg.id}: market or stock price is None "
+                                    f"inside atomic block. Skipping parlay."
+                                )
+                                break
+                            final_price = Decimal(str(leg.market.stock.last_price))
+                            target_price = Decimal(str(leg.market.target_price))
+
+                            if leg.chosen_outcome == "over":
+                                leg_won = final_price >= target_price
+                            elif leg.chosen_outcome == "under":
+                                leg_won = final_price <= target_price
+                            else:
+                                leg.status = "void"
+                                leg.payout_amount = Decimal("0.00")
+                                leg.settled_at = timezone.now()
+                                leg.save(update_fields=["status", "payout_amount", "settled_at"])
+                                continue
+
+                            leg.status = "won" if leg_won else "lost"
+                            leg.payout_amount = Decimal("0.00")
+                            leg.settled_at = timezone.now()
+                            leg.save(update_fields=["status", "payout_amount", "settled_at"])
+
+                        latest_leg_statuses = list(parlay.legs.values_list("status", flat=True))
+                        if any(leg_status == "pending" for leg_status in latest_leg_statuses):
+                            continue
+
+                        if any(leg_status == "void" for leg_status in latest_leg_statuses):
+                            parlay.status = "void"
+                            parlay.payout_amount = Decimal("0.00")
+                        elif all(leg_status == "won" for leg_status in latest_leg_statuses):
+                            parlay.status = "won"
+                            parlay.payout_amount = parlay.get_potential_payout()
+                        else:
+                            parlay.status = "lost"
+                            parlay.payout_amount = Decimal("0.00")
+
+                        parlay.settled_at = timezone.now()
+                        parlay.save(update_fields=["status", "payout_amount", "settled_at"])
+                        resolved_parlays += 1
+
+                except ParlayBet.DoesNotExist:
+                    logger.warning(f"Parlay {parlay.id} was deleted before it could be locked. Skipping.")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error resolving parlay {parlay.id}: {e}", exc_info=True)
+                    continue
+
+            return Response(
+                {
+                    "message": f"✅ Resolved {updated_markets} expired markets",
+                    "total_markets": total_markets,
+                    "resolved_bets": resolved_bets,
+                    "resolved_parlays": resolved_parlays,
+                    "skipped_markets_count": len(skipped_missing_price),
+                    "skipped_markets": skipped_missing_price,
+                    "skipped_parlays_count": len(skipped_parlays_missing_price),
+                    "skipped_parlays": skipped_parlays_missing_price,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Unexpected error in bulk_resolve: {e}", exc_info=True)
+            return Response(
+                {"status": "error", "message": f"Unexpected error during bulk resolution: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
 class CreditWinningBetsAPIView(APIView):
     """
