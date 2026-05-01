@@ -88,7 +88,7 @@ class _ForgotPasswordDialogState extends ConsumerState<ForgotPasswordDialog> {
     final isRequestStep = _step == _ResetStep.request;
 
     return AuthDialog(
-      height: isRequestStep ? 470 : 620,
+      height: isRequestStep ? 520 : 660,
       child: Column(
         children: [
           Center(

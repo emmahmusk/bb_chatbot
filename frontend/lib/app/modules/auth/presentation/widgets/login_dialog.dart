@@ -29,6 +29,7 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
     return AuthDialog(
+      height: 620,
       child: Column(
         children: [
           Center(

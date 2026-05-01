@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend/app/shared/extensions/context_extension.dart';
 import 'package:frontend/app/shared/extensions/size_extension.dart';
 import 'package:frontend/app/shared/functions/ui_functions.dart';
 import 'package:frontend/app/shared/presentation/widgets/bullbear_logo.dart';
@@ -190,6 +191,7 @@ Future<T?> showCenterDialog<T>(
       return Consumer(
         builder: (context, ref, _) {
           final colors = ref.watch(appThemeProvider).colors;
+          final isMobile = context.isMobile;
           return Stack(
             children: [
               Positioned.fill(
@@ -209,9 +211,9 @@ Future<T?> showCenterDialog<T>(
               ),
               Center(
                 child: Dialog(
-                  insetPadding: const EdgeInsets.symmetric(
-                    horizontal: 100,
-                    vertical: 80,
+                  insetPadding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 100,
+                    vertical: isMobile ? 20 : 80,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),

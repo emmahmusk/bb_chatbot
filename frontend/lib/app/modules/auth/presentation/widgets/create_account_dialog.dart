@@ -18,7 +18,7 @@ class _CreateAccountDialogState extends ConsumerState<CreateAccountDialog> {
   @override
   Widget build(BuildContext context) {
     return AuthDialog(
-      // height: MediaQuery.of(context).size.height * 10.0,
+      height: 660,
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         switchInCurve: Curves.easeOut,

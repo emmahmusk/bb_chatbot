@@ -44,7 +44,8 @@ class _CreateAccountStep1State extends ConsumerState<CreateAccountStep1> {
     final notifier = ref.read(signupDtoProvider.notifier);
     final colors = ref.watch(appThemeProvider).colors;
 
-    return SingleChildScrollView(
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.max,
         children: [

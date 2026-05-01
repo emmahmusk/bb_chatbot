@@ -11,7 +11,7 @@ class TrendingEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return ResponsiveBuilder(
       hasScaffold: true,
-      mobileBuilder: (context) => Container(),
+      mobileBuilder: (context) => const DesktopTrendingPage(initialPage: '1'),
       desktopBuilder: (context) => const DesktopTrendingPage(initialPage: '1'),
     );
   }
