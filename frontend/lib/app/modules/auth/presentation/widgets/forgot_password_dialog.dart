@@ -8,7 +8,7 @@ import 'package:frontend/app/shared/functions/app_functions.dart';
 import 'package:frontend/app/shared/presentation/widgets/clickable.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_textfield.dart';
-import 'package:frontend/app/shared/presentation\widgets/title_subtitle.dart';
+import 'package:frontend/app/shared/presentation/widgets/title_subtitle.dart';
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:frontend/core/navigation/navigator.dart';
 
