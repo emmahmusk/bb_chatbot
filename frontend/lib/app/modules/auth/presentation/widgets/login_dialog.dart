@@ -4,6 +4,7 @@ import 'package:frontend/app/modules/auth/data/login_response_model.dart';
 import 'package:frontend/app/modules/auth/domain/repositories/auth_repository.dart';
 import 'package:frontend/app/modules/auth/presentation/widgets/auth_dialog.dart';
 import 'package:frontend/app/modules/auth/presentation/widgets/create_account_dialog.dart';
+import 'package:frontend/app/modules/auth/presentation/widgets/forgot_password_dialog.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
 import 'package:frontend/app/shared/presentation/widgets/clickable.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
@@ -11,7 +12,7 @@ import 'package:frontend/app/shared/presentation/widgets/custom_textfield.dart';
 import 'package:frontend/app/shared/presentation/widgets/title_subtitle.dart';
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:frontend/core/navigation/navigator.dart';
- import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginDialog extends ConsumerStatefulWidget {
   const LoginDialog({super.key});
@@ -56,6 +57,26 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
                 password = pass;
               });
             },
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Clickable(
+              onClick: () {
+                popAndShowCenterDialog(
+                  context,
+                  const ForgotPasswordDialog(),
+                );
+              },
+              child: Text(
+                'Forgot password?',
+                style: TextStyle(
+                  color: colors.alwaysWhite,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 42),
           CustomButton(

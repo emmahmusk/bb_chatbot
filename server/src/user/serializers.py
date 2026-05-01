@@ -278,7 +278,7 @@ class CombinedProfileSerializer(serializers.Serializer):
         kyc_data = validated_data.get("kyc_profile", {})
 
         # Update Profile
-        profile = instance.profile
+        profile, _ = Profile.objects.get_or_create(user=instance)
         for attr, value in profile_data.items():
             setattr(profile, attr, value)
         profile.save()

@@ -76,12 +76,13 @@ class LoginAPIView(APIView):
             return Response({"error": "Invalid username or password"}, status=400)
 
         login(request, user)
+        profile, _ = Profile.objects.get_or_create(user=user)
         refresh = RefreshToken.for_user(user)
 
         return Response(
             {
-                "profile": ProfileSerializer(user.profile).data,
-                "is_admin": user.profile.is_admin,
+                "profile": ProfileSerializer(profile).data,
+                "is_admin": profile.is_admin,
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
             },
@@ -117,18 +118,17 @@ class SignupAPIView(APIView):
                 last_name=data.get("last_name"),
             )
 
-            profile = Profile.objects.create(
-                user=user,
-                is_admin=is_admin,
-                phone=data.get("phone"),
-                date_of_birth=data.get("date_of_birth"),
-                current_address=data.get("current_address"),
-                home_address=data.get("home_address"),
-                city=data.get("city"),
-                postal_code=data.get("postal_code"),
-            )
+            profile, _ = Profile.objects.get_or_create(user=user)
+            profile.is_admin = is_admin
+            profile.phone = data.get("phone")
+            profile.date_of_birth = data.get("date_of_birth")
+            profile.current_address = data.get("current_address")
+            profile.home_address = data.get("home_address")
+            profile.city = data.get("city")
+            profile.postal_code = data.get("postal_code")
+            profile.save()
 
-            KYCProfile.objects.create(user=user)
+            KYCProfile.objects.get_or_create(user=user)
 
         except Exception as e:
             return Response({"error": str(e)}, status=400)

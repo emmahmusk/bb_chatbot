@@ -54,4 +54,36 @@ class AuthRepository {
       body: dto.toJson(),
     );
   }
+
+  ApiFuture<String> requestPasswordReset({
+    required String email,
+  }) {
+    return postCall(
+      http,
+      endpoint: AuthEndpoints.passwordResetRequest,
+      acceptableStatusCodes: const [200],
+      onResponseBody: (r, _) => (r['message'] ?? 'OTP sent').toString(),
+      body: {
+        "email": email,
+      },
+    );
+  }
+
+  ApiFuture<String> verifyPasswordReset({
+    required String email,
+    required String otpCode,
+    required String newPassword,
+  }) {
+    return postCall(
+      http,
+      endpoint: AuthEndpoints.passwordResetVerify,
+      acceptableStatusCodes: const [200],
+      onResponseBody: (r, _) => (r['message'] ?? 'Password reset successful').toString(),
+      body: {
+        "email": email,
+        "otp_code": otpCode,
+        "new_password": newPassword,
+      },
+    );
+  }
 }

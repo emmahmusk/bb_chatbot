@@ -8,6 +8,7 @@ import 'package:frontend/app/modules/auth/presentation/widgets/login_dialog.dart
 import 'package:frontend/app/shared/classes/helpers/debouncer.dart';
 import 'package:frontend/app/shared/extensions/string_extension.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
+import 'package:frontend/app/shared/presentation/widgets/clickable.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_textfield.dart';
 import 'package:frontend/app/shared/presentation/widgets/title_subtitle.dart';
@@ -17,7 +18,12 @@ import 'package:frontend/core/navigation/navigator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend/app/modules/auth/data/login_response_model.dart';
 class CreateAccountStep2 extends ConsumerStatefulWidget {
-  const CreateAccountStep2({super.key});
+  const CreateAccountStep2({
+    super.key,
+    this.onBack,
+  });
+
+  final VoidCallback? onBack;
 
   @override
   ConsumerState<ConsumerStatefulWidget> createState() =>
@@ -101,6 +107,29 @@ class _CreateAccountStep2State extends ConsumerState<CreateAccountStep2> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.onBack != null) ...[
+            Clickable(
+              onClick: widget.onBack,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 14,
+                    color: colors.alwaysWhite,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Back',
+                    style: _getTextStyle(colors, fontSize: 14).copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
           Center(
             child: TitleSubtitle(
               title: 'Contact Details',
