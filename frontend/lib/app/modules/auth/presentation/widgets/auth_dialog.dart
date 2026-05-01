@@ -33,11 +33,11 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
     final viewportHeight = MediaQuery.of(context).size.height;
     final viewportWidth = MediaQuery.of(context).size.width;
     final isMobile = viewportWidth < 600;
-    final effectiveHeight = math.min(
+    final double effectiveHeight = math.min(
       widget.height ?? 620,
-      math.max(520, viewportHeight - 32),
+      math.max(520.0, viewportHeight - 32),
     );
-    final effectiveWidth = math.min(
+    final double effectiveWidth = math.min(
       490.0,
       math.max(320.0, viewportWidth - (isMobile ? 32 : 0)),
     );
