@@ -375,12 +375,25 @@ USE_TZ = True
 
 # CORS is configured per environment above (development vs production)
 
-# SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-# SECURE_SSL_REDIRECT = (
-#     True  # Django will redirect HTTP to HTTPS if it receives an HTTP request
-# )
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
+# Production deployments in this repo run Gunicorn on an internal port and
+# expect TLS to be terminated by an upstream proxy or load balancer.
+if DJANGO_ENV == "production":
+    # Trust the standard forwarded proto header from Nginx / ALB / ELB.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = True
+
+    # Enforce HTTPS and secure cookies in production by default. These can be
+    # tuned via environment variables if the proxy setup needs a softer rollout.
+    SECURE_SSL_REDIRECT = environ.get("SECURE_SSL_REDIRECT", "true").lower() == "true"
+    SESSION_COOKIE_SECURE = environ.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
+    CSRF_COOKIE_SECURE = environ.get("CSRF_COOKIE_SECURE", "true").lower() == "true"
+
+    # HSTS is safe once the certificate and proxy are configured correctly.
+    SECURE_HSTS_SECONDS = int(environ.get("SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = (
+        environ.get("SECURE_HSTS_INCLUDE_SUBDOMAINS", "true").lower() == "true"
+    )
+    SECURE_HSTS_PRELOAD = environ.get("SECURE_HSTS_PRELOAD", "true").lower() == "true"
 
 # CSRF Trusted Origins - now read from environmentkmm
 # For production, this should include your domain names and any trusted subdomains.

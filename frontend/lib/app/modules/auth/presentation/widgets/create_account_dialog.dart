@@ -44,8 +44,7 @@ class _CreateAccountDialogState extends ConsumerState<CreateAccountDialog> {
       case 1:
         return CreateAccountStep2(
           key: key,
-          // optionally wire up a back callback:
-          // onBack: () => setState(() => currentIndex = 0),
+          onBack: () => setState(() => currentIndex = 0),
         );
       default:
         throw UnimplementedError();

@@ -57,17 +57,18 @@ class SignupAPIView(APIView):
             return Response({"error": str(e)}, status=400)
         # Optional: Log the user in for session-based features
         try:
-            # Create profile with extended KYC fields
-            profile = Profile.objects.create(
-                user=user,
-                phone=data.get("phone"),
-                date_of_birth=data.get("date_of_birth"),
-                current_address=data.get("current_address"),
-                home_address=data.get("home_address"),
-                city=data.get("city"),
-                postal_code=data.get("postal_code"),
-            )
-            kyc_profile = KYCProfile.objects.create(user=user)
+            # Signals should create the base profile/wallet, but keep signup
+            # idempotent so legacy or partially created users do not break.
+            profile, _ = Profile.objects.get_or_create(user=user)
+            profile.phone = data.get("phone")
+            profile.date_of_birth = data.get("date_of_birth")
+            profile.current_address = data.get("current_address")
+            profile.home_address = data.get("home_address")
+            profile.city = data.get("city")
+            profile.postal_code = data.get("postal_code")
+            profile.save()
+
+            KYCProfile.objects.get_or_create(user=user)
             get_or_create_wallet_with_starting_coins(user=user)
         except Exception as e:
             return Response({"error": str(e)}, status=400)
@@ -97,6 +98,7 @@ class LoginAPIView(APIView):
         login(request, user)
 
         # Ensure KYC and Wallet exist
+        Profile.objects.get_or_create(user=user)
         KYCProfile.objects.get_or_create(user=user)
         get_or_create_wallet_with_starting_coins(user=user)
 
@@ -124,14 +126,16 @@ class RetrieveUpdateProfileAPIView(APIView):
 
     def get(self, request):
         """Retrieve both profile and KYC details."""
+        profile, _ = Profile.objects.get_or_create(user=request.user)
         serializer = CombinedProfileSerializer({
-            "profile": request.user.profile,
+            "profile": profile,
             "kyc_profile": getattr(request.user, "kyc_profile", None)
         })
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request):
         """Update both profile and KYC details in one request."""
+        Profile.objects.get_or_create(user=request.user)
         serializer = CombinedProfileSerializer(
             instance=request.user,
             data=request.data,
@@ -246,14 +250,7 @@ class VerifyEmailAPIView(APIView):
         """
         user = request.user
 
-        # Ensure the user has a profile
-        if not hasattr(user, "profile"):
-            return Response(
-                {"error": "User does not have a linked profile."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        profile = user.profile
+        profile, _ = Profile.objects.get_or_create(user=user)
 
         if profile.email_verified:
             return Response(

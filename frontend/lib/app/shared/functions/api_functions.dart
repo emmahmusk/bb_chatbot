@@ -252,15 +252,15 @@ Right<T, FailureResponse<E>> handleOtherResponses<T, E>(Response response) {
   String failureMessage = "Something went wrong";
   if (response.is400) {
     final body = Map.from(jsonDecode(response.body));
-    failureMessage = body['error'] ?? "Something went wrong";
+    failureMessage = body['error'] ?? body['detail'] ?? body['message'] ?? "Something went wrong";
   }
   if (response.is401) {
     final body = Map.from(jsonDecode(response.body));
-    failureMessage = body['detail'] ?? "Something went wrong";
+    failureMessage = body['detail'] ?? body['message'] ?? "Something went wrong";
   }
   if (response.is404) {
     final body = Map.from(jsonDecode(response.body));
-    failureMessage = body['error'] ?? "Something went wrong";
+    failureMessage = body['error'] ?? body['detail'] ?? body['message'] ?? "Something went wrong";
   }
   return Right(OtherFailureResponse(failureMessage));
 }
