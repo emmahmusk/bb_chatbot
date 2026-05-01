@@ -31,15 +31,21 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
     final viewportHeight = MediaQuery.of(context).size.height;
+    final viewportWidth = MediaQuery.of(context).size.width;
+    final isMobile = viewportWidth < 600;
     final effectiveHeight = math.min(
       widget.height ?? 620,
       math.max(520, viewportHeight - 32),
     );
+    final effectiveWidth = math.min(
+      490.0,
+      math.max(320.0, viewportWidth - (isMobile ? 32 : 0)),
+    );
 
     return Container(
-      width: 490,
+      width: effectiveWidth,
       height: effectiveHeight,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 20 : 24),
       decoration: BoxDecoration(
         color: colors.primary,
         borderRadius: BorderRadius.circular(16),
@@ -78,7 +84,7 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
               ),
             ],
           ),
-          const SizedBox(height: 36),
+          SizedBox(height: isMobile ? 24 : 36),
           Expanded(
             child: ScrollbarTheme(
               data: ScrollbarThemeData(

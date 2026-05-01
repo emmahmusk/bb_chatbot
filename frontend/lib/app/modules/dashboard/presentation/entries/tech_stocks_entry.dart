@@ -9,7 +9,7 @@ class TechStocksEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return ResponsiveBuilder(
       hasScaffold: true,
-      mobileBuilder: (context) => Container(),
+      mobileBuilder: (context) => DesktopTechStocksPage(),
       desktopBuilder: (context) => DesktopTechStocksPage(),
     );
   }

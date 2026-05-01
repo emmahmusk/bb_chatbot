@@ -845,8 +845,10 @@ String formatToMMDDYYYY(String input) {
   Widget build(BuildContext context) {
     final state = ref.watch(getMarketsProviderNew);
 //  "",
+   final outerPadding = MediaQuery.of(context).size.width < 600 ? 0.0 : 40.0;
+
    return Padding(
-  padding: const EdgeInsets.only(left: 40),
+  padding: EdgeInsets.only(left: outerPadding),
   child: Container(
     width: double.infinity,
     padding: const EdgeInsets.all(16),

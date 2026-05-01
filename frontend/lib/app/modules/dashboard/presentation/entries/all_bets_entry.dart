@@ -9,7 +9,7 @@ class AllBetsEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return ResponsiveBuilder(
       hasScaffold: true,
-      mobileBuilder: (context) => Container(),
+      mobileBuilder: (context) => DesktopAllBetsPage(),
       desktopBuilder: (context) => DesktopAllBetsPage(),
     );
   }
