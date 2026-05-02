@@ -173,6 +173,78 @@ String formatToMMDDYYYY(String input) {
   return DateFormat('MMM d, yyyy').format(date);
 }
 
+double? resolveLastPriceFromMarket(Map market) {
+  final stock = market['stock'] is Map ? market['stock'] as Map : {};
+  for (final value in [
+    market['last_price'],
+    market['latest_price'],
+    market['current_price'],
+    market['price'],
+    stock['last_price'],
+    stock['latest_price'],
+    stock['current_price'],
+    stock['price'],
+    stock['close'],
+    stock['previous_close'],
+  ]) {
+    if (value == null) {
+      continue;
+    }
+    final parsed = double.tryParse(value.toString());
+    if (parsed != null) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+Widget buildDesktopLastPricePill(double lastPrice) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: const Color(0xFF161B22),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: const Color(0xFFB0B0B0),
+        width: 1,
+      ),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.show_chart_rounded,
+          size: 16,
+          color: Color(0xFF52AAFF),
+        ),
+        const SizedBox(width: 6),
+        RichText(
+          text: TextSpan(
+            children: [
+              const TextSpan(
+                text: "Last: ",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF888888),
+                ),
+              ),
+              TextSpan(
+                text: "\$${lastPrice.toStringAsFixed(2)}",
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 Future<void> _openExpiryDialog(String symbol) async {
   // fetch the dates first
   await fetchExpiryDates(symbol);
@@ -1297,8 +1369,10 @@ Future<void> _showFullScreenGraph() async {
                                                 padding:   EdgeInsets.only(left:20, right: 40, top: 15.0, bottom: 15.0),
                                                 margin: const EdgeInsets.only(top: 8),
                                                  
-                                                child:  Row(
-                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                child:  Wrap(
+                                                    spacing: 14,
+                                                    runSpacing: 10,
+                                                    crossAxisAlignment: WrapCrossAlignment.center,
                                                     children: [
                                                       /// Expiry Left
                                                       GestureDetector(
@@ -1342,6 +1416,11 @@ Future<void> _showFullScreenGraph() async {
                                                       ),
                                                     ), 
                                               ),
+
+                                              if (resolveLastPriceFromMarket(market) != null)
+                                                buildDesktopLastPricePill(
+                                                  resolveLastPriceFromMarket(market)!,
+                                                ),
                                                       
                                                       
                                                                            

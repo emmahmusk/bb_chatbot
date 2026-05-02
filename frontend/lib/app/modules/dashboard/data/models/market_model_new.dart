@@ -28,6 +28,7 @@ class MarketModel {
   final int id;
   final Stock stock;
   final double targetPrice;
+  final double? lastPrice;
   final String expiryDate;
   final String outcomeType;
   final String impliedOddsOver;
@@ -46,6 +47,7 @@ class MarketModel {
     required this.id,
     required this.stock,
     required this.targetPrice,
+    this.lastPrice,
     required this.expiryDate,
     required this.outcomeType,
     required this.impliedOddsOver,
@@ -72,6 +74,7 @@ class MarketModel {
         createdAt: DateTime.now(),
       ),
       targetPrice: 0.0,
+      lastPrice: null,
       expiryDate: '',
       outcomeType: '',
       impliedOddsOver: '0',
@@ -89,6 +92,7 @@ class MarketModel {
   factory MarketModel.fromJson(Map<String, dynamic> json) {
     final oddsOver = json['odds_over'] ?? {};
     final oddsUnder = json['odds_under'] ?? {};
+    final stockJson = json['stock'] as Map<String, dynamic>? ?? {};
     
     final impliedOver = json['implied_odds_over'] != null ? json['implied_odds_over'].toString() : '0';
     final impliedUnder = json['implied_odds_under'] != null ? json['implied_odds_under'].toString() : '0';
@@ -99,6 +103,18 @@ class MarketModel {
       id: json['id'],
       stock: Stock.fromJson(json['stock']),
       targetPrice: double.tryParse(json['target_price'].toString()) ?? 0.0,
+      lastPrice: _parseLastPrice(
+        json['last_price'],
+        json['latest_price'],
+        json['current_price'],
+        json['price'],
+        stockJson['last_price'],
+        stockJson['latest_price'],
+        stockJson['current_price'],
+        stockJson['price'],
+        stockJson['close'],
+        stockJson['previous_close'],
+      ),
       expiryDate: json['expiry_date'].toString(),
       outcomeType: json['outcome_type'].toString(),
       impliedOddsOver: impliedOver,
@@ -112,6 +128,40 @@ class MarketModel {
       oddsFOver: oddsOver['fractional']?.toString(),
       oddsFUnder: oddsUnder['fractional']?.toString(),
     );
+  }
+
+  static double? _parseLastPrice(dynamic first, [
+    dynamic second,
+    dynamic third,
+    dynamic fourth,
+    dynamic fifth,
+    dynamic sixth,
+    dynamic seventh,
+    dynamic eighth,
+    dynamic ninth,
+    dynamic tenth,
+  ]) {
+    for (final value in [
+      first,
+      second,
+      third,
+      fourth,
+      fifth,
+      sixth,
+      seventh,
+      eighth,
+      ninth,
+      tenth,
+    ]) {
+      if (value == null) {
+        continue;
+      }
+      final parsed = double.tryParse(value.toString());
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+    return null;
   }
 }
 
