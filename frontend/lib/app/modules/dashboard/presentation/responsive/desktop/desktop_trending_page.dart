@@ -148,49 +148,38 @@ String formatToMMDDYYYY(String input) {
 }
 
 Widget buildDesktopLastPricePill(double lastPrice) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-    decoration: BoxDecoration(
-      color: const Color(0xFF161B22),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(
-        color: const Color(0xFFB0B0B0),
-        width: 1,
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      const Icon(
+        Icons.show_chart_rounded,
+        size: 13,
+        color: Color(0xFF7AA2FF),
       ),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(
-          Icons.show_chart_rounded,
-          size: 16,
-          color: Color(0xFF52AAFF),
-        ),
-        const SizedBox(width: 6),
-        RichText(
-          text: TextSpan(
-            children: [
-              const TextSpan(
-                text: "Last: ",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF888888),
-                ),
+      const SizedBox(width: 5),
+      RichText(
+        text: TextSpan(
+          children: [
+            const TextSpan(
+              text: "Last price ",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF8B949E),
               ),
-              TextSpan(
-                text: "\$${lastPrice.toStringAsFixed(2)}",
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
+            ),
+            TextSpan(
+              text: "\$${lastPrice.toStringAsFixed(2)}",
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE6EDF3),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
-    ),
+      ),
+    ],
   );
 }
 
@@ -1142,6 +1131,12 @@ Future<void> fetchAndReplaceMarket(
                                                               color: Colors.white,
                                                             ),
                                                           ),
+                                                          if (market.lastPrice != null) ...[
+                                                            const SizedBox(height: 4),
+                                                            buildDesktopLastPricePill(
+                                                              market.lastPrice!,
+                                                            ),
+                                                          ],
                                                         ],
                                                       )
                                                                                      
@@ -1363,10 +1358,8 @@ Future<void> fetchAndReplaceMarket(
                                             bottomRight: Radius.circular(8),
                                             ),
                                           ),
-                                          child: Wrap(
-                                              spacing: 14,
-                                              runSpacing: 10,
-                                              crossAxisAlignment: WrapCrossAlignment.center,
+                                          child:  Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                               children: [
                                                 /// Expiry Left
                                                 GestureDetector(
@@ -1412,12 +1405,6 @@ Future<void> fetchAndReplaceMarket(
                                   
                                   
                                                 ),
-
-                                                if (market.lastPrice != null)
-                                                  buildDesktopLastPricePill(
-                                                    market.lastPrice!,
-                                                  ),
-                                                
                                                                      
                                             MouseRegion(
                                               cursor: SystemMouseCursors.click,
