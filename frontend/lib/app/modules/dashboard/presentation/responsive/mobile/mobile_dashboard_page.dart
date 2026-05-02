@@ -1,9 +1,12 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app/modules/auth/data/login_response_model.dart';
 import 'package:frontend/app/modules/auth/presentation/widgets/create_account_dialog.dart';
 import 'package:frontend/app/modules/auth/presentation/widgets/login_dialog.dart';
 import 'package:frontend/app/modules/auth/presentation/widgets/profile_settings_dialog.dart';
+import 'package:frontend/app/modules/competition/presentation/providers/competition_my_provider.dart';
 import 'package:frontend/app/modules/dashboard/presentation/dashboard_routes.dart';
 import 'package:frontend/app/modules/dashboard/presentation/providers/stock_selection_provider.dart';
 import 'package:frontend/app/modules/dashboard/presentation/responsive/sections/dashboard/bet_slip_section.dart';
@@ -18,7 +21,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../providers/bet_history_provider_new.dart';
 
-class MobileDashboardPage extends ConsumerWidget {
+class MobileDashboardPage extends ConsumerStatefulWidget {
   const MobileDashboardPage({
     super.key,
     required this.shell,
@@ -27,7 +30,15 @@ class MobileDashboardPage extends ConsumerWidget {
   final StatefulNavigationShell shell;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MobileDashboardPage> createState() =>
+      _MobileDashboardPageState();
+}
+
+class _MobileDashboardPageState extends ConsumerState<MobileDashboardPage> {
+  bool _isPredictionSlipOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
     final selectedStocks = ref.watch(selectedStockProvider);
 
@@ -52,13 +63,13 @@ class MobileDashboardPage extends ConsumerWidget {
               const SizedBox(height: 18),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _MobileRouteChipHeader(shell: shell),
+                child: _MobileRouteChipHeader(shell: widget.shell),
               ),
               const SizedBox(height: 18),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
-                  child: shell,
+                  child: widget.shell,
                 ),
               ),
             ],
@@ -70,7 +81,8 @@ class MobileDashboardPage extends ConsumerWidget {
             child: Clickable(
               onClick: () => _openPredictionSlip(context),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
                   gradient: LinearGradient(
@@ -117,42 +129,79 @@ class MobileDashboardPage extends ConsumerWidget {
               ),
             ),
           ),
+          if (_isPredictionSlipOpen)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ClipRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.36),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  void _openPredictionSlip(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return FractionallySizedBox(
-          heightFactor: 0.88,
-          child: SafeArea(
-            top: false,
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                Container(
-                  width: 44,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.white38,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: BetSlipSection(),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+  Future<void> _openPredictionSlip(BuildContext context) async {
+    if (_isPredictionSlipOpen) {
+      return;
+    }
+
+    final routeUri = GoRouterState.of(context).uri;
+    final competitionId = int.tryParse(
+      routeUri.queryParameters['competitionId'] ?? '',
     );
+
+    setState(() {
+      _isPredictionSlipOpen = true;
+    });
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.transparent,
+        builder: (sheetContext) {
+          return FractionallySizedBox(
+            heightFactor: 0.88,
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.white38,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: BetSlipSection(
+                      competitionId: competitionId,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPredictionSlipOpen = false;
+        });
+      }
+    }
   }
 }
 
@@ -163,12 +212,23 @@ class _MobileDashboardHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final profile = ref.watch(currentUserProvider);
+    final myCompetitions = ref.watch(competitionMyProvider);
     final colors = ref.watch(appThemeProvider).colors;
     final routeUri = GoRouterState.of(context).uri;
     final selectedCompetitionId = int.tryParse(
       routeUri.queryParameters['competitionId'] ?? '',
     );
     final isCompetitionPage = routeUri.path == DashboardRoutes.competitions;
+    final isCompetitionMode =
+        isCompetitionPage || selectedCompetitionId != null;
+
+    if (isCompetitionMode &&
+        !myCompetitions.isLoading &&
+        !myCompetitions.isSuccess) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(competitionMyProvider.notifier).load();
+      });
+    }
 
     String trendingRoute() {
       if (selectedCompetitionId == null || isCompetitionPage) {
@@ -181,7 +241,29 @@ class _MobileDashboardHeader extends ConsumerWidget {
     }
 
     String walletCoinBalance = '0.00';
-    if (profile != null) {
+    if (isCompetitionMode) {
+      String competitionBalance = '0.00';
+
+      if (myCompetitions.isSuccess && myCompetitions.data.results.isNotEmpty) {
+        String? selectedCompetitionBalance;
+
+        if (selectedCompetitionId != null) {
+          for (final membership in myCompetitions.data.results) {
+            if (membership.competition == selectedCompetitionId) {
+              selectedCompetitionBalance = membership.competitionCoinBalance;
+              break;
+            }
+          }
+        }
+
+        competitionBalance = selectedCompetitionBalance ??
+            myCompetitions.data.results.first.competitionCoinBalance;
+      }
+
+      walletCoinBalance = formatAmount(
+        double.tryParse(competitionBalance) ?? 0.0,
+      );
+    } else if (profile != null) {
       walletCoinBalance = formatAmount(
         double.tryParse(profile.walletCoinBalance) ?? 0.0,
       );
@@ -257,7 +339,8 @@ class _MobileDashboardHeader extends ConsumerWidget {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: colors.always30363D.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(16),
@@ -397,7 +480,9 @@ class _MobileRouteChipHeader extends ConsumerWidget {
               Icon(
                 Icons.circle,
                 size: 10,
-                color: _isUSMarketOpenNow() ? Colors.greenAccent : Colors.orangeAccent,
+                color: _isUSMarketOpenNow()
+                    ? Colors.greenAccent
+                    : Colors.orangeAccent,
               ),
               const SizedBox(width: 8),
               Text(
@@ -492,7 +577,8 @@ class _AuthActionPill extends ConsumerWidget {
         height: 46,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: filled ? null : Border.all(color: colors.always30363D, width: 1),
+          border:
+              filled ? null : Border.all(color: colors.always30363D, width: 1),
           color: filled ? null : colors.always30363D.withValues(alpha: 0.2),
           gradient: filled
               ? LinearGradient(

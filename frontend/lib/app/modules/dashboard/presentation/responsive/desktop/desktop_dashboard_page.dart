@@ -15,6 +15,7 @@ import 'package:frontend/app/modules/auth/presentation/widgets/login_dialog.dart
 import 'package:frontend/app/shared/functions/app_functions.dart';
 import '../../providers/bet_history_provider_new.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 class DesktopDashboardPage extends ConsumerStatefulWidget {
   const DesktopDashboardPage({super.key, required this.shell});
   final StatefulNavigationShell shell;
@@ -34,11 +35,15 @@ class _DesktopDashboardPageState extends ConsumerState<DesktopDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
+    final routeUri = GoRouterState.of(context).uri;
+    final competitionId = int.tryParse(
+      routeUri.queryParameters['competitionId'] ?? '',
+    );
+
     return Scaffold(
       backgroundColor: colors.primary,
       body: Column(
         mainAxisSize: MainAxisSize.max,
-         
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 10),
@@ -67,7 +72,9 @@ class _DesktopDashboardPageState extends ConsumerState<DesktopDashboardPage> {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(right: 40),
-                    child: BetSlipSection(),
+                    child: BetSlipSection(
+                      competitionId: competitionId,
+                    ),
                   ),
                 ),
               ],
@@ -101,15 +108,15 @@ class CustomRouteChipHeader extends ConsumerWidget {
 
     String? effectiveCompetitionId = activeCompetitionId;
     if ((effectiveCompetitionId == null || effectiveCompetitionId.isEmpty) &&
-      isOnCompetitionRoute &&
-      myCompetitions.isSuccess &&
-      myCompetitions.data.results.isNotEmpty) {
+        isOnCompetitionRoute &&
+        myCompetitions.isSuccess &&
+        myCompetitions.data.results.isNotEmpty) {
       effectiveCompetitionId =
-        myCompetitions.data.results.first.competition.toString();
+          myCompetitions.data.results.first.competition.toString();
     }
 
     final isCompetitionMode =
-      effectiveCompetitionId != null && effectiveCompetitionId.isNotEmpty;
+        effectiveCompetitionId != null && effectiveCompetitionId.isNotEmpty;
 
     String _routeWithCompetitionContext(String path) {
       if (effectiveCompetitionId == null || effectiveCompetitionId.isEmpty) {
@@ -144,7 +151,8 @@ class CustomRouteChipHeader extends ConsumerWidget {
                   context.go('/dashboard/trending');
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                   decoration: BoxDecoration(
                     border: Border.all(color: colors.alwaysWhite),
                     borderRadius: BorderRadius.circular(50),
@@ -153,7 +161,8 @@ class CustomRouteChipHeader extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.arrow_back, color: colors.alwaysWhite, size: 14),
+                      Icon(Icons.arrow_back,
+                          color: colors.alwaysWhite, size: 14),
                       const SizedBox(width: 6),
                       Text(
                         'Main Page',
@@ -197,11 +206,12 @@ class CustomRouteChipHeader extends ConsumerWidget {
                       );
 
                       // ✅ Navigate to the trending page
-                      context.go(_routeWithCompetitionContext('/dashboard/trending'));
+                      context.go(
+                          _routeWithCompetitionContext('/dashboard/trending'));
                     },
-
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 6, horizontal: 12),
                       decoration: BoxDecoration(
                         border: Border.all(color: colors.alwaysWhite),
                         borderRadius: BorderRadius.circular(50),
@@ -218,15 +228,16 @@ class CustomRouteChipHeader extends ConsumerWidget {
                     ),
                   ),
                 ),
-            
+
                 // Expiring Soon
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
-                    onTap: () async{
+                    onTap: () async {
                       // ✅ Get saved page from SharedPreferences (default = '1')
                       final prefs = await SharedPreferences.getInstance();
-                      final savedPage = prefs.getString('expiringSoonPage') ?? '1';
+                      final savedPage =
+                          prefs.getString('expiringSoonPage') ?? '1';
 
                       // ✅ Call API with the saved page and expiring_soon=true
                       ref.read(getMarketsProviderNew.notifier).get(
@@ -235,10 +246,12 @@ class CustomRouteChipHeader extends ConsumerWidget {
                           'page': savedPage,
                         },
                       );
-                       context.go(_routeWithCompetitionContext('/dashboard/expiring-soon'));
+                      context.go(_routeWithCompetitionContext(
+                          '/dashboard/expiring-soon'));
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 6, horizontal: 12),
                       decoration: BoxDecoration(
                         border: Border.all(color: colors.alwaysWhite),
                         borderRadius: BorderRadius.circular(50),
@@ -255,29 +268,30 @@ class CustomRouteChipHeader extends ConsumerWidget {
                     ),
                   ),
                 ),
-            
+
                 // All Stocks
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
                     onTap: () async {
-                        // ✅ Get saved All Stocks page (default to '1' if none found)
-                        final prefs = await SharedPreferences.getInstance();
-                        final savedPage = prefs.getString('allStocksPage') ?? '1';
+                      // ✅ Get saved All Stocks page (default to '1' if none found)
+                      final prefs = await SharedPreferences.getInstance();
+                      final savedPage = prefs.getString('allStocksPage') ?? '1';
 
-                        // ✅ Call the provider with the saved page
-                        ref.read(getMarketsProviderNew.notifier).get(
-                          queryParams: {
-                            'page': savedPage,
-                          },
-                        );
+                      // ✅ Call the provider with the saved page
+                      ref.read(getMarketsProviderNew.notifier).get(
+                        queryParams: {
+                          'page': savedPage,
+                        },
+                      );
 
-                        // ✅ Navigate to All Stocks page
-                        context.go(_routeWithCompetitionContext('/dashboard/all-stocks'));
-                      },
-
+                      // ✅ Navigate to All Stocks page
+                      context.go(_routeWithCompetitionContext(
+                          '/dashboard/all-stocks'));
+                    },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 6, horizontal: 12),
                       decoration: BoxDecoration(
                         border: Border.all(color: colors.alwaysWhite),
                         borderRadius: BorderRadius.circular(50),
@@ -304,49 +318,47 @@ class CustomRouteChipHeader extends ConsumerWidget {
 
           // Right-aligned: My Predictions
           Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 40),
-                child: Align(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 40),
+              child: Align(
                 alignment: Alignment.center,
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
-                      onTap: () async {
-                        if (!isAuthenticated()) {
-                          showCenterDialog(context, child: const LoginDialog());
-                          return;
-                        }
-                    
-                        ref.read(betHistoryProvider.notifier).get();
-                        context.go(_routeWithCompetitionContext('/dashboard/all-bets'));
-                      },
-                      child:  Container(
-                          padding: const EdgeInsets.only(top: 6,bottom:6,left:20, right: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: colors.alwaysWhite),
-                            borderRadius: BorderRadius.circular(50),
-                            color: colors.alwaysWhite.withOpacity(0.1),
-                          ),
-                          child: Text(
-                            'My Predictions',
-                            style: TextStyle(
-                              color: colors.alwaysWhite,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                    onTap: () async {
+                      if (!isAuthenticated()) {
+                        showCenterDialog(context, child: const LoginDialog());
+                        return;
+                      }
+
+                      ref.read(betHistoryProvider.notifier).get();
+                      context.go(
+                          _routeWithCompetitionContext('/dashboard/all-bets'));
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.only(
+                          top: 6, bottom: 6, left: 20, right: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colors.alwaysWhite),
+                        borderRadius: BorderRadius.circular(50),
+                        color: colors.alwaysWhite.withOpacity(0.1),
+                      ),
+                      child: Text(
+                        'My Predictions',
+                        style: TextStyle(
+                          color: colors.alwaysWhite,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                     
+                    ),
+                  ),
                 ),
               ),
-              ),
             ),
-           
-          
+          ),
         ],
       ),
     );
   }
 }
-
