@@ -9,7 +9,7 @@ class AccountEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return ResponsiveBuilder(
       hasScaffold: true,
-      mobileBuilder: (_) => Container(),
+      mobileBuilder: (_) => DesktopAccountPage(),
       desktopBuilder: (_) => DesktopAccountPage(),
     );
   }
