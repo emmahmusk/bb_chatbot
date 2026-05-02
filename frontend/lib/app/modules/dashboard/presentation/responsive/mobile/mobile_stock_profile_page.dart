@@ -54,6 +54,22 @@ class _MobileStockProfilePageState extends ConsumerState<MobileStockProfilePage>
   }
 
   @override
+  void didUpdateWidget(covariant MobileStockProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.id != widget.id) {
+      setState(() {
+        _market = null;
+        _htmlContent = '';
+        _isLoading = true;
+      });
+      _fetchMarket();
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
@@ -71,13 +87,14 @@ class _MobileStockProfilePageState extends ConsumerState<MobileStockProfilePage>
   }
 
   Future<void> _fetchMarket() async {
+    final requestedId = widget.id;
     try {
       final response = await http.get(
-        Uri.parse('https://api.bbbprediction.com/bet/markets/${widget.id}/'),
+        Uri.parse('https://api.bbbprediction.com/bet/markets/$requestedId/'),
       );
 
       if (response.statusCode != 200) {
-        if (!mounted) return;
+        if (!mounted || requestedId != widget.id) return;
         setState(() {
           _isLoading = false;
         });
@@ -100,7 +117,7 @@ class _MobileStockProfilePageState extends ConsumerState<MobileStockProfilePage>
         ref.read(recentlyVisitedProvider.notifier).add(recentlyVisited);
       }
 
-      if (!mounted) return;
+      if (!mounted || requestedId != widget.id) return;
 
       setState(() {
         _market = data;
@@ -108,7 +125,7 @@ class _MobileStockProfilePageState extends ConsumerState<MobileStockProfilePage>
         _isLoading = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || requestedId != widget.id) return;
       setState(() {
         _isLoading = false;
       });
