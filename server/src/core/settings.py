@@ -104,10 +104,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "core.wsgi.application"
 
+DEFAULT_RENDERER_CLASSES = [
+    "rest_framework.renderers.JSONRenderer",
+]
+if DEBUG:
+    DEFAULT_RENDERER_CLASSES.append(
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    )
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-    )
+    ),
+    "DEFAULT_RENDERER_CLASSES": tuple(DEFAULT_RENDERER_CLASSES),
 }
 
 SIMPLE_JWT = {
