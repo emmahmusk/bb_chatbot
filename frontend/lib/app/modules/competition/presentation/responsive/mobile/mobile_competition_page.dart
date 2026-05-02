@@ -9,6 +9,7 @@ import 'package:frontend/app/modules/competition/presentation/providers/competit
 import 'package:frontend/app/modules/competition/presentation/providers/competition_discover_provider.dart';
 import 'package:frontend/app/modules/competition/presentation/providers/competition_leaderboard_provider.dart';
 import 'package:frontend/app/modules/competition/presentation/providers/competition_my_provider.dart';
+import 'package:frontend/app/modules/competition/presentation/responsive/mobile/mobile_competition_details_sheet.dart';
 import 'package:frontend/app/modules/competition/presentation/widgets/competition_create_dialog.dart';
 import 'package:frontend/app/modules/competition/presentation/widgets/competition_pagination_bar.dart';
 import 'package:frontend/app/shared/extensions/context_extension.dart';
@@ -202,7 +203,10 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const _CompetitionDetailsSheet(),
+      builder: (_) => MobileCompetitionDetailsSheet(
+        pageSize: _pageSize,
+        onJoined: _syncFromRoute,
+      ),
     );
   }
 
@@ -801,11 +805,26 @@ class _MyCompetitionMobileList extends ConsumerWidget {
   }
 }
 
-class _CompetitionDetailsSheet extends ConsumerWidget {
-  const _CompetitionDetailsSheet();
+class _CompetitionDetailsSheet extends ConsumerStatefulWidget {
+  const _CompetitionDetailsSheet({
+    required this.pageSize,
+    required this.onJoined,
+  });
+
+  final int pageSize;
+  final Future<void> Function() onJoined;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CompetitionDetailsSheet> createState() =>
+      _CompetitionDetailsSheetState();
+}
+
+class _CompetitionDetailsSheetState
+    extends ConsumerState<_CompetitionDetailsSheet> {
+  bool _isJoining = false;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
     final detailState = ref.watch(competitionDetailProvider);
     final leaderboardState = ref.watch(competitionLeaderboardProvider);
