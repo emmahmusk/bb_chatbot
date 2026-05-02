@@ -113,17 +113,21 @@ class _DesktopAccountPageState extends State<DesktopAccountPage> {
     final request = http.MultipartRequest('PATCH', uri);
     request.headers['Authorization'] = 'Bearer $token';
 
-    request.files.add(http.MultipartFile.fromBytes(
-      'id_document',
-      idDocFile.bytes!,
-      filename: idDocFile.name,
-    ));
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'id_document',
+        idDocFile.bytes!,
+        filename: idDocFile.name,
+      ),
+    );
 
-    request.files.add(http.MultipartFile.fromBytes(
-      'selfie_image',
-      selfieFile.bytes!,
-      filename: selfieFile.name,
-    ));
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'selfie_image',
+        selfieFile.bytes!,
+        filename: selfieFile.name,
+      ),
+    );
 
     final response = await request.send();
     final responseBody = await response.stream.bytesToString();
@@ -152,78 +156,107 @@ class _DesktopAccountPageState extends State<DesktopAccountPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
+            final dialogWidth = MediaQuery.of(context).size.width < 420
+                ? MediaQuery.of(context).size.width - 32
+                : 420.0;
             return Dialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
               backgroundColor: const Color(0xFF0d1117),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      "Upload KYC Documents",
-                      style: TextStyle(color: Colors.white, fontSize: 18),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF0d1117),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: dialogWidth),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "Upload KYC Documents",
+                        style: TextStyle(color: Colors.white, fontSize: 18),
                       ),
-                      onPressed: () async {
-                        final result = await FilePicker.platform.pickFiles(
-                          withData: true,
-                          type: FileType.custom,
-                          allowedExtensions: ['pdf', 'jpg', 'png', 'doc', 'docx'],
-                        );
-                        if (result != null) {
-                          setState(() => idDocFile = result.files.single);
-                        }
-                      },
-                      child: Text(idDocFile == null
-                          ? "Select ID Document"
-                          : "ID Document Selected"),
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF0d1117),
-                      ),
-                      onPressed: () async {
-                        final result = await FilePicker.platform.pickFiles(
-                          withData: true,
-                          type: FileType.image,
-                        );
-                        if (result != null) {
-                          setState(() => selfieFile = result.files.single);
-                        }
-                      },
-                      child: Text(selfieFile == null
-                          ? "Select Selfie Image"
-                          : "Selfie Image Selected"),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: (idDocFile != null && selfieFile != null)
-                          ? () async {
-                              Navigator.of(context).pop();
-                              await uploadKycWithDocumentAndSelfie(
-                                context: context,
-                                idDocFile: idDocFile!,
-                                selfieFile: selfieFile!,
-                              );
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0d1117),
+                          ),
+                          onPressed: () async {
+                            final result = await FilePicker.platform.pickFiles(
+                              withData: true,
+                              type: FileType.custom,
+                              allowedExtensions: [
+                                'pdf',
+                                'jpg',
+                                'png',
+                                'doc',
+                                'docx',
+                              ],
+                            );
+                            if (result != null) {
+                              setState(() => idDocFile = result.files.single);
                             }
-                          : null,
-                      child: const Text("Submit KYC"),
-                    ),
-                  ],
+                          },
+                          child: Text(
+                            idDocFile == null
+                                ? "Select ID Document"
+                                : "ID Document Selected",
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0d1117),
+                          ),
+                          onPressed: () async {
+                            final result = await FilePicker.platform.pickFiles(
+                              withData: true,
+                              type: FileType.image,
+                            );
+                            if (result != null) {
+                              setState(() => selfieFile = result.files.single);
+                            }
+                          },
+                          child: Text(
+                            selfieFile == null
+                                ? "Select Selfie Image"
+                                : "Selfie Image Selected",
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: (idDocFile != null && selfieFile != null)
+                              ? () async {
+                                  Navigator.of(context).pop();
+                                  await uploadKycWithDocumentAndSelfie(
+                                    context: context,
+                                    idDocFile: idDocFile!,
+                                    selfieFile: selfieFile!,
+                                  );
+                                }
+                              : null,
+                          child: const Text("Submit KYC"),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -244,7 +277,8 @@ class _DesktopAccountPageState extends State<DesktopAccountPage> {
             ('Phone number', userProfile!.phoneNumber),
             ('Address', userProfile!.physicalAddress),
             if (kycStatus != null) ('KYC Status', kycStatus!),
-            if (kycSubmittedDate != null) ('KYC Submitted Date', kycSubmittedDate!),
+            if (kycSubmittedDate != null)
+              ('KYC Submitted Date', kycSubmittedDate!),
             if ((kycStatus == "pending" || kycStatus == "rejected") &&
                 reviewerComment != null &&
                 reviewerComment!.isNotEmpty)
@@ -258,12 +292,22 @@ class _DesktopAccountPageState extends State<DesktopAccountPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Account", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+            const Text(
+              "Account",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
             const SizedBox(height: 40),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: const [
-                Text("Personal Details", style: TextStyle(fontSize: 16, color: Colors.white)),
+                Text(
+                  "Personal Details",
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
                 // Keep the button styled as is
               ],
             ),
@@ -273,16 +317,34 @@ class _DesktopAccountPageState extends State<DesktopAccountPage> {
             if (userProfile == null)
               const Center(child: CircularProgressIndicator())
             else
-              ...userData.map((item) => Column(
-                    children: [
-                      ListTile(
-                        title: Text(item.$1, style: const TextStyle(fontSize: 12, color: Colors.white)),
-                        subtitle: Text(item.$2, style: const TextStyle(fontSize: 16, color: Colors.white)),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white),
+              ...userData.map(
+                (item) => Column(
+                  children: [
+                    ListTile(
+                      title: Text(
+                        item.$1,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white,
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                    ],
-                  )),
+                      subtitle: Text(
+                        item.$2,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                      trailing: const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
             if (kycStatus == "pending" || kycStatus == "rejected")
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -292,7 +354,10 @@ class _DesktopAccountPageState extends State<DesktopAccountPage> {
                 ),
               ),
             const SizedBox(height: 24),
-            const Text("Profile Picture", style: TextStyle(fontSize: 16, color: Colors.white)),
+            const Text(
+              "Profile Picture",
+              style: TextStyle(fontSize: 16, color: Colors.white),
+            ),
             const SizedBox(height: 12),
             CustomDivider(),
             const SizedBox(height: 24),

@@ -292,10 +292,12 @@ Future<void> _fetchSearchByTag(String tag) async {
   @override
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
+    final viewport = MediaQuery.of(context).size;
+    final isMobile = viewport.width < 600;
     return Container(
-      width: 893,
-      height: 500,
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      width: isMobile ? viewport.width - 20 : 893,
+      height: isMobile ? viewport.height - 120 : 500,
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 10),
       decoration: BoxDecoration(
         color: colors.always161B22,
         borderRadius: BorderRadius.circular(16),
@@ -321,9 +323,9 @@ Future<void> _fetchSearchByTag(String tag) async {
           ),
           const SizedBox(height: 5),
           CustomDivider(),
-          const SizedBox(height: 16),
+          SizedBox(height: isMobile ? 12 : 16),
            Padding(
-  padding: const EdgeInsets.symmetric(horizontal: 20),
+  padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 20),
   child: isTagsLoading
       ? const Padding(
           padding: EdgeInsets.symmetric(vertical: 8),
@@ -374,7 +376,7 @@ Future<void> _fetchSearchByTag(String tag) async {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  const SizedBox(height: 16),
+                  SizedBox(height: isMobile ? 12 : 16),
                   CustomDivider(),
                   isLoading?Center(child: 
                   Padding(
@@ -386,7 +388,7 @@ Future<void> _fetchSearchByTag(String tag) async {
                   
                   const SizedBox(height: 16),
                   CustomDivider(),
-                  const SizedBox(height: 16),
+                  SizedBox(height: isMobile ? 12 : 16),
                   // SearchStockItem(data: recentlyViewed),
                   SearchResultsItem(
                             data: (
@@ -402,7 +404,7 @@ Future<void> _fetchSearchByTag(String tag) async {
                               ).toList()
                             ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: isMobile ? 18 : 24),
                   isMostViewedLoading
                   ? Padding(
                       padding: const EdgeInsets.all(40),
@@ -411,9 +413,9 @@ Future<void> _fetchSearchByTag(String tag) async {
                   : SearchResultsItem(
                       data: ("Most viewed this week", _mapMostViewedResults()),
                     ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: isMobile ? 12 : 16),
                   CustomDivider(),
-                  const SizedBox(height: 8),
+                  SizedBox(height: isMobile ? 6 : 8),
                
                 ],
               ),
@@ -448,12 +450,10 @@ class SearchStockItem extends ConsumerWidget {
           const SizedBox(height: 32),
           for (var v in data.$2) ...[
             Row(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Image.asset(
                         v.$1,
@@ -462,30 +462,36 @@ class SearchStockItem extends ConsumerWidget {
                         height: 40,
                       ),
                       const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            v.$2,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0,
-                              color: colors.alwaysWhite,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              v.$2,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0,
+                                color: colors.alwaysWhite,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            v.$3,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0,
-                              color: colors.always8B949E,
+                            const SizedBox(height: 6),
+                            Text(
+                              v.$3,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0,
+                                color: colors.always8B949E,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -538,19 +544,21 @@ class SearchResultsItem extends ConsumerWidget {
           const SizedBox(height: 32),
           for (var v in data.$2) ...[
             GestureDetector(
-              onTap: () {
-              
+                            onTap: () {
+                final currentUri = GoRouterState.of(context).uri;
+                final competitionId = currentUri.queryParameters['competitionId'];
                 context.pop();
-                 context.go('/dashboard/stock-profile?id=${v.$5}');
+                final route = competitionId == null || competitionId.isEmpty
+                    ? '/dashboard/stock-profile?id=${v.$5}'
+                    : '/dashboard/stock-profile?id=${v.$5}&competitionId=$competitionId';
+                 context.go(route);
                 // context.go('/dashboard/stock-profile?symbol=${v.$3}&expiry=${v.$4}');
                           },
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
@@ -564,28 +572,34 @@ class SearchResultsItem extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              v.$2,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: colors.alwaysWhite,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                v.$2,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: colors.alwaysWhite,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              "\$"+v.$3,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: colors.always8B949E,
+                              const SizedBox(height: 6),
+                              Text(
+                                "\$"+v.$3,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: colors.always8B949E,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),

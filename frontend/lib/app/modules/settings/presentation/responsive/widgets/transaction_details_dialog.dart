@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app/modules/settings/presentation/responsive/widgets/timeline_breakdown.dart';
@@ -12,25 +14,25 @@ import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:frontend/core/navigation/navigator.dart';
 
 class TransactionDetailsDialog extends ConsumerWidget {
-  const TransactionDetailsDialog({
-    super.key,
-    required this.transaction,
-  });
+  const TransactionDetailsDialog({super.key, required this.transaction});
 
   final Map<String, dynamic> transaction;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = ref.watch(appThemeProvider).colors;
+    final viewport = MediaQuery.of(context).size;
+    final isCompact = viewport.width < 720;
+    final dialogWidth = math.min(686.0, viewport.width - 32);
     final isCredit =
         (transaction['transaction_type'] ?? '').toString().toLowerCase() ==
-            'credit';
+        'credit';
     final amountUnit = (transaction['amount_unit'] ?? 'BB Cash').toString();
     final displayAmount =
         (transaction['display_amount'] ?? transaction['amount'] ?? '0')
             .toString();
-    final description =
-        (transaction['description'] ?? 'Wallet transaction').toString();
+    final description = (transaction['description'] ?? 'Wallet transaction')
+        .toString();
     final reference = transaction['reference']?.toString();
     final txStatus = _normalizeStatus(transaction['status']?.toString());
     final createdAt = _parseDateTime(transaction['created_at']?.toString());
@@ -49,33 +51,36 @@ class TransactionDetailsDialog extends ConsumerWidget {
       ('Description', description),
       ('Date', createdAtText),
     ];
+    final referenceLabel = (reference != null && reference.trim().isNotEmpty)
+        ? reference
+        : 'TX-${transaction['id'] ?? ''}';
 
     return Container(
-      width: 686,
-      height: 700,
+      width: dialogWidth,
+      constraints: BoxConstraints(maxHeight: viewport.height - 40),
       decoration: BoxDecoration(
         color: colors.always161B22,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colors.always30363D.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: colors.always30363D.withValues(alpha: 0.3)),
       ),
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isCompact ? 20 : 24),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(),
-                const Spacer(),
-                Column(
+            if (isCompact) ...[
+              Align(
+                alignment: Alignment.topRight,
+                child: CloseIcon(svg: Svgs.close, onTap: () => pop(context)),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: Column(
                   children: [
                     Text(
                       'Transaction details',
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.w600,
                         color: colors.alwaysWhite,
                       ),
@@ -83,6 +88,7 @@ class TransactionDetailsDialog extends ConsumerWidget {
                     const SizedBox(height: 12),
                     Text(
                       'Details about this transaction.',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
@@ -91,64 +97,134 @@ class TransactionDetailsDialog extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const Spacer(),
-                CloseIcon(
-                  svg: Svgs.close,
-                  onTap: () => pop(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 44),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+            ] else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Container(),
+                  const Spacer(),
+                  Column(
                     children: [
-                      Image.asset(
-                        iconAsset,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              headerAmount,
-                              style: TextStyle(
-                                fontSize: 24,
-                                color: colors.alwaysWhite,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              typeLabel,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: colors.alwaysWhite,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
+                      Text(
+                        'Transaction details',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          color: colors.alwaysWhite,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      IconChip(
-                        asset: Pngs.checkCircle,
-                        text: _statusLabel(txStatus),
-                        color: _chipBackground(txStatus, colors),
-                        textColor: _chipTextColor(txStatus, colors),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Details about this transaction.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: colors.always8B949E,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 44),
+                  const Spacer(),
+                  CloseIcon(svg: Svgs.close, onTap: () => pop(context)),
+                ],
+              ),
+            const SizedBox(height: 32),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: isCompact ? 0 : 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isCompact) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Image.asset(
+                          iconAsset,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                headerAmount,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  color: colors.alwaysWhite,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                typeLabel,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: colors.alwaysWhite,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    IconChip(
+                      asset: Pngs.checkCircle,
+                      text: _statusLabel(txStatus),
+                      color: _chipBackground(txStatus, colors),
+                      textColor: _chipTextColor(txStatus, colors),
+                    ),
+                  ] else
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Image.asset(
+                          iconAsset,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                headerAmount,
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  color: colors.alwaysWhite,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                typeLabel,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: colors.alwaysWhite,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        IconChip(
+                          asset: Pngs.checkCircle,
+                          text: _statusLabel(txStatus),
+                          color: _chipBackground(txStatus, colors),
+                          textColor: _chipTextColor(txStatus, colors),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 32),
                   Text(
                     'Timeline Breakdown',
                     style: TextStyle(
@@ -161,15 +237,15 @@ class TransactionDetailsDialog extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            CustomDivider(),
+            const CustomDivider(),
             const SizedBox(height: 16),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
+              padding: EdgeInsets.symmetric(horizontal: isCompact ? 0 : 40),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TimelineBreakdown(events: timelineEvents),
-                  const SizedBox(height: 56),
+                  const SizedBox(height: 40),
                   for (final data in detailRows) ...[
                     RowTitleSubtitle(
                       title: data.$1,
@@ -180,44 +256,79 @@ class TransactionDetailsDialog extends ConsumerWidget {
                     ),
                     const SizedBox(height: 24),
                   ],
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'ID',
+                  if (isCompact) ...[
+                    Text(
+                      'ID',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: colors.always8B949E,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            referenceLabel,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: colors.alwaysWhite,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Clickable(
+                          onClick: () {
+                            // TODO: Implement copy
+                          },
+                          child: Image.asset(
+                            Pngs.copy,
+                            width: 12,
+                            height: 12,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'ID',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: colors.always8B949E,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          referenceLabel,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: colors.always8B949E,
+                            color: colors.alwaysWhite,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        (reference != null && reference.trim().isNotEmpty)
-                            ? reference
-                            : 'TX-${transaction['id'] ?? ''}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: colors.alwaysWhite,
+                        const SizedBox(width: 12),
+                        Clickable(
+                          onClick: () {
+                            // TODO: Implement copy
+                          },
+                          child: Image.asset(
+                            Pngs.copy,
+                            width: 12,
+                            height: 12,
+                            fit: BoxFit.cover,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Clickable(
-                        onClick: () {
-                          //TODO: Implement copy
-                        },
-                        child: Image.asset(
-                          Pngs.copy,
-                          width: 12,
-                          height: 12,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -356,13 +467,9 @@ class IconChip extends ConsumerWidget {
         color: color ?? colors.always003D2E,
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Image.asset(
-            asset,
-            width: 16,
-            height: 16,
-            fit: BoxFit.cover,
-          ),
+          Image.asset(asset, width: 16, height: 16, fit: BoxFit.cover),
           const SizedBox(width: 8),
           Text(
             text,

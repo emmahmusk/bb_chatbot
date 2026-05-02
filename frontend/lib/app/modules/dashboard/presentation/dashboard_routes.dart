@@ -3,10 +3,10 @@ import 'package:frontend/app/modules/competition/presentation/entries/competitio
 import 'package:frontend/app/modules/dashboard/presentation/entries/dashboard_entry.dart';
 import 'package:frontend/app/modules/dashboard/presentation/entries/expiring_soon_entry.dart';
 import 'package:frontend/app/modules/dashboard/presentation/entries/high_volume_entry.dart';
+import 'package:frontend/app/modules/dashboard/presentation/entries/stock_profile_entry.dart';
 import 'package:frontend/app/modules/dashboard/presentation/entries/tech_stocks_entry.dart';
 import 'package:frontend/app/modules/dashboard/presentation/entries/trending_entry.dart';
 import 'package:go_router/go_router.dart';
-import 'package:frontend/app/modules/dashboard/presentation/responsive/desktop/stock_profile_page.dart';
 
 
 class DashboardRoutes {
@@ -85,8 +85,8 @@ class DashboardRoutes {
                 path: stockProfile,
                 builder: (context, state) {
                   final id = state.uri.queryParameters['id'] ?? '';
-                  
-                  return StockProfilePage(id: id );
+
+                  return StockProfileEntry(id: id);
                 },
         ),
         ]

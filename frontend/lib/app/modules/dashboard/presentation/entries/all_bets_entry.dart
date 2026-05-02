@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/app/modules/dashboard/presentation/responsive/desktop/desktop_all_bets_page.dart';
+import 'package:frontend/app/modules/dashboard/presentation/responsive/mobile/mobile_all_bets_page.dart';
 import 'package:frontend/app/shared/presentation/widgets/responsive_builder.dart';
 
 class AllBetsEntry extends StatelessWidget {
@@ -9,8 +10,8 @@ class AllBetsEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return ResponsiveBuilder(
       hasScaffold: true,
-      mobileBuilder: (context) => DesktopAllBetsPage(),
-      desktopBuilder: (context) => DesktopAllBetsPage(),
+      mobileBuilder: (context) => const MobileAllBetsPage(),
+      desktopBuilder: (context) => const DesktopAllBetsPage(),
     );
   }
 }

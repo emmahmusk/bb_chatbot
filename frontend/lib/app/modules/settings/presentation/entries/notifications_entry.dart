@@ -9,7 +9,7 @@ class NotificationsEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return ResponsiveBuilder(
       hasScaffold: true,
-      mobileBuilder: (_) => Container(),
+      mobileBuilder: (_) => DesktopNotificationPage(),
       desktopBuilder: (_) => DesktopNotificationPage(),
     );
   }

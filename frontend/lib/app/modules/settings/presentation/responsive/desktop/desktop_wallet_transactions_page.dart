@@ -13,7 +13,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:frontend/app/shared/presentation/widgets/custom_textfield.dart';
 import 'dart:convert';
-import 'package:frontend/app/shared/classes/preferences/preferences.dart';
 import 'package:frontend/app/modules/auth/data/login_response_model.dart';
 
 class DesktopWalletTransactionsPage extends ConsumerStatefulWidget {
@@ -24,7 +23,8 @@ class DesktopWalletTransactionsPage extends ConsumerStatefulWidget {
       _DesktopWalletTransactionsPageState();
 }
 
-class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTransactionsPage> {
+class _DesktopWalletTransactionsPageState
+    extends ConsumerState<DesktopWalletTransactionsPage> {
   double walletBalance = 0.0;
   double walletCoinBalance = 0.0;
   double startingCoinBalance = 500.0;
@@ -44,12 +44,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
         ref.watch(appThemeProvider).colors.alwaysWhite,
         BlendMode.srcIn,
       ),
-      child: Image.asset(
-        assetPath,
-        width: 16,
-        height: 16,
-        fit: BoxFit.contain,
-      ),
+      child: Image.asset(assetPath, width: 16, height: 16, fit: BoxFit.contain),
     );
   }
 
@@ -69,12 +64,16 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
   Future<void> fetchPlatformSettings() async {
     try {
       final res = await http.get(
-        Uri.parse('https://api.bbbprediction.com/admin_panel/platform_settings/'),
+        Uri.parse(
+          'https://api.bbbprediction.com/admin_panel/platform_settings/',
+        ),
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final raw = data['starting_coin_balance'];
-        final parsed = (raw is num) ? raw.toDouble() : double.tryParse(raw?.toString() ?? '');
+        final parsed = (raw is num)
+            ? raw.toDouble()
+            : double.tryParse(raw?.toString() ?? '');
         if (parsed != null) {
           setState(() {
             startingCoinBalance = parsed;
@@ -91,7 +90,8 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
 
       final res = await http.get(
         Uri.parse(
-            "https://api.bbbprediction.com/users/wallet/coins/conversion-table/"),
+          "https://api.bbbprediction.com/users/wallet/coins/conversion-table/",
+        ),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token",
@@ -119,15 +119,14 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
     final token = prefs.getString('access_token');
 
     final res = await http.post(
-      Uri.parse('https://api.bbbprediction.com/users/wallet/coins/conversion-preview/'),
+      Uri.parse(
+        'https://api.bbbprediction.com/users/wallet/coins/conversion-preview/',
+      ),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
-      body: jsonEncode({
-        'direction': direction,
-        'amount': amount,
-      }),
+      body: jsonEncode({'direction': direction, 'amount': amount}),
     );
 
     if (res.statusCode == 200) {
@@ -149,7 +148,8 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
       final token = prefs.getString('access_token');
 
       final uri = Uri.parse(
-          "https://api.bbbprediction.com/users/wallet/history/?page=$targetPage");
+        "https://api.bbbprediction.com/users/wallet/history/?page=$targetPage",
+      );
       final res = await http.get(
         uri,
         headers: {
@@ -163,8 +163,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
         print("Wallet response: $data");
 
         final results = data['results'] as Map<String, dynamic>? ?? {};
-        final transactionsList =
-            List<dynamic>.from(results["transactions"] ?? []);
+        final transactionsList = List<dynamic>.from(
+          results["transactions"] ?? [],
+        );
 
         final walletBalanceRaw = results["wallet_balance"];
         final walletBalanceDouble = (walletBalanceRaw is num)
@@ -172,8 +173,8 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
             : double.tryParse(walletBalanceRaw?.toString() ?? '') ?? 0.0;
         final walletCoinBalanceRaw = results["wallet_coin_balance"];
         final walletCoinBalanceDouble = (walletCoinBalanceRaw is num)
-          ? walletCoinBalanceRaw.toDouble()
-          : double.tryParse(walletCoinBalanceRaw?.toString() ?? '') ?? 0.0;
+            ? walletCoinBalanceRaw.toDouble()
+            : double.tryParse(walletCoinBalanceRaw?.toString() ?? '') ?? 0.0;
 
         // Update Riverpod user profile
         final currentUser = ref.read(currentUserProvider);
@@ -207,7 +208,10 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
 
         // Save latest balance in prefs
         prefs.setString('wallet_balance', walletBalanceDouble.toString());
-        prefs.setString('wallet_coin_balance', walletCoinBalanceDouble.toString());
+        prefs.setString(
+          'wallet_coin_balance',
+          walletCoinBalanceDouble.toString(),
+        );
       } else {
         print("Failed with status: ${res.statusCode}");
         setState(() => isLoading = false);
@@ -224,17 +228,25 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
     String conversionFromAmount = '';
     String conversionToAmount = '';
     final colors = ref.watch(appThemeProvider).colors;
+    final dialogWidth = MediaQuery.of(context).size.width < 480
+        ? MediaQuery.of(context).size.width - 48
+        : 420.0;
 
     showDialog(
       context: context,
       builder: (_) {
         return AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
           backgroundColor: const Color(0xFF0D1117),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           contentPadding: const EdgeInsets.all(24),
           content: SizedBox(
-            width: 420,
+            width: dialogWidth,
             child: StatefulBuilder(
               builder: (context, setState) {
                 return Column(
@@ -249,7 +261,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                              color: colors.alwaysFFD33D.withValues(
+                                alpha: 0.15,
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Center(
@@ -339,11 +353,16 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                           amount: val,
                         );
                         if (preview != null) {
-                          final previewData = preview['preview'] as Map<String, dynamic>?;
+                          final previewData =
+                              preview['preview'] as Map<String, dynamic>?;
                           setState(() {
-                            conversionFromAmount = previewData?['coin_amount']?.toString() ?? '0.00';
-                            conversionToAmount = previewData?['cash']?.toString() ?? '0.00';
-                            conversionExplanation = previewData?['explanation']?.toString() ?? '';
+                            conversionFromAmount =
+                                previewData?['coin_amount']?.toString() ??
+                                '0.00';
+                            conversionToAmount =
+                                previewData?['cash']?.toString() ?? '0.00';
+                            conversionExplanation =
+                                previewData?['explanation']?.toString() ?? '';
                           });
                         }
                       },
@@ -356,7 +375,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                             width: 18,
                             height: 18,
                             decoration: BoxDecoration(
-                              color: colors.always27D07F.withValues(alpha: 0.16),
+                              color: colors.always27D07F.withValues(
+                                alpha: 0.16,
+                              ),
                               borderRadius: BorderRadius.circular(9),
                             ),
                             child: Center(
@@ -387,7 +408,8 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                         ),
                       ),
                     ],
-                    if (conversionFromAmount.isNotEmpty && conversionToAmount.isNotEmpty) ...[
+                    if (conversionFromAmount.isNotEmpty &&
+                        conversionToAmount.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 6,
@@ -398,7 +420,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                             width: 18,
                             height: 18,
                             decoration: BoxDecoration(
-                              color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                              color: colors.alwaysFFD33D.withValues(
+                                alpha: 0.15,
+                              ),
                               borderRadius: BorderRadius.circular(9),
                             ),
                             child: Center(
@@ -426,7 +450,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                             width: 18,
                             height: 18,
                             decoration: BoxDecoration(
-                              color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                              color: colors.alwaysFFD33D.withValues(
+                                alpha: 0.15,
+                              ),
                               borderRadius: BorderRadius.circular(9),
                             ),
                             child: Center(
@@ -456,7 +482,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                             width: 18,
                             height: 18,
                             decoration: BoxDecoration(
-                              color: colors.always27D07F.withValues(alpha: 0.16),
+                              color: colors.always27D07F.withValues(
+                                alpha: 0.16,
+                              ),
                               borderRadius: BorderRadius.circular(9),
                             ),
                             child: Center(
@@ -498,7 +526,8 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
 
                         final res = await http.post(
                           Uri.parse(
-                              'https://api.bbbprediction.com/users/wallet/coins/convert-to-cash/'),
+                            'https://api.bbbprediction.com/users/wallet/coins/convert-to-cash/',
+                          ),
                           headers: {
                             'Content-Type': 'application/json',
                             'Authorization': 'Bearer $token',
@@ -532,9 +561,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                         } catch (_) {}
 
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(errorMessage)),
-                          );
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text(errorMessage)));
                         }
                       },
                       validator: () => coinsAmount.isNotEmpty,
@@ -556,17 +585,25 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
     String conversionFromAmount = '';
     String conversionToAmount = '';
     final colors = ref.watch(appThemeProvider).colors;
+    final dialogWidth = MediaQuery.of(context).size.width < 460
+        ? MediaQuery.of(context).size.width - 48
+        : 400.0;
 
     showDialog(
       context: context,
       builder: (_) {
         return AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
           backgroundColor: const Color(0xFF0D1117), // Dark background
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           contentPadding: const EdgeInsets.all(24),
           content: SizedBox(
-            width: 400,
+            width: dialogWidth,
             child: StatefulBuilder(
               builder: (context, setState) {
                 return Column(
@@ -588,10 +625,14 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                     /// Amount field
                     CustomTextField(
                       headerText: 'Amount',
-                      hint: heading == 'Fund Wallet' ? 'Enter BB Cash amount' : 'Enter amount',
+                      hint: heading == 'Fund Wallet'
+                          ? 'Enter BB Cash amount'
+                          : 'Enter amount',
                       onChanged: (val) async {
                         setState(() => amount = val);
-                        final isWithdraw = heading == 'Withdraw Wallet' || heading == 'Withdraw';
+                        final isWithdraw =
+                            heading == 'Withdraw Wallet' ||
+                            heading == 'Withdraw';
                         if (isWithdraw) {
                           return;
                         }
@@ -600,16 +641,22 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                           amount: val,
                         );
                         if (preview != null) {
-                          final previewData = preview['preview'] as Map<String, dynamic>?;
+                          final previewData =
+                              preview['preview'] as Map<String, dynamic>?;
                           setState(() {
-                            conversionFromAmount = previewData?['cash_amount']?.toString() ?? '0.00';
-                            conversionToAmount = previewData?['coins']?.toString() ?? '0.00';
-                            conversionExplanation = previewData?['explanation']?.toString() ?? '';
+                            conversionFromAmount =
+                                previewData?['cash_amount']?.toString() ??
+                                '0.00';
+                            conversionToAmount =
+                                previewData?['coins']?.toString() ?? '0.00';
+                            conversionExplanation =
+                                previewData?['explanation']?.toString() ?? '';
                           });
                         }
                       },
                     ),
-                    if (heading == 'Fund Wallet' || heading == 'Test Coin Reward') ...[
+                    if (heading == 'Fund Wallet' ||
+                        heading == 'Test Coin Reward') ...[
                       const SizedBox(height: 10),
                       Row(
                         children: [
@@ -617,7 +664,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                             width: 18,
                             height: 18,
                             decoration: BoxDecoration(
-                              color: colors.always27D07F.withValues(alpha: 0.16),
+                              color: colors.always27D07F.withValues(
+                                alpha: 0.16,
+                              ),
                               borderRadius: BorderRadius.circular(9),
                             ),
                             child: Center(
@@ -641,13 +690,15 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        conversionFormula?['cash_to_coins']?.toString() ?? 'coins = cash * (base_rate + rate_slope * cash)',
+                        conversionFormula?['cash_to_coins']?.toString() ??
+                            'coins = cash * (base_rate + rate_slope * cash)',
                         style: TextStyle(
                           fontSize: 11,
                           color: colors.always8B949E,
                         ),
                       ),
-                      if (conversionFromAmount.isNotEmpty && conversionToAmount.isNotEmpty) ...[
+                      if (conversionFromAmount.isNotEmpty &&
+                          conversionToAmount.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Wrap(
                           spacing: 6,
@@ -658,7 +709,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                               width: 18,
                               height: 18,
                               decoration: BoxDecoration(
-                                color: colors.always27D07F.withValues(alpha: 0.16),
+                                color: colors.always27D07F.withValues(
+                                  alpha: 0.16,
+                                ),
                                 borderRadius: BorderRadius.circular(9),
                               ),
                               child: Center(
@@ -686,7 +739,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                               width: 18,
                               height: 18,
                               decoration: BoxDecoration(
-                                color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                                color: colors.alwaysFFD33D.withValues(
+                                  alpha: 0.15,
+                                ),
                                 borderRadius: BorderRadius.circular(9),
                               ),
                               child: Center(
@@ -716,7 +771,9 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                               width: 18,
                               height: 18,
                               decoration: BoxDecoration(
-                                color: colors.alwaysFFD33D.withValues(alpha: 0.15),
+                                color: colors.alwaysFFD33D.withValues(
+                                  alpha: 0.15,
+                                ),
                                 borderRadius: BorderRadius.circular(9),
                               ),
                               child: Center(
@@ -767,12 +824,13 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                         final prefs = await SharedPreferences.getInstance();
                         final token = prefs.getString('access_token');
 
-                        final isWithdraw = heading == 'Withdraw Wallet' ||
+                        final isWithdraw =
+                            heading == 'Withdraw Wallet' ||
                             heading == 'Withdraw'; // optional flexibility
                         final isCoinReward = heading == 'Test Coin Reward';
                         final url = isCoinReward
-                          ? 'https://api.bbbprediction.com/users/wallet/coins/reward/'
-                          : isWithdraw
+                            ? 'https://api.bbbprediction.com/users/wallet/coins/reward/'
+                            : isWithdraw
                             ? 'https://api.bbbprediction.com/users/wallet/withdraw/'
                             : 'https://api.bbbprediction.com/users/wallet/fund/';
 
@@ -792,7 +850,8 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                           if (res.statusCode == 200 || res.statusCode == 201) {
                             Map<String, dynamic>? responseBody;
                             try {
-                              responseBody = jsonDecode(res.body) as Map<String, dynamic>;
+                              responseBody =
+                                  jsonDecode(res.body) as Map<String, dynamic>;
                             } catch (_) {
                               responseBody = null;
                             }
@@ -800,13 +859,19 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                             await fetchWalletHistory();
 
                             if (!isWithdraw && !isCoinReward) {
-                              final fundedCashRaw = responseBody?['funded_bullbear_cash'] ?? amount;
+                              final fundedCashRaw =
+                                  responseBody?['funded_bullbear_cash'] ??
+                                  amount;
 
                               final fundedCash = (fundedCashRaw is num)
                                   ? fundedCashRaw.toDouble()
-                                  : double.tryParse(fundedCashRaw?.toString() ?? '') ?? 0.0;
+                                  : double.tryParse(
+                                          fundedCashRaw?.toString() ?? '',
+                                        ) ??
+                                        0.0;
 
-                              final adjustedCash = (walletBalance - fundedCash).clamp(0.0, double.infinity);
+                              final adjustedCash = (walletBalance - fundedCash)
+                                  .clamp(0.0, double.infinity);
                               final adjustedCoins = walletCoinBalance;
 
                               if (mounted) {
@@ -827,14 +892,24 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                                   dateOfBirth: currentUser.dateOfBirth,
                                   phoneNumber: currentUser.phoneNumber,
                                   physicalAddress: currentUser.physicalAddress,
-                                  walletBalance: adjustedCash.toStringAsFixed(2),
-                                  walletCoinBalance: adjustedCoins.toStringAsFixed(2),
+                                  walletBalance: adjustedCash.toStringAsFixed(
+                                    2,
+                                  ),
+                                  walletCoinBalance: adjustedCoins
+                                      .toStringAsFixed(2),
                                 );
-                                ref.read(currentUserProvider.notifier).state = updatedUser;
+                                ref.read(currentUserProvider.notifier).state =
+                                    updatedUser;
                               }
 
-                              await prefs.setString('wallet_balance', adjustedCash.toStringAsFixed(2));
-                              await prefs.setString('wallet_coin_balance', adjustedCoins.toStringAsFixed(2));
+                              await prefs.setString(
+                                'wallet_balance',
+                                adjustedCash.toStringAsFixed(2),
+                              );
+                              await prefs.setString(
+                                'wallet_coin_balance',
+                                adjustedCoins.toStringAsFixed(2),
+                              );
                             }
 
                             Navigator.pop(context);
@@ -868,8 +943,8 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                           if (isWithdraw) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                  content: Text(
-                                      'Network error: ${e.toString()}')),
+                                content: Text('Network error: ${e.toString()}'),
+                              ),
                             );
                           }
 
@@ -893,6 +968,7 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
   @override
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
+    final isCompact = MediaQuery.of(context).size.width < 720;
 
     Widget buildWalletActionButton({
       required Widget icon,
@@ -1066,10 +1142,10 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
             ...transactions.map((txn) {
               final isCredit = txn['transaction_type'] == 'credit';
               final sign = isCredit ? '+' : '-';
-              final priceColor =
-                  isCredit ? colors.always27D07F : colors.alwaysFFD33D;
-              final icon =
-                  isCredit ? Pngs.walletDeposit : Pngs.bankWithdrawal;
+              final priceColor = isCredit
+                  ? colors.always27D07F
+                  : colors.alwaysFFD33D;
+              final icon = isCredit ? Pngs.walletDeposit : Pngs.bankWithdrawal;
               final dt = DateTime.parse(txn['created_at']);
               final amountUnit = (txn['amount_unit'] ?? 'BB Cash').toString();
               final displayAmount = formatAmount(txn['amount']);
@@ -1092,76 +1168,138 @@ class _DesktopWalletTransactionsPageState extends ConsumerState<DesktopWalletTra
                   },
                 ),
               );
-            }).toList(),
+            }),
             const SizedBox(height: 16),
             // Pagination controls with CustomOutlinedButtonWithIcon
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                if (totalCount != null)
-                  Text(
-                    'Total: $totalCount transactions',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.always8B949E,
-                    ),
-                  )
-                else
-                  const SizedBox.shrink(),
-                Row(
-                  children: [
-                    Opacity(
-                      opacity: canGoPrev ? 1.0 : 0.4,
-                      child: CustomOutlinedButtonWithIcon(
-                        icon: Icon(
-                          Icons.arrow_back_ios_new,
-                          size: 14,
-                          color: colors.alwaysWhite,
-                        ),
-                        text: 'Previous',
-                        color: colors.alwaysWhite,
-                        onTap: () {
-                          if (!canGoPrev) return;
-                          fetchWalletHistory(page: currentPage - 1);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+            if (isCompact)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (totalCount != null)
                     Text(
-                      'Page $currentPage',
+                      'Total: $totalCount transactions',
                       style: TextStyle(
                         fontSize: 12,
                         color: colors.always8B949E,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Opacity(
-                      opacity: canGoNext ? 1.0 : 0.4,
-                      child: CustomOutlinedButtonWithIcon(
-                        icon: Icon(
-                          Icons.arrow_forward_ios,
-                          size: 14,
+                  const SizedBox(height: 12),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Opacity(
+                        opacity: canGoPrev ? 1.0 : 0.4,
+                        child: CustomOutlinedButtonWithIcon(
+                          icon: Icon(
+                            Icons.arrow_back_ios_new,
+                            size: 14,
+                            color: colors.alwaysWhite,
+                          ),
+                          text: 'Previous',
                           color: colors.alwaysWhite,
+                          onTap: () {
+                            if (!canGoPrev) return;
+                            fetchWalletHistory(page: currentPage - 1);
+                          },
                         ),
-                        text: 'Next',
-                        color: colors.alwaysWhite,
-                        onTap: () {
-                          if (!canGoNext) return;
-                          fetchWalletHistory(page: currentPage + 1);
-                        },
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                      Text(
+                        'Page $currentPage',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.always8B949E,
+                        ),
+                      ),
+                      Opacity(
+                        opacity: canGoNext ? 1.0 : 0.4,
+                        child: CustomOutlinedButtonWithIcon(
+                          icon: Icon(
+                            Icons.arrow_forward_ios,
+                            size: 14,
+                            color: colors.alwaysWhite,
+                          ),
+                          text: 'Next',
+                          color: colors.alwaysWhite,
+                          onTap: () {
+                            if (!canGoNext) return;
+                            fetchWalletHistory(page: currentPage + 1);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (totalCount != null)
+                    Text(
+                      'Total: $totalCount transactions',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.always8B949E,
+                      ),
+                    )
+                  else
+                    const SizedBox.shrink(),
+                  Row(
+                    children: [
+                      Opacity(
+                        opacity: canGoPrev ? 1.0 : 0.4,
+                        child: CustomOutlinedButtonWithIcon(
+                          icon: Icon(
+                            Icons.arrow_back_ios_new,
+                            size: 14,
+                            color: colors.alwaysWhite,
+                          ),
+                          text: 'Previous',
+                          color: colors.alwaysWhite,
+                          onTap: () {
+                            if (!canGoPrev) return;
+                            fetchWalletHistory(page: currentPage - 1);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Page $currentPage',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.always8B949E,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Opacity(
+                        opacity: canGoNext ? 1.0 : 0.4,
+                        child: CustomOutlinedButtonWithIcon(
+                          icon: Icon(
+                            Icons.arrow_forward_ios,
+                            size: 14,
+                            color: colors.alwaysWhite,
+                          ),
+                          text: 'Next',
+                          color: colors.alwaysWhite,
+                          onTap: () {
+                            if (!canGoNext) return;
+                            fetchWalletHistory(page: currentPage + 1);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             const SizedBox(height: 100),
           ],
         ],
       ),
     );
   }
-  }
+}
 
 class WalletTransactionsItem extends ConsumerWidget {
   const WalletTransactionsItem({
@@ -1190,91 +1328,180 @@ class WalletTransactionsItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = ref.watch(appThemeProvider).colors;
+    final isCompact = MediaQuery.of(context).size.width < 520;
     return Clickable(
       onClick: onClick,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Image.asset(asset, width: 40, height: 40),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
+        child: isCompact
+            ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Image.asset(asset, width: 40, height: 40),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              transaction,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: colors.alwaysWhite,
+                              ),
+                            ),
+                            if (subtitle != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                subtitle!,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w400,
+                                  color: colors.always8B949E,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   Text(
-                    transaction,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    formatDateTimeToDDMMYYYYHHmm(date),
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: colors.alwaysWhite,
                     ),
                   ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w400,
-                        color: colors.always8B949E,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  formatDateTimeToDDMMYYYYHHmm(date),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: colors.alwaysWhite,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: colors.always27D07F.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.attach_money_rounded,
-                          size: 12,
-                          color: colors.always27D07F,
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: colors.always27D07F.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.attach_money_rounded,
+                            size: 12,
+                            color: colors.always27D07F,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      amountUnit == 'BB Cash' ? '$sign\$$price' : '$sign$price $amountUnit',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: priceColor ?? colors.always27D07F,
+                      const SizedBox(width: 6),
+                      Text(
+                        amountUnit == 'BB Cash'
+                            ? '$sign\$$price'
+                            : '$sign$price $amountUnit',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: priceColor ?? colors.always27D07F,
+                        ),
                       ),
+                    ],
+                  ),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Image.asset(asset, width: 40, height: 40),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          transaction,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: colors.alwaysWhite,
+                          ),
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w400,
+                              color: colors.always8B949E,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        formatDateTimeToDDMMYYYYHHmm(date),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: colors.alwaysWhite,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: colors.always27D07F.withValues(
+                                alpha: 0.16,
+                              ),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.attach_money_rounded,
+                                size: 12,
+                                color: colors.always27D07F,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            amountUnit == 'BB Cash'
+                                ? '$sign\$$price'
+                                : '$sign$price $amountUnit',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: priceColor ?? colors.always27D07F,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
       ),
     );
   }
