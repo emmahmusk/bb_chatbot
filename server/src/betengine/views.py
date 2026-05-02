@@ -784,7 +784,11 @@ def is_market_open(now=None):
     """
     Returns True if US markets are open (Mon–Fri, 9:30am–4:00pm ET).
     """
-    now = now or datetime.now(US_EASTERN)
+    now = now or timezone.now().astimezone(US_EASTERN)
+    if timezone.is_aware(now):
+        now = now.astimezone(US_EASTERN)
+    else:
+        now = US_EASTERN.localize(now)
 
     # Weekend check
     if now.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
@@ -824,6 +828,15 @@ class PlaceSingleBetAPIView(APIView):
                 {
                     "status": "error",
                     "message": "KYC record not found. Please complete KYC verification before placing bets.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not is_market_open():
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Bets can only be placed during US market hours (Mon-Fri, 9:30 AM-4:00 PM ET).",
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -1064,6 +1077,15 @@ class PlaceParlayBetAPIView(APIView):
         except KYCProfile.DoesNotExist:
             return Response(
                 {"status": "error", "message": "KYC record not found."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not is_market_open():
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Bets can only be placed during US market hours (Mon-Fri, 9:30 AM-4:00 PM ET).",
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
 
