@@ -1131,12 +1131,6 @@ Future<void> fetchAndReplaceMarket(
                                                               color: Colors.white,
                                                             ),
                                                           ),
-                                                          if (market.lastPrice != null) ...[
-                                                            const SizedBox(height: 4),
-                                                            buildDesktopLastPricePill(
-                                                              market.lastPrice!,
-                                                            ),
-                                                          ],
                                                         ],
                                                       )
                                                                                      
@@ -1406,72 +1400,77 @@ Future<void> fetchAndReplaceMarket(
                                   
                                                 ),
                                                                      
-                                            MouseRegion(
-                                              cursor: SystemMouseCursors.click,
-                                              child: GestureDetector(
-                                                onTap: ()async{
-                                                  
-                                                  // Parse the original date string
-                                                      final inputFormat = DateFormat('EEE, dd MMM yyyy');
-                                                      final outputFormat = DateFormat('yyyy-MM-dd');
+                                            if (market.lastPrice != null)
+                                              buildDesktopLastPricePill(
+                                                market.lastPrice!,
+                                              )
+                                            else
+                                              MouseRegion(
+                                                cursor: SystemMouseCursors.click,
+                                                child: GestureDetector(
+                                                  onTap: ()async{
+                                                    
+                                                    // Parse the original date string
+                                                        final inputFormat = DateFormat('EEE, dd MMM yyyy');
+                                                        final outputFormat = DateFormat('yyyy-MM-dd');
 
-                                                      try {
-                                                        final parsedDate = inputFormat.parse(market.expiryDate);
-                                                        final formattedExpiry = outputFormat.format(parsedDate);
+                                                        try {
+                                                          final parsedDate = inputFormat.parse(market.expiryDate);
+                                                          final formattedExpiry = outputFormat.format(parsedDate);
 
-                                                        await _openStrikePriceDialog(market.stock.symbol, formattedExpiry);
-                                                      } catch (e) {
-                                                        print("Date parsing failed: $e");
-                                                      }
-                                                },
-                                                child: Container(
-                                                  padding: EdgeInsets.all(10.0),
-                                                  decoration: BoxDecoration(
-                                                    color:  Color(0xFF1F242C),
-                                                    borderRadius: BorderRadius.circular(20), // or any radius you prefer
-                                                    border: Border.all(
-                                                      color: Color(0xFFB0B0B0), // dark grey border
-                                                      width: 1, // optional: thickness of the border
+                                                          await _openStrikePriceDialog(market.stock.symbol, formattedExpiry);
+                                                        } catch (e) {
+                                                          print("Date parsing failed: $e");
+                                                        }
+                                                  },
+                                                  child: Container(
+                                                    padding: EdgeInsets.all(10.0),
+                                                    decoration: BoxDecoration(
+                                                      color:  Color(0xFF1F242C),
+                                                      borderRadius: BorderRadius.circular(20), // or any radius you prefer
+                                                      border: Border.all(
+                                                        color: Color(0xFFB0B0B0), // dark grey border
+                                                        width: 1, // optional: thickness of the border
+                                                      ),
+                                                                                    
                                                     ),
-                                                                                  
-                                                  ),
-                                                  child: Row(
-                                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                                    children: [
-                                                      Image.asset(
-                                                        'assets/media/pngs/strike_price.png',
-                                                        width: 18,
-                                                        height: 18,
-                                                        fit: BoxFit.contain,
-                                                      ),
-                                                      const SizedBox(width: 6),
-                                                      RichText(
-                                                        text: TextSpan(
-                                                          children: [
-                                                            const TextSpan(
-                                                              text: "Strike Price: ",
-                                                              style: TextStyle(
-                                                                fontSize: 14,
-                                                                fontWeight: FontWeight.w500,
-                                                                color: Colors.white,
-                                                              ),
-                                                            ),
-                                                            TextSpan(
-                                                              text: "\$${market.targetPrice.toStringAsFixed(2)}",
-                                                              style: const TextStyle(
-                                                                fontSize: 14,
-                                                                fontWeight: FontWeight.w500,
-                                                                color: Colors.white,
-                                                              ),
-                                                            ),
-                                                          ],
+                                                    child: Row(
+                                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                                      children: [
+                                                        Image.asset(
+                                                          'assets/media/pngs/strike_price.png',
+                                                          width: 18,
+                                                          height: 18,
+                                                          fit: BoxFit.contain,
                                                         ),
-                                                      ),
-                                                    ],
+                                                        const SizedBox(width: 6),
+                                                        RichText(
+                                                          text: TextSpan(
+                                                            children: [
+                                                              const TextSpan(
+                                                                text: "Strike Price: ",
+                                                                style: TextStyle(
+                                                                  fontSize: 14,
+                                                                  fontWeight: FontWeight.w500,
+                                                                  color: Colors.white,
+                                                                ),
+                                                              ),
+                                                              TextSpan(
+                                                                text: "\$${market.targetPrice.toStringAsFixed(2)}",
+                                                                style: const TextStyle(
+                                                                  fontSize: 14,
+                                                                  fontWeight: FontWeight.w500,
+                                                                  color: Colors.white,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            )
+                                              )
                                                                                   ],
                                                                                 ),
                                           ),
