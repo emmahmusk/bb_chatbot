@@ -54,12 +54,13 @@ class MobileBrowserDesktopViewport extends StatelessWidget {
       systemGestureInsets: _scaleInsets(mediaQuery.systemGestureInsets, scale),
     );
 
-    return ClipRect(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Transform.scale(
+    return SizedBox(
+      width: actualSize.width,
+      height: actualSize.height,
+      child: ClipRect(
+        child: FittedBox(
+          fit: BoxFit.fitWidth,
           alignment: Alignment.topCenter,
-          scale: scale,
           child: SizedBox(
             width: _desktopModeWidth,
             height: virtualHeight,
