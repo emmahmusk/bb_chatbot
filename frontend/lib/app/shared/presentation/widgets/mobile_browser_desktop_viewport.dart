@@ -9,7 +9,9 @@ class MobileBrowserDesktopViewport extends StatelessWidget {
 
   final Widget child;
 
-  static const double _desktopModeWidth = 980;
+  static const double _minimumDesktopModeWidth = 560;
+  static const double _maximumDesktopModeWidth = 820;
+  static const double _desktopModeWidthMultiplier = 1.45;
 
   bool get _isMobileWebPlatform {
     if (!kIsWeb) {
@@ -29,6 +31,14 @@ class MobileBrowserDesktopViewport extends StatelessWidget {
     );
   }
 
+  double _desktopModeWidthFor(Size actualSize) {
+    final targetWidth = actualSize.width * _desktopModeWidthMultiplier;
+    return targetWidth.clamp(
+      _minimumDesktopModeWidth,
+      _maximumDesktopModeWidth,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_isMobileWebPlatform) {
@@ -37,17 +47,18 @@ class MobileBrowserDesktopViewport extends StatelessWidget {
 
     final mediaQuery = MediaQuery.of(context);
     final actualSize = mediaQuery.size;
-    final shouldEmulateDesktopViewport = actualSize.width < _desktopModeWidth;
+    final desktopModeWidth = _desktopModeWidthFor(actualSize);
+    final shouldEmulateDesktopViewport = actualSize.width < desktopModeWidth;
 
     if (!shouldEmulateDesktopViewport) {
       return child;
     }
 
-    final scale = actualSize.width / _desktopModeWidth;
+    final scale = actualSize.width / desktopModeWidth;
     final virtualHeight = actualSize.height / scale;
 
     final desktopViewportMediaQuery = mediaQuery.copyWith(
-      size: Size(_desktopModeWidth, virtualHeight),
+      size: Size(desktopModeWidth, virtualHeight),
       padding: _scaleInsets(mediaQuery.padding, scale),
       viewPadding: _scaleInsets(mediaQuery.viewPadding, scale),
       viewInsets: _scaleInsets(mediaQuery.viewInsets, scale),
@@ -62,7 +73,7 @@ class MobileBrowserDesktopViewport extends StatelessWidget {
           fit: BoxFit.fitWidth,
           alignment: Alignment.topCenter,
           child: SizedBox(
-            width: _desktopModeWidth,
+            width: desktopModeWidth,
             height: virtualHeight,
             child: MediaQuery(
               data: desktopViewportMediaQuery,

@@ -15,8 +15,7 @@ class TrendingEntry extends StatelessWidget {
       hasScaffold: true,
       mobileBuilder: (context) => const MobileMarketsPage(
         title: 'Trending Predictions',
-        subtitle:
-            'Fast-moving stock contracts, rebuilt for touch-first browsing and one-tap selections.',
+        subtitle: 'Fast-moving stock contracts with strong market momentum.',
         path: DashboardRoutes.trending,
         pagePreferenceKey: 'trendingPage',
         queryParams: {'trending': 'true'},

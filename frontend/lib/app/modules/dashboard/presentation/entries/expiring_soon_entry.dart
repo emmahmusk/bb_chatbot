@@ -14,7 +14,7 @@ class ExpiringSoonEntry extends StatelessWidget {
       mobileBuilder: (context) => const MobileMarketsPage(
         title: 'Expiring Soon',
         subtitle:
-            'Last-chance contracts with a cleaner mobile card layout, so nothing important gets squeezed off-screen.',
+            'Time-sensitive stock contracts approaching their expiry window.',
         path: DashboardRoutes.expiringSoon,
         pagePreferenceKey: 'expiringSoonPage',
         queryParams: {'expiring_soon': 'true'},

@@ -32,20 +32,20 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
     final colors = ref.watch(appThemeProvider).colors;
     final viewportHeight = MediaQuery.of(context).size.height;
     final viewportWidth = MediaQuery.of(context).size.width;
-    final isMobile = viewportWidth < 600;
+    final isCompact = viewportWidth < 900;
     final double effectiveHeight = math.min(
       widget.height ?? 620,
       math.max(520.0, viewportHeight - 32),
     );
     final double effectiveWidth = math.min(
-      490.0,
-      math.max(320.0, viewportWidth - (isMobile ? 32 : 0)),
+      isCompact ? 560.0 : 490.0,
+      math.max(320.0, viewportWidth - (isCompact ? 24 : 0)),
     );
 
     return Container(
       width: effectiveWidth,
       height: effectiveHeight,
-      padding: EdgeInsets.all(isMobile ? 20 : 24),
+      padding: EdgeInsets.all(isCompact ? 20 : 24),
       decoration: BoxDecoration(
         color: colors.primary,
         borderRadius: BorderRadius.circular(16),
@@ -84,7 +84,7 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
               ),
             ],
           ),
-          SizedBox(height: isMobile ? 24 : 36),
+          SizedBox(height: isCompact ? 24 : 36),
           Expanded(
             child: ScrollbarTheme(
               data: ScrollbarThemeData(
@@ -94,7 +94,8 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
                 trackColor: WidgetStatePropertyAll(
                   colors.always30363D.withValues(alpha: 0.3),
                 ),
-                trackBorderColor: const WidgetStatePropertyAll(Colors.transparent),
+                trackBorderColor:
+                    const WidgetStatePropertyAll(Colors.transparent),
                 radius: const Radius.circular(999),
                 thickness: const WidgetStatePropertyAll(6),
                 thumbVisibility: const WidgetStatePropertyAll(true),
