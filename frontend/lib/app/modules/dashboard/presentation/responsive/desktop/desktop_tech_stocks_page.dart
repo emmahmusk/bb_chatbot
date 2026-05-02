@@ -128,42 +128,6 @@ String formatExpiryDate(String input) {
   return outputFormat.format(date);
 }
 
-Widget buildDesktopLastPricePill(double lastPrice) {
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      const Icon(
-        Icons.show_chart_rounded,
-        size: 13,
-        color: Color(0xFF7AA2FF),
-      ),
-      const SizedBox(width: 5),
-      RichText(
-        text: TextSpan(
-          children: [
-            const TextSpan(
-              text: "Last price ",
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF8B949E),
-              ),
-            ),
-            TextSpan(
-              text: "\$${lastPrice.toStringAsFixed(2)}",
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFE6EDF3),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
-}
-
 int? updatingMarketId;
 
 Future<void> fetchAndReplaceMarket(
@@ -1046,13 +1010,27 @@ String formatToMMDDYYYY(String input) {
                                                                                      
                                                           const SizedBox(height: 4), // spacing between rows
                                                                                      
-                                                          /// Strike price on a new line
-                                                          Text(
-                                                            "\$${market.targetPrice.toStringAsFixed(2)}",
-                                                            style: const TextStyle(
-                                                              fontSize: 16, // slightly larger
-                                                              fontWeight: FontWeight.w600, // semi-bold
-                                                              color: Colors.white,
+                                                          RichText(
+                                                            text: TextSpan(
+                                                              children: [
+                                                                const TextSpan(
+                                                                  text: "Last price ",
+                                                                  style: TextStyle(
+                                                                    fontSize: 13,
+                                                                    fontWeight: FontWeight.w500,
+                                                                    color: Color(0xFF888888),
+                                                                  ),
+                                                                ),
+                                                                TextSpan(
+                                                                  text:
+                                                                      "\$${(market.lastPrice ?? market.targetPrice).toStringAsFixed(2)}",
+                                                                  style: const TextStyle(
+                                                                    fontSize: 16,
+                                                                    fontWeight: FontWeight.w600,
+                                                                    color: Colors.white,
+                                                                  ),
+                                                                ),
+                                                              ],
                                                             ),
                                                           ),
                                                         ],
@@ -1320,12 +1298,7 @@ String formatToMMDDYYYY(String input) {
                                                     ),
                                                 ),
                                                                      
-                                            if (market.lastPrice != null)
-                                              buildDesktopLastPricePill(
-                                                market.lastPrice!,
-                                              )
-                                            else
-                                              MouseRegion(
+                                            MouseRegion(
                                                 cursor: SystemMouseCursors.click,
                                                 child: GestureDetector(
                                                   onTap: ()async{
