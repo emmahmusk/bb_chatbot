@@ -63,7 +63,7 @@ class _MobileDashboardPageState extends ConsumerState<MobileDashboardPage> {
               const SizedBox(height: 18),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _MobileRouteChipHeader(shell: shell),
+                child: _MobileRouteChipHeader(shell: widget.shell),
               ),
               const SizedBox(height: 18),
               Expanded(
