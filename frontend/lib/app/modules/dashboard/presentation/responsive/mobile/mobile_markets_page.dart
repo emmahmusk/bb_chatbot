@@ -915,6 +915,11 @@ class _MobileMarketCard extends StatelessWidget {
                     onTap: onTapStrike,
                     isInteractive: true,
                   ),
+                  if (market.lastPrice != null)
+                    _InfoPill(
+                      icon: Icons.show_chart_rounded,
+                      label: 'Last \$${market.lastPrice!.toStringAsFixed(2)}',
+                    ),
                 ],
               ),
               const SizedBox(height: 16),

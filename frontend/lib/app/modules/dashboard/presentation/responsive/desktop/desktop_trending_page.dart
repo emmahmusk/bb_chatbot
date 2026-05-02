@@ -147,6 +147,53 @@ String formatToMMDDYYYY(String input) {
   return DateFormat('MMM d, yyyy').format(date);
 }
 
+Widget buildDesktopLastPricePill(double lastPrice) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: const Color(0xFF161B22),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: const Color(0xFFB0B0B0),
+        width: 1,
+      ),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.show_chart_rounded,
+          size: 16,
+          color: Color(0xFF52AAFF),
+        ),
+        const SizedBox(width: 6),
+        RichText(
+          text: TextSpan(
+            children: [
+              const TextSpan(
+                text: "Last: ",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF888888),
+                ),
+              ),
+              TextSpan(
+                text: "\$${lastPrice.toStringAsFixed(2)}",
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 
 Future<void> fetchExpiryDates(String symbol) async {
   showBullBearLoadingDialog(context, message: "Fetching expiry dates...");
@@ -1316,8 +1363,10 @@ Future<void> fetchAndReplaceMarket(
                                             bottomRight: Radius.circular(8),
                                             ),
                                           ),
-                                          child:  Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          child: Wrap(
+                                              spacing: 14,
+                                              runSpacing: 10,
+                                              crossAxisAlignment: WrapCrossAlignment.center,
                                               children: [
                                                 /// Expiry Left
                                                 GestureDetector(
@@ -1363,6 +1412,11 @@ Future<void> fetchAndReplaceMarket(
                                   
                                   
                                                 ),
+
+                                                if (market.lastPrice != null)
+                                                  buildDesktopLastPricePill(
+                                                    market.lastPrice!,
+                                                  ),
                                                 
                                                                      
                                             MouseRegion(

@@ -194,6 +194,31 @@ class _MobileStockProfilePageState extends ConsumerState<MobileStockProfilePage>
     }
   }
 
+  double? _resolveLastPrice(Map<String, dynamic> market) {
+    final stock = market['stock'] as Map<String, dynamic>? ?? {};
+    for (final value in [
+      market['last_price'],
+      market['latest_price'],
+      market['current_price'],
+      market['price'],
+      stock['last_price'],
+      stock['latest_price'],
+      stock['current_price'],
+      stock['price'],
+      stock['close'],
+      stock['previous_close'],
+    ]) {
+      if (value == null) {
+        continue;
+      }
+      final parsed = double.tryParse(value.toString());
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+
   String _routeToMarketId(int marketId) {
     final competitionId = GoRouterState.of(context).uri.queryParameters['competitionId'];
     if (competitionId == null || competitionId.isEmpty) {
@@ -426,6 +451,7 @@ class _MobileStockProfilePageState extends ConsumerState<MobileStockProfilePage>
     }
 
     final stock = market['stock'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final lastPrice = _resolveLastPrice(market);
     final marketId = market['id'] as int;
     final selectedStocks = ref.watch(selectedStockProvider);
     final isOverSelected = selectedStocks.any(
@@ -544,6 +570,11 @@ class _MobileStockProfilePageState extends ConsumerState<MobileStockProfilePage>
                       label:
                           '\$${(double.tryParse(market['target_price']?.toString() ?? '') ?? 0).toStringAsFixed(2)} strike',
                     ),
+                    if (lastPrice != null)
+                      _ProfilePill(
+                        icon: Icons.show_chart_rounded,
+                        label: 'Last \$${lastPrice.toStringAsFixed(2)}',
+                      ),
                   ],
                 ),
               ],
