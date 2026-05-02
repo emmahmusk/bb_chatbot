@@ -14,7 +14,7 @@ class TechStocksEntry extends StatelessWidget {
       mobileBuilder: (context) => const MobileMarketsPage(
         title: 'All Stocks',
         subtitle:
-            'Browse the full market board in stacked mobile cards with clearer expiry, strike, and direction controls.',
+            'A full market view of available stock contracts across active listings.',
         path: DashboardRoutes.allStocks,
         pagePreferenceKey: 'allStocksPage',
       ),
