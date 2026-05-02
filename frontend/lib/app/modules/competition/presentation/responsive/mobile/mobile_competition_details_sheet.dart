@@ -615,61 +615,104 @@ class _MobileCompetitionDetailsSheetState
                                         )
                                       : SingleChildScrollView(
                                           scrollDirection: Axis.horizontal,
-                                          child: DataTable(
-                                            columns: const [
-                                              DataColumn(label: Text('Rank')),
-                                              DataColumn(
-                                                label: Text('Username'),
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: colors.always161B22,
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: colors.always30363D,
                                               ),
-                                              DataColumn(label: Text('P/L')),
-                                              DataColumn(label: Text('ROI')),
-                                              DataColumn(
-                                                label: Text('Win Rate'),
-                                              ),
-                                            ],
-                                            rows: [
-                                              for (int i = 0;
-                                                  i <
-                                                      leaderboardState.data
-                                                          .results.length;
-                                                  i++)
-                                                DataRow(
-                                                  cells: [
-                                                    DataCell(
-                                                      Text(
-                                                        '${leaderboardState.data.results[i].finalRank ?? (i + 1)}',
-                                                      ),
-                                                    ),
-                                                    DataCell(
-                                                      Text(
-                                                        leaderboardState
-                                                            .data
-                                                            .results[i]
-                                                            .username,
-                                                      ),
-                                                    ),
-                                                    DataCell(
-                                                      Text(
-                                                        leaderboardState
-                                                            .data
-                                                            .results[i]
-                                                            .netProfit
-                                                            .toStringAsFixed(2),
-                                                      ),
-                                                    ),
-                                                    DataCell(
-                                                      Text(
-                                                        '${leaderboardState.data.results[i].roi.toStringAsFixed(2)}%',
-                                                      ),
-                                                    ),
-                                                    DataCell(
-                                                      Text(
-                                                        '${leaderboardState.data.results[i].winRate.toStringAsFixed(2)}%',
-                                                      ),
-                                                    ),
-                                                  ],
+                                            ),
+                                            child: DataTableTheme(
+                                              data: DataTableThemeData(
+                                                headingRowColor:
+                                                    WidgetStateProperty.all(
+                                                  colors.always1F242C,
                                                 ),
-                                            ],
+                                                dataRowColor:
+                                                    WidgetStateProperty.all(
+                                                  colors.always161B22,
+                                                ),
+                                                headingTextStyle: TextStyle(
+                                                  color: colors.alwaysWhite,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                                dataTextStyle: TextStyle(
+                                                  color: colors.alwaysE6EDF3,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                dividerThickness: 1,
+                                              ),
+                                              child: DataTable(
+                                                horizontalMargin: 16,
+                                                columnSpacing: 24,
+                                                columns: const [
+                                                  DataColumn(
+                                                    label: Text('Rank'),
+                                                  ),
+                                                  DataColumn(
+                                                    label: Text('Username'),
+                                                  ),
+                                                  DataColumn(
+                                                    label: Text('P/L'),
+                                                  ),
+                                                  DataColumn(
+                                                    label: Text('ROI'),
+                                                  ),
+                                                  DataColumn(
+                                                    label: Text('Win Rate'),
+                                                  ),
+                                                ],
+                                                rows: [
+                                                  for (int i = 0;
+                                                      i <
+                                                          leaderboardState.data
+                                                              .results.length;
+                                                      i++)
+                                                    DataRow(
+                                                      cells: [
+                                                        DataCell(
+                                                          Text(
+                                                            '${leaderboardState.data.results[i].finalRank ?? (i + 1)}',
+                                                          ),
+                                                        ),
+                                                        DataCell(
+                                                          Text(
+                                                            leaderboardState
+                                                                .data
+                                                                .results[i]
+                                                                .username,
+                                                          ),
+                                                        ),
+                                                        DataCell(
+                                                          Text(
+                                                            leaderboardState
+                                                                .data
+                                                                .results[i]
+                                                                .netProfit
+                                                                .toStringAsFixed(
+                                                                  2,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                        DataCell(
+                                                          Text(
+                                                            '${leaderboardState.data.results[i].roi.toStringAsFixed(2)}%',
+                                                          ),
+                                                        ),
+                                                        DataCell(
+                                                          Text(
+                                                            '${leaderboardState.data.results[i].winRate.toStringAsFixed(2)}%',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
                                         ),
                         ),

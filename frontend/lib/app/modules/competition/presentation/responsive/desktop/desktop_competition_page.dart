@@ -748,22 +748,62 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                 if (rows.isNotEmpty)
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Rank')),
-                        DataColumn(label: Text('Username')),
-                        DataColumn(label: Text('Score')),
-                        DataColumn(label: Text('Win Rate')),
-                      ],
-                      rows: [
-                        for (int i = 0; i < rows.length; i++)
-                          DataRow(cells: [
-                            DataCell(Text('${rows[i].finalRank ?? (i + 1)}')),
-                            DataCell(Text(rows[i].username)),
-                            DataCell(Text('${rows[i].netProfit.toStringAsFixed(2)}')),
-                            DataCell(Text('${rows[i].winRate.toStringAsFixed(2)}%')),
-                          ]),
-                      ],
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colors.always0D1117,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: colors.always30363D),
+                      ),
+                      child: DataTableTheme(
+                        data: DataTableThemeData(
+                          headingRowColor: WidgetStateProperty.all(
+                            colors.always1F242C,
+                          ),
+                          dataRowColor: WidgetStateProperty.all(
+                            colors.always0D1117,
+                          ),
+                          headingTextStyle: TextStyle(
+                            color: colors.alwaysWhite,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          dataTextStyle: TextStyle(
+                            color: colors.alwaysE6EDF3,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          dividerThickness: 1,
+                        ),
+                        child: DataTable(
+                          horizontalMargin: 16,
+                          columnSpacing: 28,
+                          columns: const [
+                            DataColumn(label: Text('Rank')),
+                            DataColumn(label: Text('Username')),
+                            DataColumn(label: Text('Score')),
+                            DataColumn(label: Text('Win Rate')),
+                          ],
+                          rows: [
+                            for (int i = 0; i < rows.length; i++)
+                              DataRow(cells: [
+                                DataCell(
+                                  Text('${rows[i].finalRank ?? (i + 1)}'),
+                                ),
+                                DataCell(Text(rows[i].username)),
+                                DataCell(
+                                  Text(
+                                    '${rows[i].netProfit.toStringAsFixed(2)}',
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(
+                                    '${rows[i].winRate.toStringAsFixed(2)}%',
+                                  ),
+                                ),
+                              ]),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 const SizedBox(height: 16),
