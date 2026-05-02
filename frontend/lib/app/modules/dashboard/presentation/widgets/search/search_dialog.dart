@@ -522,6 +522,19 @@ class SearchResultsItem extends ConsumerWidget {
   // final (String header, List<(String, String, String, String)> values) data;
   final (String header, List<(String, String, String, String, int)> values) data;
 
+  void _openStockProfile(BuildContext context, int marketId) {
+    final router = GoRouter.of(context);
+    final currentUri = router.routeInformationProvider.value.uri;
+    final competitionId = currentUri.queryParameters['competitionId'];
+    final route = competitionId == null || competitionId.isEmpty
+        ? '/dashboard/stock-profile?id=$marketId'
+        : '/dashboard/stock-profile?id=$marketId&competitionId=$competitionId';
+
+    Navigator.of(context, rootNavigator: true).pop();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      router.go(route);
+    });
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -543,73 +556,71 @@ class SearchResultsItem extends ConsumerWidget {
           ),
           const SizedBox(height: 32),
           for (var v in data.$2) ...[
-            GestureDetector(
-                            onTap: () {
-                final currentUri = GoRouterState.of(context).uri;
-                final competitionId = currentUri.queryParameters['competitionId'];
-                context.pop();
-                final route = competitionId == null || competitionId.isEmpty
-                    ? '/dashboard/stock-profile?id=${v.$5}'
-                    : '/dashboard/stock-profile?id=${v.$5}&competitionId=$competitionId';
-                 context.go(route);
-                // context.go('/dashboard/stock-profile?symbol=${v.$3}&expiry=${v.$4}');
-                          },
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            v.$1,
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, _, __) =>
-                                const Icon(Icons.image_not_supported),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                v.$2,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: colors.alwaysWhite,
-                                ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _openStockProfile(context, v.$5),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                v.$1,
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, _, __) =>
+                                    const Icon(Icons.image_not_supported),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                "\$"+v.$3,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w500,
-                                  color: colors.always8B949E,
-                                ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    v.$2,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: colors.alwaysWhite,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    "\$" + v.$3,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                      color: colors.always8B949E,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward,
+                        color: colors.always8B949E,
+                        size: 18,
+                      )
+                    ],
                   ),
-                  Icon(
-                    Icons.arrow_forward,
-                    color: colors.always8B949E,
-                    size: 18,
-                  )
-                ],
+                ),
               ),
             ),
             const SizedBox(height: 24),
