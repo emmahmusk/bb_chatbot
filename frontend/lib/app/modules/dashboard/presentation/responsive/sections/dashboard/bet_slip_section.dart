@@ -27,7 +27,12 @@ import 'succes_dailog_parlay.dart';
 import 'package:frontend/app/modules/auth/data/login_response_model.dart';
 
 class BetSlipSection extends ConsumerStatefulWidget {
-  const BetSlipSection({super.key});
+  const BetSlipSection({
+    super.key,
+    this.competitionId,
+  });
+
+  final int? competitionId;
 
   @override
   ConsumerState<ConsumerStatefulWidget> createState() => _BetSlipSectionState();
@@ -35,6 +40,7 @@ class BetSlipSection extends ConsumerStatefulWidget {
 
 class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
   String wager = '';
+  bool _isSubmitting = false;
 
   Key wagerFieldKey = UniqueKey();
   double maxRiskTolerance = 3000.0; // default fallback
@@ -647,10 +653,10 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
                 ? Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: CustomButton(
-                        text: 'Place Bet',
+                        text: _isSubmitting ? 'Placing Bet...' : 'Place Bet',
                         validator: () {
                           // Disable if net_exposure >= maxRiskTolerance for any selected leg
-                          if (wager.isEmpty) return false;
+                          if (_isSubmitting || wager.isEmpty) return false;
                           for (final s in selectedStocks) {
                             final exposures = marketExposures[s.marketId];
                             if (exposures != null) {
@@ -661,6 +667,10 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
                           return true;
                         },
                         onPressed: () async {
+                          if (_isSubmitting) {
+                            return;
+                          }
+
                           if (!isAuthenticated()) {
                             showCenterDialog(context,
                                 child: const LoginDialog());
@@ -668,32 +678,33 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
                             return;
                           }
 
-                          final double? wagerAmount = double.tryParse(wager);
-                          final routeUri = GoRouterState.of(context).uri;
-                          final competitionId = int.tryParse(
-                            routeUri.queryParameters['competitionId'] ?? '',
-                          );
-                          final isCompetitionMode = competitionId != null;
-
-                          if (wagerAmount == null || wagerAmount <= 0) {
-                            showTopRightAlert(
-                                context, "Enter a valid wager amount.", true);
-                            return;
-                          }
-
-                          final prefs = await SharedPreferences.getInstance();
-                          final token = prefs.getString('access_token');
-
-                          final selectedStocks =
-                              ref.read(selectedStockProvider);
-
-                          // Prepare headers
-                          final headers = {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer $token',
-                          };
-
                           try {
+                            setState(() {
+                              _isSubmitting = true;
+                            });
+
+                            final double? wagerAmount = double.tryParse(wager);
+                            final competitionId = widget.competitionId;
+                            final isCompetitionMode = competitionId != null;
+
+                            if (wagerAmount == null || wagerAmount <= 0) {
+                              showTopRightAlert(
+                                  context, "Enter a valid wager amount.", true);
+                              return;
+                            }
+
+                            final prefs = await SharedPreferences.getInstance();
+                            final token = prefs.getString('access_token');
+
+                            final selectedStocks =
+                                ref.read(selectedStockProvider);
+
+                            // Prepare headers
+                            final headers = {
+                              'Content-Type': 'application/json',
+                              'Authorization': 'Bearer $token',
+                            };
+
                             if (selectedStocks.length == 1) {
                               // 🟢 SINGLE BET API
                               final body = json.encode({
@@ -951,6 +962,12 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
                           } catch (e) {
                             showTopRightAlert(
                                 context, "Error occurred: $e", true);
+                          } finally {
+                            if (mounted) {
+                              setState(() {
+                                _isSubmitting = false;
+                              });
+                            }
                           }
                           // final responseFuture = betList.length == 1
                           //     ? repo.placeSingleBet(
