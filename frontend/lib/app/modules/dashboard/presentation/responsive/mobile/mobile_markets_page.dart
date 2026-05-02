@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app/modules/dashboard/data/models/market_model_new.dart';
@@ -10,6 +12,8 @@ import 'package:frontend/app/shared/presentation/widgets/loading_main_card.dart'
 import 'package:frontend/core/framework/mgt/app_state.dart';
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MobileMarketsPage extends ConsumerStatefulWidget {
@@ -34,6 +38,7 @@ class MobileMarketsPage extends ConsumerStatefulWidget {
 
 class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
   final ScrollController _scrollController = ScrollController();
+  final Map<int, MarketModel> _marketOverrides = {};
 
   String _preferredOdds = 'P';
   String _currentPage = '1';
@@ -72,11 +77,17 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
 
   Future<void> _fetchPage(String page) async {
     await ref.read(getMarketsProviderNew.notifier).get(
-          queryParams: {
-            ...widget.queryParams,
-            'page': page,
-          },
-        );
+      queryParams: {
+        ...widget.queryParams,
+        'page': page,
+      },
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _marketOverrides.clear();
+    });
   }
 
   Future<void> _goToPage(int page) async {
@@ -144,6 +155,378 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
             expiryDate: market.expiryDate,
           ),
         );
+  }
+
+  MarketModel _displayedMarket(MarketModel market) {
+    return _marketOverrides[market.id] ?? market;
+  }
+
+  SelectedStockModel _buildSelectionFromMarket(
+    MarketModel market,
+    String chosenOutcome,
+  ) {
+    final impliedOdds = chosenOutcome == 'over'
+        ? double.tryParse(market.impliedOddsOver)
+        : double.tryParse(market.impliedOddsUnder);
+
+    return SelectedStockModel(
+      marketId: market.id,
+      marketName: market.stock.companyName ?? market.stock.symbol,
+      chosenOutcome: chosenOutcome,
+      odds: chosenOutcome == 'over'
+          ? _getOdds(
+              market.oddsAOver,
+              market.oddsDOver,
+              market.oddsFOver,
+              impliedOdds: impliedOdds,
+            )
+          : _getOdds(
+              market.oddsAUnder,
+              market.oddsDUnder,
+              market.oddsFUnder,
+              impliedOdds: impliedOdds,
+            ),
+      decimalOdds:
+          chosenOutcome == 'over' ? market.oddsDOver : market.oddsDUnder,
+      companyName: market.stock.companyName ?? market.stock.symbol,
+      companySymbol: market.stock.symbol,
+      logoUrl: market.stock.logoUrl ?? '',
+      targetPrice: market.targetPrice,
+      expiryDate: market.expiryDate,
+    );
+  }
+
+  String _expiryQueryValue(String expiryDate) {
+    final parsedIso = DateTime.tryParse(expiryDate);
+    if (parsedIso != null) {
+      return DateFormat('yyyy-MM-dd').format(parsedIso);
+    }
+
+    try {
+      final parsedPretty = DateFormat('EEE, dd MMM yyyy').parse(expiryDate);
+      return DateFormat('yyyy-MM-dd').format(parsedPretty);
+    } catch (_) {
+      return expiryDate;
+    }
+  }
+
+  String _formatExpiryOption(String expiryDate) {
+    final parsed = DateTime.tryParse(expiryDate);
+    if (parsed == null) {
+      return expiryDate;
+    }
+
+    return DateFormat('MMM d, yyyy').format(parsed);
+  }
+
+  Future<List<String>> _fetchExpiryOptions(String symbol) async {
+    final response = await http.get(
+      Uri.parse('https://api.bbbprediction.com/bet/expiries/?symbol=$symbol'),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load expiries');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return List<String>.from(data['expiries'] ?? const <String>[]);
+  }
+
+  Future<List<MarketModel>> _fetchStrikeMarkets(
+    String symbol,
+    String expiry,
+  ) async {
+    final response = await http.get(
+      Uri.parse(
+        'https://api.bbbprediction.com/bet/markets/?search=$symbol&expiry=$expiry',
+      ),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load strike prices');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final results = (data['results'] as List<dynamic>? ?? const <dynamic>[])
+        .map((item) => MarketModel.fromJson(item as Map<String, dynamic>))
+        .toList()
+      ..sort((a, b) => a.targetPrice.compareTo(b.targetPrice));
+
+    final seenPrices = <String>{};
+
+    return results.where((market) {
+      final key = market.targetPrice.toStringAsFixed(2);
+      if (seenPrices.contains(key)) {
+        return false;
+      }
+
+      seenPrices.add(key);
+      return true;
+    }).toList();
+  }
+
+  Future<void> _replaceMarketInPlace(
+    MarketModel originalMarket,
+    MarketModel updatedMarket,
+  ) async {
+    final currentMarket = _displayedMarket(originalMarket);
+    final selectedStocks = ref.read(selectedStockProvider);
+    SelectedStockModel? currentSelection;
+
+    for (final stock in selectedStocks) {
+      if (stock.marketId == currentMarket.id) {
+        currentSelection = stock;
+        break;
+      }
+    }
+
+    setState(() {
+      _marketOverrides[originalMarket.id] = updatedMarket;
+    });
+
+    if (currentSelection != null) {
+      ref
+          .read(selectedStockProvider.notifier)
+          .remove(currentSelection.marketId);
+      ref.read(selectedStockProvider.notifier).insertOrUpdate(
+            _buildSelectionFromMarket(
+                updatedMarket, currentSelection.chosenOutcome),
+          );
+    }
+  }
+
+  Future<void> _showExpiryDialog(MarketModel originalMarket) async {
+    try {
+      final expiryOptions =
+          await _fetchExpiryOptions(originalMarket.stock.symbol);
+
+      if (!mounted || expiryOptions.isEmpty) {
+        return;
+      }
+
+      final activeMarket = _displayedMarket(originalMarket);
+      final currentExpiry = _expiryQueryValue(activeMarket.expiryDate);
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) {
+          return Dialog(
+            backgroundColor: const Color(0xFF1F242C),
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560, maxHeight: 520),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Select Expiry Date',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: expiryOptions.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final expiry = expiryOptions[index];
+                          final isSelected = expiry == currentExpiry;
+
+                          return ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF30363D),
+                              ),
+                            ),
+                            tileColor: isSelected
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : const Color(0xFF11151D),
+                            title: Text(
+                              _formatExpiryOption(expiry),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.chevron_right_rounded,
+                              color: Colors.white70,
+                            ),
+                            onTap: () async {
+                              Navigator.of(dialogContext).pop();
+                              await _showStrikeDialog(
+                                originalMarket,
+                                expiry: expiry,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('We could not load expiry options right now.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showStrikeDialog(
+    MarketModel originalMarket, {
+    String? expiry,
+  }) async {
+    final activeMarket = _displayedMarket(originalMarket);
+    final selectedExpiry = expiry ?? _expiryQueryValue(activeMarket.expiryDate);
+
+    try {
+      final strikeMarkets = await _fetchStrikeMarkets(
+        activeMarket.stock.symbol,
+        selectedExpiry,
+      );
+
+      if (!mounted || strikeMarkets.isEmpty) {
+        return;
+      }
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) {
+          return Dialog(
+            backgroundColor: const Color(0xFF1F242C),
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620, maxHeight: 560),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Select Strike Price',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _formatExpiryOption(selectedExpiry),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: strikeMarkets.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final market = strikeMarkets[index];
+                          final isSelected = market.id == activeMarket.id;
+
+                          return ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF30363D),
+                              ),
+                            ),
+                            tileColor: isSelected
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : const Color(0xFF11151D),
+                            title: Text(
+                              '\$${market.targetPrice.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Row(
+                                children: [
+                                  _StrikeOddsPill(
+                                    label: 'Over',
+                                    odds: _getOdds(
+                                      market.oddsAOver,
+                                      market.oddsDOver,
+                                      market.oddsFOver,
+                                      impliedOdds: double.tryParse(
+                                        market.impliedOddsOver,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _StrikeOddsPill(
+                                    label: 'Under',
+                                    odds: _getOdds(
+                                      market.oddsAUnder,
+                                      market.oddsDUnder,
+                                      market.oddsFUnder,
+                                      impliedOdds: double.tryParse(
+                                        market.impliedOddsUnder,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            onTap: () async {
+                              Navigator.of(dialogContext).pop();
+                              await _replaceMarketInPlace(
+                                  originalMarket, market);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('We could not load strike prices right now.'),
+        ),
+      );
+    }
   }
 
   void _openStockProfile(BuildContext context, MarketModel market) {
@@ -267,7 +650,8 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
                                   Text(
                                     '${state.data.totalCount} live contracts',
                                     style: TextStyle(
-                                      color: colors.alwaysWhite.withValues(alpha: 0.7),
+                                      color: colors.alwaysWhite
+                                          .withValues(alpha: 0.7),
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -276,7 +660,8 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
                                   Text(
                                     'Page $_currentPage of ${state.data.totalPages == 0 ? 1 : state.data.totalPages}',
                                     style: TextStyle(
-                                      color: colors.alwaysWhite.withValues(alpha: 0.55),
+                                      color: colors.alwaysWhite
+                                          .withValues(alpha: 0.55),
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -293,42 +678,59 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
                                   controller: _scrollController,
                                   padding: const EdgeInsets.only(bottom: 16),
                                   itemCount: state.data.results.length,
-                                  separatorBuilder: (_, __) => const SizedBox(height: 14),
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 14),
                                   itemBuilder: (context, index) {
                                     final market = state.data.results[index];
+                                    final displayedMarket =
+                                        _displayedMarket(market);
                                     final selectedStocks =
                                         ref.watch(selectedStockProvider);
                                     final isOverSelected = selectedStocks.any(
                                       (stock) =>
-                                          stock.marketId == market.id &&
+                                          stock.marketId ==
+                                              displayedMarket.id &&
                                           stock.chosenOutcome == 'over',
                                     );
                                     final isUnderSelected = selectedStocks.any(
                                       (stock) =>
-                                          stock.marketId == market.id &&
+                                          stock.marketId ==
+                                              displayedMarket.id &&
                                           stock.chosenOutcome == 'under',
                                     );
 
                                     return _MobileMarketCard(
-                                      market: market,
-                                      expiryLabel: _formatExpiry(market.expiryDate),
+                                      market: displayedMarket,
+                                      expiryLabel: _formatExpiry(
+                                          displayedMarket.expiryDate),
                                       overOdds: _getOdds(
-                                        market.oddsAOver,
-                                        market.oddsDOver,
-                                        market.oddsFOver,
-                                        impliedOdds: double.tryParse(market.impliedOddsOver),
+                                        displayedMarket.oddsAOver,
+                                        displayedMarket.oddsDOver,
+                                        displayedMarket.oddsFOver,
+                                        impliedOdds: double.tryParse(
+                                          displayedMarket.impliedOddsOver,
+                                        ),
                                       ),
                                       underOdds: _getOdds(
-                                        market.oddsAUnder,
-                                        market.oddsDUnder,
-                                        market.oddsFUnder,
-                                        impliedOdds: double.tryParse(market.impliedOddsUnder),
+                                        displayedMarket.oddsAUnder,
+                                        displayedMarket.oddsDUnder,
+                                        displayedMarket.oddsFUnder,
+                                        impliedOdds: double.tryParse(
+                                          displayedMarket.impliedOddsUnder,
+                                        ),
                                       ),
                                       isOverSelected: isOverSelected,
                                       isUnderSelected: isUnderSelected,
-                                      onTapCard: () => _openStockProfile(context, market),
-                                      onTapOver: () => _toggleSelection(market, 'over'),
-                                      onTapUnder: () => _toggleSelection(market, 'under'),
+                                      onTapHeader: () => _openStockProfile(
+                                          context, displayedMarket),
+                                      onTapExpiry: () =>
+                                          _showExpiryDialog(market),
+                                      onTapStrike: () =>
+                                          _showStrikeDialog(market),
+                                      onTapOver: () => _toggleSelection(
+                                          displayedMarket, 'over'),
+                                      onTapUnder: () => _toggleSelection(
+                                          displayedMarket, 'under'),
                                     );
                                   },
                                 ),
@@ -343,28 +745,35 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
                                     state.data.totalPages,
                                     (index) {
                                       final page = index + 1;
-                                      final isActive = page.toString() == _currentPage;
+                                      final isActive =
+                                          page.toString() == _currentPage;
                                       return Padding(
                                         padding: EdgeInsets.only(
-                                          right: page == state.data.totalPages ? 0 : 8,
+                                          right: page == state.data.totalPages
+                                              ? 0
+                                              : 8,
                                         ),
                                         child: GestureDetector(
                                           onTap: () => _goToPage(page),
                                           child: AnimatedContainer(
-                                            duration: const Duration(milliseconds: 180),
+                                            duration: const Duration(
+                                                milliseconds: 180),
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 18,
                                               vertical: 12,
                                             ),
                                             decoration: BoxDecoration(
-                                              borderRadius: BorderRadius.circular(18),
+                                              borderRadius:
+                                                  BorderRadius.circular(18),
                                               color: isActive
                                                   ? colors.alwaysWhite
-                                                  : colors.always30363D.withValues(alpha: 0.34),
+                                                  : colors.always30363D
+                                                      .withValues(alpha: 0.34),
                                               border: Border.all(
                                                 color: isActive
                                                     ? colors.alwaysWhite
-                                                    : colors.alwaysWhite.withValues(alpha: 0.2),
+                                                    : colors.alwaysWhite
+                                                        .withValues(alpha: 0.2),
                                               ),
                                             ),
                                             child: Text(
@@ -402,7 +811,9 @@ class _MobileMarketCard extends StatelessWidget {
     required this.underOdds,
     required this.isOverSelected,
     required this.isUnderSelected,
-    required this.onTapCard,
+    required this.onTapHeader,
+    required this.onTapExpiry,
+    required this.onTapStrike,
     required this.onTapOver,
     required this.onTapUnder,
   });
@@ -413,7 +824,9 @@ class _MobileMarketCard extends StatelessWidget {
   final String underOdds;
   final bool isOverSelected;
   final bool isUnderSelected;
-  final VoidCallback onTapCard;
+  final VoidCallback onTapHeader;
+  final VoidCallback onTapExpiry;
+  final VoidCallback onTapStrike;
   final VoidCallback onTapOver;
   final VoidCallback onTapUnder;
 
@@ -424,26 +837,27 @@ class _MobileMarketCard extends StatelessWidget {
         final colors = ref.watch(appThemeProvider).colors;
         final companyName = market.stock.companyName ?? market.stock.symbol;
 
-        return GestureDetector(
-          onTap: onTapCard,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: colors.always30363D),
-              color: const Color(0xFF11151D),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.16),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: colors.always30363D),
+            color: const Color(0xFF11151D),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.16),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onTapHeader,
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _StockLogo(
@@ -483,45 +897,49 @@ class _MobileMarketCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _InfoPill(
-                      icon: Icons.event_outlined,
-                      label: expiryLabel,
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _InfoPill(
+                    icon: Icons.event_outlined,
+                    label: expiryLabel,
+                    onTap: onTapExpiry,
+                    isInteractive: true,
+                  ),
+                  _InfoPill(
+                    iconAsset: Pngs.strikePrice,
+                    label: '\$${market.targetPrice.toStringAsFixed(2)} strike',
+                    onTap: onTapStrike,
+                    isInteractive: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _OutcomeButton(
+                      title: 'Over',
+                      odds: overOdds,
+                      selected: isOverSelected,
+                      onTap: onTapOver,
                     ),
-                    _InfoPill(
-                      iconAsset: Pngs.strikePrice,
-                      label: '\$${market.targetPrice.toStringAsFixed(2)} strike',
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _OutcomeButton(
+                      title: 'Under',
+                      odds: underOdds,
+                      selected: isUnderSelected,
+                      onTap: onTapUnder,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _OutcomeButton(
-                        title: 'Over',
-                        odds: overOdds,
-                        selected: isOverSelected,
-                        onTap: onTapOver,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _OutcomeButton(
-                        title: 'Under',
-                        odds: underOdds,
-                        selected: isUnderSelected,
-                        onTap: onTapUnder,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },
@@ -577,45 +995,62 @@ class _InfoPill extends ConsumerWidget {
     required this.label,
     this.icon,
     this.iconAsset,
+    this.onTap,
+    this.isInteractive = false,
   });
 
   final String label;
   final IconData? icon;
   final String? iconAsset;
+  final VoidCallback? onTap;
+  final bool isInteractive;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = ref.watch(appThemeProvider).colors;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: colors.always30363D.withValues(alpha: 0.32),
-        border: Border.all(color: colors.always30363D),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null)
-            Icon(icon, size: 14, color: colors.alwaysWhite.withValues(alpha: 0.72)),
-          if (iconAsset != null)
-            Image.asset(
-              iconAsset!,
-              width: 14,
-              height: 14,
-              fit: BoxFit.contain,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: colors.always30363D.withValues(alpha: 0.32),
+          border: Border.all(color: colors.always30363D),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null)
+              Icon(icon,
+                  size: 14, color: colors.alwaysWhite.withValues(alpha: 0.72)),
+            if (iconAsset != null)
+              Image.asset(
+                iconAsset!,
+                width: 14,
+                height: 14,
+                fit: BoxFit.contain,
+              ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: colors.alwaysWhite.withValues(alpha: 0.92),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: colors.alwaysWhite.withValues(alpha: 0.92),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+            if (isInteractive) ...[
+              const SizedBox(width: 8),
+              Icon(
+                Icons.edit_outlined,
+                size: 14,
+                color: colors.alwaysWhite.withValues(alpha: 0.72),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -639,13 +1074,16 @@ class _OutcomeButton extends ConsumerWidget {
     final colors = ref.watch(appThemeProvider).colors;
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          color: selected ? colors.alwaysWhite : colors.always30363D.withValues(alpha: 0.24),
+          color: selected
+              ? colors.alwaysWhite
+              : colors.always30363D.withValues(alpha: 0.24),
           border: Border.all(
             color: selected ? colors.alwaysWhite : colors.always30363D,
           ),
@@ -656,7 +1094,9 @@ class _OutcomeButton extends ConsumerWidget {
             Text(
               title,
               style: TextStyle(
-                color: selected ? colors.primary : colors.alwaysWhite.withValues(alpha: 0.72),
+                color: selected
+                    ? colors.primary
+                    : colors.alwaysWhite.withValues(alpha: 0.72),
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -671,6 +1111,36 @@ class _OutcomeButton extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StrikeOddsPill extends StatelessWidget {
+  const _StrikeOddsPill({
+    required this.label,
+    required this.odds,
+  });
+
+  final String label;
+  final String odds;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white.withValues(alpha: 0.06),
+        border: Border.all(color: const Color(0xFF30363D)),
+      ),
+      child: Text(
+        '$label $odds',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

@@ -14,6 +14,7 @@ class Clickable extends StatelessWidget {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onClick,
         child: child,
       ),
