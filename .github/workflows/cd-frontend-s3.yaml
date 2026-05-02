@@ -33,6 +33,13 @@ jobs:
         working-directory: frontend
         run: flutter build web --release
 
+      - name: Strip Source Maps and Debug Symbols
+        working-directory: frontend
+        run: |
+          echo "Checking for sourcemaps and debug symbol artifacts..."
+          find build/web -type f \( -name "*.map" -o -name "*.symbols" \) -print -delete
+          echo "Artifact cleanup complete"
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -44,7 +51,7 @@ jobs:
         run: |
           echo "🚀 Syncing Flutter web build to S3..."
           # The --delete flag removes files from S3 that are no longer in the build
-          aws s3 sync frontend/build/web/ s3://bbbprediction.com --delete
+          aws s3 sync frontend/build/web/ s3://bbbprediction.com --delete --exclude "*.map" --exclude "*.symbols"
           echo "✅ S3 upload complete"
 
       - name: Invalidate CloudFront Distribution
