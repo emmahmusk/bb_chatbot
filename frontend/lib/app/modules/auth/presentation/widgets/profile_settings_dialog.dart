@@ -45,19 +45,23 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
     final parsedWalletCoinBalance = double.tryParse(walletCoinBalance) ?? 0.0;
     final formattedWalletBalance = formatAmount(parsedWalletBalance);
     final formattedWalletCoinBalance = formatAmount(parsedWalletCoinBalance);
+    final dialogWidth = MediaQuery.of(context).size.width < 420
+        ? MediaQuery.of(context).size.width - 32
+        : 350.0;
 
     return Container(
-      width: 350,
+      width: dialogWidth,
       decoration: BoxDecoration(
         color: colors.always1F242C,
         borderRadius: BorderRadius.circular(16),
       ),
       padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
           Row(
-            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
               Expanded(
@@ -185,6 +189,7 @@ class _ProfileSettingsDialogState extends ConsumerState<ProfileSettingsDialog> {
             hasTrailing: false,
           ),
         ],
+        ),
       ),
     );
   }
@@ -209,7 +214,6 @@ class ProfileSettingsItem extends ConsumerWidget {
     return Clickable(
       onClick: onClick,
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Image.asset(
             asset,
