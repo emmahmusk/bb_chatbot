@@ -69,15 +69,23 @@ class MobileBrowserDesktopViewport extends StatelessWidget {
       width: actualSize.width,
       height: actualSize.height,
       child: ClipRect(
-        child: FittedBox(
-          fit: BoxFit.fitWidth,
+        child: OverflowBox(
           alignment: Alignment.topCenter,
-          child: SizedBox(
-            width: desktopModeWidth,
-            height: virtualHeight,
-            child: MediaQuery(
-              data: desktopViewportMediaQuery,
-              child: child,
+          minWidth: desktopModeWidth,
+          maxWidth: desktopModeWidth,
+          minHeight: virtualHeight,
+          maxHeight: virtualHeight,
+          child: Transform.scale(
+            alignment: Alignment.topCenter,
+            scale: scale,
+            transformHitTests: true,
+            child: SizedBox(
+              width: desktopModeWidth,
+              height: virtualHeight,
+              child: MediaQuery(
+                data: desktopViewportMediaQuery,
+                child: child,
+              ),
             ),
           ),
         ),
