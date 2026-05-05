@@ -13,6 +13,7 @@ import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
 import 'package:frontend/app/shared/presentation/widgets/profile_logo.dart';
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:frontend/app/shared/functions/format_amount.dart';
+import 'package:frontend/app/shared/functions/market_hours.dart';
 import 'package:frontend/app/modules/competition/presentation/providers/competition_my_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:async';
@@ -37,14 +38,14 @@ class _BullBearHeaderState extends ConsumerState<BullBearHeader> {
 @override
 void initState() {
   super.initState();
-  isOpen = isUSMarketOpenNow();
+  isOpen = isUsMarketOpenNow();
 
   // Load wallet balance
   // loadWalletBalance();
 
   // Re-check market open every minute
   _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-    final currentStatus = isUSMarketOpenNow();
+    final currentStatus = isUsMarketOpenNow();
     if (currentStatus != isOpen) {
       setState(() => isOpen = currentStatus);
     }
@@ -58,17 +59,6 @@ void initState() {
 //     walletBalance = balance;
 //   });
 // }
-
-
-bool isUSMarketOpenNow() {
-  final now = DateTime.now().toUtc();
-  final eastern = now.subtract(const Duration(hours: 4)); // EDT = UTC-4 (adjust for EST in winter)
-
-  final isWeekday = eastern.weekday >= 1 && eastern.weekday <= 5;
-  final isOpenHours = (eastern.hour > 9 || (eastern.hour == 9 && eastern.minute >= 30)) && eastern.hour < 16;
-
-  return isWeekday && isOpenHours;
-}
 
   @override
   void dispose() {
@@ -170,7 +160,7 @@ bool isUSMarketOpenNow() {
               height: 16,
               fit: BoxFit.cover,
             ),
-            text: isUSMarketOpenNow() ? 'Market open' : 'Market closed',
+            text: isOpen ? 'Market open' : 'Market closed',
             color: colors.alwaysWhite,
             onTap: () {
               showDialog(

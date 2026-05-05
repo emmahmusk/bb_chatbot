@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,7 @@ import 'package:frontend/app/modules/dashboard/presentation/widgets/trending/bet
 import 'package:frontend/app/shared/functions/alert_functions.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
 import 'package:frontend/app/shared/functions/dialog_functions.dart';
+import 'package:frontend/app/shared/functions/market_hours.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_divider.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_textfield.dart';
@@ -39,8 +41,12 @@ class BetSlipSection extends ConsumerStatefulWidget {
 }
 
 class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
+  static const Duration _marketStatusRefreshInterval = Duration(minutes: 1);
+
   String wager = '';
   bool _isSubmitting = false;
+  bool _isMarketOpen = isUsMarketOpenNow();
+  Timer? _marketStatusTimer;
 
   Key wagerFieldKey = UniqueKey();
   double maxRiskTolerance = 3000.0; // default fallback
@@ -50,6 +56,17 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
   @override
   void initState() {
     super.initState();
+    _marketStatusTimer = Timer.periodic(
+      _marketStatusRefreshInterval,
+      (_) {
+        final latestStatus = isUsMarketOpenNow();
+        if (mounted && latestStatus != _isMarketOpen) {
+          setState(() {
+            _isMarketOpen = latestStatus;
+          });
+        }
+      },
+    );
     // fetch platform settings and listen for selected stock changes
     fetchPlatformSettings();
     // Listen to selectedStockProvider to fetch market exposures when selections change
@@ -73,6 +90,12 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
         fetchMarketExposure(marketId);
       }
     } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _marketStatusTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> fetchPlatformSettings() async {
@@ -643,6 +666,18 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
                       ),
                     ],
                   ),
+                  if (selectedStocks.isNotEmpty && !_isMarketOpen) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Betting is unavailable while the US market is closed. Bets open Mon-Fri, 9:30 AM-4:00 PM ET.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: colors.always8B949E,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -656,7 +691,11 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
                         text: _isSubmitting ? 'Placing Bet...' : 'Place Bet',
                         validator: () {
                           // Disable if net_exposure >= maxRiskTolerance for any selected leg
-                          if (_isSubmitting || wager.isEmpty) return false;
+                          if (_isSubmitting ||
+                              wager.isEmpty ||
+                              !_isMarketOpen) {
+                            return false;
+                          }
                           for (final s in selectedStocks) {
                             final exposures = marketExposures[s.marketId];
                             if (exposures != null) {
@@ -682,6 +721,15 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
                             setState(() {
                               _isSubmitting = true;
                             });
+
+                            if (!isUsMarketOpenNow()) {
+                              showTopRightAlert(
+                                context,
+                                "Bets can only be placed during US market hours (Mon-Fri, 9:30 AM-4:00 PM ET).",
+                                true,
+                              );
+                              return;
+                            }
 
                             final double? wagerAmount = double.tryParse(wager);
                             final competitionId = widget.competitionId;

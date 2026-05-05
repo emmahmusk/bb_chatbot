@@ -47,6 +47,7 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
   bool _prefsLoaded = false;
   bool _didFetchForThisActivation = false;
   bool _isAutoRefreshing = false;
+  bool _isActivationLoading = false;
   Timer? _autoRefreshTimer;
 
   @override
@@ -106,14 +107,22 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
       _preferredOdds = nextOdds;
       _currentPage = nextPage;
       _marketOverrides.clear();
+      _isActivationLoading = true;
     });
 
-    await ref.read(getMarketsProviderNew.notifier).get(
-      queryParams: {
-        ...widget.queryParams,
-        'page': nextPage,
-      },
-    );
+    try {
+      await ref.read(getMarketsProviderNew.notifier).get(
+        queryParams: {
+          ...widget.queryParams,
+          'page': nextPage,
+        },
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isActivationLoading = false;
+      });
+    }
   }
 
   Future<void> _fetchPage(String page) async {
@@ -691,7 +700,7 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
         ),
         const SizedBox(height: 16),
         Expanded(
-          child: state is LoadingState && !_didFetchForThisActivation
+          child: _isActivationLoading || state is LoadingState
               ? const Center(child: LoadingMainCard())
               : state is ErrorState
                   ? Center(
