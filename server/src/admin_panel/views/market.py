@@ -1,4 +1,5 @@
 import logging
+import time
 from django.db import transaction
 from admin_panel.utils import get_grouped_market_data
 from collections import defaultdict
@@ -869,14 +870,59 @@ class StockRefreshView(APIView):
                 {"error": "Missing Alpha Vantage API key"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        for stock in Stock.objects.all():
+
+        raw_symbols = (request.query_params.get("symbols") or "").strip()
+        symbols = [
+            symbol.strip().upper()
+            for symbol in raw_symbols.split(",")
+            if symbol.strip()
+        ]
+        delay_seconds = float(
+            request.query_params.get(
+                "delay_seconds",
+                getattr(settings, "ALPHA_VANTAGE_STOCK_REFRESH_DELAY_SECONDS", 0.8),
+            )
+        )
+
+        stocks = Stock.objects.all().order_by("symbol")
+        if symbols:
+            stocks = stocks.filter(symbol__in=symbols)
+
+        updated_count = 0
+        unchanged_count = 0
+        failed_symbols = []
+        stock_list = list(stocks)
+
+        for index, stock in enumerate(stock_list):
             try:
+                before_price = stock.last_price
                 stock.get_current_price(api_key=api_key)
+                stock.refresh_from_db(fields=["last_price", "last_change", "last_percent_change"])
+                cache.delete(f"market_grouped_{stock.symbol}")
+
+                if stock.last_price != before_price:
+                    updated_count += 1
+                else:
+                    unchanged_count += 1
             except Exception as e:
                 logger.error(f"Error refreshing price for {stock.symbol}: {e}")
+                failed_symbols.append(stock.symbol)
                 continue
+
+            if delay_seconds > 0 and index < len(stock_list) - 1:
+                time.sleep(delay_seconds)
+
+        cache.delete("stock_admin_list")
         return Response(
-            {"message": "Stock data refreshed successfully"},
+            {
+                "message": "Stock data refresh completed.",
+                "requested_symbols": symbols or "ALL",
+                "total_stocks": len(stock_list),
+                "updated_count": updated_count,
+                "unchanged_count": unchanged_count,
+                "failed_count": len(failed_symbols),
+                "failed_symbols": failed_symbols,
+            },
             status=status.HTTP_200_OK
         )
 

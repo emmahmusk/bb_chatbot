@@ -1,6 +1,7 @@
 # betengine/models.py
 
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+import logging
 
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -16,6 +17,7 @@ from math import gcd
 
 from mkt.utils import get_side_and_american_odds
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -121,7 +123,9 @@ class Stock(models.Model):
 
         try:
             response = requests.get(url, params=params, timeout=10)
-            data = response.json().get("Global Quote", {})
+            response.raise_for_status()
+            payload = response.json()
+            data = payload.get("Global Quote", {})
             price_str = data.get("05. price")
             change_str = data.get("09. change")
             percent_str = data.get("10. change percent")
@@ -133,9 +137,20 @@ class Stock(models.Model):
             if percent_str:
                 self.last_percent_change = percent_str
 
+            if not price_str:
+                logger.warning(
+                    "[%s] Alpha Vantage returned no price. Payload keys=%s note=%s information=%s",
+                    self.symbol,
+                    list(payload.keys()),
+                    payload.get("Note"),
+                    payload.get("Information"),
+                )
+                return self.last_price or Decimal("0")
+
             self.save(update_fields=["last_price", "last_change", "last_percent_change"])
             return self.last_price or Decimal("0")
-        except Exception:
+        except Exception as e:
+            logger.warning("[%s] Alpha Vantage price refresh failed: %s", self.symbol, e)
             return self.last_price or Decimal("0")
 
     class Meta:
