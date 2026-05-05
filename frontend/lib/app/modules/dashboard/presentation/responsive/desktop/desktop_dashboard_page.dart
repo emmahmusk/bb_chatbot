@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:frontend/app/modules/competition/presentation/providers/competition_my_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,10 +28,73 @@ class DesktopDashboardPage extends ConsumerStatefulWidget {
 }
 
 class _DesktopDashboardPageState extends ConsumerState<DesktopDashboardPage> {
+  static const Duration _marketRefreshInterval = Duration(seconds: 30);
+  Timer? _marketRefreshTimer;
+  bool _isMarketRefreshInFlight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _marketRefreshTimer = Timer.periodic(_marketRefreshInterval, (_) {
+      _pollCurrentMarketBranch();
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _marketRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<Map<String, String>?> _currentMarketQueryParams() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    switch (widget.shell.currentIndex) {
+      case 0:
+        return {
+          'trending': 'true',
+          'page': prefs.getString('trendingPage') ?? '1',
+        };
+      case 2:
+        return {
+          'expiring_soon': 'true',
+          'page': prefs.getString('expiringSoonPage') ?? '1',
+        };
+      case 3:
+        return {
+          'page': prefs.getString('allStocksPage') ?? '1',
+        };
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _pollCurrentMarketBranch() async {
+    if (_isMarketRefreshInFlight) {
+      return;
+    }
+
+    final queryParams = await _currentMarketQueryParams();
+    if (queryParams == null) {
+      return;
+    }
+
+    _isMarketRefreshInFlight = true;
+    try {
+      await ref.read(getMarketsProviderNew.notifier).get(
+        queryParams: queryParams,
+        preserveState: true,
+        preserveOrder: true,
+      );
+    } finally {
+      _isMarketRefreshInFlight = false;
+    }
   }
 
   @override

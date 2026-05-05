@@ -35,6 +35,7 @@ class GetMarketsNotifierNew extends Notifier<AppState<PaginatedMarketModel>> {
   Future<void> get({
     Map<String, String>? queryParams,
     bool preserveState = false,
+    bool preserveOrder = false,
   }) async {
     final previousState = state;
     final hasExistingData = previousState is SuccessState<PaginatedMarketModel> ||
@@ -53,6 +54,40 @@ class GetMarketsNotifierNew extends Notifier<AppState<PaginatedMarketModel>> {
       state = ErrorDataState(
         data: previousState.data,
         message: nextState.message,
+      );
+      return;
+    }
+
+    if (preserveState &&
+        preserveOrder &&
+        previousState is SuccessState<PaginatedMarketModel> &&
+        nextState is SuccessState<PaginatedMarketModel>) {
+      final previousResults = previousState.data.results;
+      final fetchedResults = nextState.data.results;
+      final fetchedById = {
+        for (final market in fetchedResults) market.id: market,
+      };
+
+      final mergedResults = <MarketModel>[];
+      final seenIds = <int>{};
+
+      for (final market in previousResults) {
+        final updatedMarket = fetchedById[market.id];
+        if (updatedMarket == null) {
+          continue;
+        }
+        mergedResults.add(updatedMarket);
+        seenIds.add(market.id);
+      }
+
+      for (final market in fetchedResults) {
+        if (!seenIds.contains(market.id)) {
+          mergedResults.add(market);
+        }
+      }
+
+      state = SuccessState(
+        nextState.data.copyWith(results: mergedResults),
       );
       return;
     }

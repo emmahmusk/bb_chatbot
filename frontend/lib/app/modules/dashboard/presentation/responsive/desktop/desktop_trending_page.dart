@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:developer';
 import 'dart:convert'; // make sure this is imported
 
@@ -38,11 +37,8 @@ class DesktopTrendingPage extends ConsumerStatefulWidget {
 class _DesktopTrendingPageState extends ConsumerState<DesktopTrendingPage> {
   @override
     final ScrollController _scrollController = ScrollController();
-    static const Duration _autoRefreshInterval = Duration(seconds: 30);
     
      bool _didFetchForThisActivation = false;
-    bool _isAutoRefreshing = false;
-    Timer? _autoRefreshTimer;
     
    List<String>? expiryDates;
   String? selectedExpiry;
@@ -688,16 +684,8 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
 void initState() {
   super.initState();
   loadPreferredOddsType();
-  _startAutoRefresh();
 }
 String preferredOdds = 'P'; // Default to Probability
-
-void _startAutoRefresh() {
-  _autoRefreshTimer?.cancel();
-  _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (_) {
-    _pollCurrentPage();
-  });
-}
 
 Future<void> _refreshForActivation() async {
   final prefs = await SharedPreferences.getInstance();
@@ -717,30 +705,6 @@ Future<void> _refreshForActivation() async {
       'page': nextPage,
     },
   );
-}
-
-bool _isCurrentRoute() {
-  if (!mounted) return false;
-  return GoRouterState.of(context).uri.path == DashboardRoutes.trending;
-}
-
-Future<void> _pollCurrentPage() async {
-  if (!_isCurrentRoute() || _isAutoRefreshing) {
-    return;
-  }
-
-  _isAutoRefreshing = true;
-  try {
-    await ref.read(getMarketsProviderNew.notifier).get(
-      queryParams: {
-        'trending': 'true',
-        'page': currentPage ?? '1',
-      },
-      preserveState: true,
-    );
-  } finally {
-    _isAutoRefreshing = false;
-  }
 }
 
 Future<void> loadPreferredOddsType() async {
@@ -934,7 +898,6 @@ Future<void> fetchAndReplaceMarket(
 
   @override
   void dispose() {
-    _autoRefreshTimer?.cancel();
     _scrollController.dispose(); // Always dispose your controller!
     super.dispose();
   }
