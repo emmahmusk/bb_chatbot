@@ -28,6 +28,10 @@ class GetMarketsNotifierNew extends Notifier<AppState<PaginatedMarketModel>> {
   /// Fetch markets (or others based on filters).
   /// When [preserveState] is true and we already have data, refresh in place
   /// so polling does not flash the UI back to a full loading state.
+  void showLoading() {
+    state = const LoadingState();
+  }
+
   Future<void> get({
     Map<String, String>? queryParams,
     bool preserveState = false,
