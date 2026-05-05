@@ -9,6 +9,7 @@ import 'package:frontend/app/modules/auth/presentation/widgets/login_dialog.dart
 import 'package:frontend/app/modules/auth/presentation/widgets/profile_settings_dialog.dart';
 import 'package:frontend/app/modules/competition/presentation/providers/competition_my_provider.dart';
 import 'package:frontend/app/modules/dashboard/presentation/dashboard_routes.dart';
+import 'package:frontend/app/modules/dashboard/presentation/providers/get_markets_provider_new.dart';
 import 'package:frontend/app/modules/dashboard/presentation/providers/stock_selection_provider.dart';
 import 'package:frontend/app/modules/dashboard/presentation/responsive/sections/dashboard/bet_slip_section.dart';
 import 'package:frontend/app/modules/dashboard/presentation/widgets/search/search_dialog.dart';
@@ -20,6 +21,7 @@ import 'package:frontend/app/shared/functions/market_hours.dart';
 import 'package:frontend/app/shared/presentation/widgets/clickable.dart';
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../providers/bet_history_provider_new.dart';
 
@@ -443,6 +445,29 @@ class _MobileRouteChipHeaderState
   late bool _isMarketOpen;
   late Timer _timer;
 
+  Future<void> _openMarketBranch({
+    required int index,
+    required String pagePreferenceKey,
+    required Map<String, String> queryParams,
+  }) async {
+    if (widget.shell.currentIndex == index) {
+      return;
+    }
+
+    ref.read(getMarketsProviderNew.notifier).showLoading();
+    widget.shell.goBranch(index);
+
+    final prefs = await SharedPreferences.getInstance();
+    final savedPage = prefs.getString(pagePreferenceKey) ?? '1';
+
+    await ref.read(getMarketsProviderNew.notifier).get(
+      queryParams: {
+        ...queryParams,
+        'page': savedPage,
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -474,17 +499,29 @@ class _MobileRouteChipHeaderState
         _RouteChip(
           label: 'Trending Predictions',
           isActive: widget.shell.currentIndex == 0,
-          onTap: () => widget.shell.goBranch(0),
+          onTap: () => _openMarketBranch(
+            index: 0,
+            pagePreferenceKey: 'trendingPage',
+            queryParams: const {'trending': 'true'},
+          ),
         ),
         _RouteChip(
           label: 'Expiring Soon',
           isActive: widget.shell.currentIndex == 2,
-          onTap: () => widget.shell.goBranch(2),
+          onTap: () => _openMarketBranch(
+            index: 2,
+            pagePreferenceKey: 'expiringSoonPage',
+            queryParams: const {'expiring_soon': 'true'},
+          ),
         ),
         _RouteChip(
           label: 'All Stocks',
           isActive: widget.shell.currentIndex == 3,
-          onTap: () => widget.shell.goBranch(3),
+          onTap: () => _openMarketBranch(
+            index: 3,
+            pagePreferenceKey: 'allStocksPage',
+            queryParams: const {},
+          ),
         ),
         _RouteChip(
           label: 'My Predictions',

@@ -652,6 +652,10 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
         if (!mounted || GoRouterState.of(context).uri.path != widget.path) {
           return;
         }
+        if (ref.read(getMarketsProviderNew) is LoadingState) {
+          _didFetchForThisActivation = true;
+          return;
+        }
         _didFetchForThisActivation = true;
         _refreshForActivation();
       });
