@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'dart:convert'; // make sure this is imported
 
@@ -15,6 +16,7 @@ import 'package:frontend/core/framework/mgt/app_state.dart';
 
 import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
+import 'package:frontend/app/modules/dashboard/presentation/dashboard_routes.dart';
 
 import '../../providers/stock_selection_provider.dart'; 
 
@@ -36,8 +38,11 @@ class DesktopTrendingPage extends ConsumerStatefulWidget {
 class _DesktopTrendingPageState extends ConsumerState<DesktopTrendingPage> {
   @override
     final ScrollController _scrollController = ScrollController();
+    static const Duration _autoRefreshInterval = Duration(seconds: 30);
     
-     bool _didResetForThisActivation = false;
+     bool _didFetchForThisActivation = false;
+    bool _isAutoRefreshing = false;
+    Timer? _autoRefreshTimer;
     
    List<String>? expiryDates;
   String? selectedExpiry;
@@ -681,16 +686,62 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
 
 @override
 void initState() {
-  onInit(() {
-    ref.read(getMarketsProviderNew.notifier).get(queryParams: {
-      'trending': 'true',
-      'page': currentPage ?? '1', // use existing page if set, else default to 1
-    });
-  });
-  loadPreferredOddsType();
   super.initState();
+  loadPreferredOddsType();
+  _startAutoRefresh();
 }
 String preferredOdds = 'P'; // Default to Probability
+
+void _startAutoRefresh() {
+  _autoRefreshTimer?.cancel();
+  _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (_) {
+    _pollCurrentPage();
+  });
+}
+
+Future<void> _refreshForActivation() async {
+  final prefs = await SharedPreferences.getInstance();
+  final savedPage = prefs.getString('trendingPage');
+  final nextPage =
+      savedPage != null && savedPage.isNotEmpty ? savedPage : currentPage ?? '1';
+
+  if (!mounted) return;
+
+  setState(() {
+    currentPage = nextPage;
+  });
+
+  await ref.read(getMarketsProviderNew.notifier).get(
+    queryParams: {
+      'trending': 'true',
+      'page': nextPage,
+    },
+  );
+}
+
+bool _isCurrentRoute() {
+  if (!mounted) return false;
+  return GoRouterState.of(context).uri.path == DashboardRoutes.trending;
+}
+
+Future<void> _pollCurrentPage() async {
+  if (!_isCurrentRoute() || _isAutoRefreshing) {
+    return;
+  }
+
+  _isAutoRefreshing = true;
+  try {
+    await ref.read(getMarketsProviderNew.notifier).get(
+      queryParams: {
+        'trending': 'true',
+        'page': currentPage ?? '1',
+      },
+      preserveState: true,
+    );
+  } finally {
+    _isAutoRefreshing = false;
+  }
+}
 
 Future<void> loadPreferredOddsType() async {
   final prefs = await SharedPreferences.getInstance();
@@ -883,6 +934,7 @@ Future<void> fetchAndReplaceMarket(
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _scrollController.dispose(); // Always dispose your controller!
     super.dispose();
   }
@@ -894,24 +946,22 @@ Future<void> fetchAndReplaceMarket(
   Widget build(BuildContext context) {
      
     final state = ref.watch(getMarketsProviderNew);
- 
 
-    final isCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    final currentPath = GoRouterState.of(context).uri.path;
+    final isCurrent = currentPath == DashboardRoutes.trending;
 
-  // when leaving, allow a new reset next time we come back
-  if (!isCurrent) {
-    _didResetForThisActivation = false;
-  } else if (isCurrent && !_didResetForThisActivation) {
-    // reset to page 1 once per activation
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _didResetForThisActivation = true;
-      setState(() => currentPage = '1');
-      ref.read(getMarketsProviderNew.notifier).get(
-        queryParams: {'trending': 'true', 'page': '1'},
-      );
-    });
-  }
+    if (!isCurrent) {
+      _didFetchForThisActivation = false;
+    } else if (!_didFetchForThisActivation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            GoRouterState.of(context).uri.path != DashboardRoutes.trending) {
+          return;
+        }
+        _didFetchForThisActivation = true;
+        _refreshForActivation();
+      });
+    }
 
     final outerPadding = MediaQuery.of(context).size.width < 600 ? 0.0 : 40.0;
 
