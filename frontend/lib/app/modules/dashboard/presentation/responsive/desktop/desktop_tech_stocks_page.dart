@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:frontend/app/modules/dashboard/presentation/providers/get_markets_provider.dart';
@@ -15,6 +16,7 @@ import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend/app/shared/providers/preferences_provider.dart';
+import 'package:frontend/app/modules/dashboard/presentation/dashboard_routes.dart';
 
 import '../../providers/stock_selection_provider.dart'; 
 
@@ -31,6 +33,10 @@ class DesktopTechStocksPage extends ConsumerStatefulWidget {
 
 class _DesktopTechStocksPageState extends ConsumerState<DesktopTechStocksPage> {
   final ScrollController _scrollController = ScrollController();
+  static const Duration _autoRefreshInterval = Duration(seconds: 30);
+  bool _didFetchForThisActivation = false;
+  bool _isAutoRefreshing = false;
+  Timer? _autoRefreshTimer;
 
 
    List<String>? expiryDates;
@@ -765,13 +771,6 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
 
   @override
   void initState() {
-    onInit(
-      () {
-        // ref.read(getMarketsProvider.notifier).get();
-       ref.read(getMarketsProviderNew.notifier).get();
-      },
-    );
-    
     // Listen for odds type changes from settings
     ref.listen<String>(oddsTypeProvider, (previous, next) {
       if (previous != next) {
@@ -786,6 +785,7 @@ Future<void> fetchUpdatedMarket(String symbol, String expiry, double strike) asy
     } catch (_) {}
 
     super.initState();
+    _startAutoRefresh();
   }
 
 
@@ -802,6 +802,55 @@ Future<void> loadPreferredOddsType() async {
     });
   } else {
     print('DEBUG: Odds type not found or invalid, using default P. Saved value: $saved');
+  }
+}
+
+Future<void> _refreshForActivation() async {
+  final prefs = await SharedPreferences.getInstance();
+  final savedPage = prefs.getString('allStocksPage');
+  final nextPage =
+      savedPage != null && savedPage.isNotEmpty ? savedPage : currentPage ?? '1';
+
+  if (!mounted) return;
+
+  setState(() {
+    currentPage = nextPage;
+  });
+
+  await ref.read(getMarketsProviderNew.notifier).get(
+    queryParams: {
+      'page': nextPage,
+    },
+  );
+}
+
+void _startAutoRefresh() {
+  _autoRefreshTimer?.cancel();
+  _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (_) {
+    _pollCurrentPage();
+  });
+}
+
+bool _isCurrentRoute() {
+  if (!mounted) return false;
+  return GoRouterState.of(context).uri.path == DashboardRoutes.allStocks;
+}
+
+Future<void> _pollCurrentPage() async {
+  if (!_isCurrentRoute() || _isAutoRefreshing) {
+    return;
+  }
+
+  _isAutoRefreshing = true;
+  try {
+    await ref.read(getMarketsProviderNew.notifier).get(
+      queryParams: {
+        'page': currentPage ?? '1',
+      },
+      preserveState: true,
+    );
+  } finally {
+    _isAutoRefreshing = false;
   }
 }
 
@@ -837,6 +886,7 @@ String formatToMMDDYYYY(String input) {
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _scrollController.dispose(); // Always dispose your controller!
     super.dispose();
   }
@@ -844,6 +894,21 @@ String formatToMMDDYYYY(String input) {
 @override
   Widget build(BuildContext context) {
     final state = ref.watch(getMarketsProviderNew);
+    final currentPath = GoRouterState.of(context).uri.path;
+    final isCurrent = currentPath == DashboardRoutes.allStocks;
+
+    if (!isCurrent) {
+      _didFetchForThisActivation = false;
+    } else if (!_didFetchForThisActivation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            GoRouterState.of(context).uri.path != DashboardRoutes.allStocks) {
+          return;
+        }
+        _didFetchForThisActivation = true;
+        _refreshForActivation();
+      });
+    }
 //  "",
    final outerPadding = MediaQuery.of(context).size.width < 600 ? 0.0 : 40.0;
 

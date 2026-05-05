@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app/modules/dashboard/presentation/providers/get_markets_provider.dart';
@@ -13,6 +14,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:frontend/app/modules/dashboard/presentation/dashboard_routes.dart';
 
 
 import '../../providers/stock_selection_provider.dart'; 
@@ -33,6 +35,10 @@ class _DesktopExpiringSoonPageState
     extends ConsumerState<DesktopExpiringSoonPage> {
 
           final ScrollController _scrollController = ScrollController();
+  static const Duration _autoRefreshInterval = Duration(seconds: 30);
+  bool _didFetchForThisActivation = false;
+  bool _isAutoRefreshing = false;
+  Timer? _autoRefreshTimer;
 
    List<String>? expiryDates;
   String? selectedExpiry;
@@ -42,17 +48,9 @@ String? currentPage='1';
 
 @override
   void initState() {
-    setState(() {
-      currentPage='1';
-    });
-    onInit(
-      () {
-        // ref.read(getMarketsProvider.notifier).get();
-      ref.read(getMarketsProviderNew.notifier).get(queryParams: {'expiring_soon': 'true','page': currentPage ?? '1',});
-      },
-    );
     super.initState();
     loadPreferredOddsType();
+    _startAutoRefresh();
   }
 
 
@@ -691,6 +689,57 @@ Future<void> loadPreferredOddsType() async {
   }
 }
 
+Future<void> _refreshForActivation() async {
+  final prefs = await SharedPreferences.getInstance();
+  final savedPage = prefs.getString('expiringSoonPage');
+  final nextPage =
+      savedPage != null && savedPage.isNotEmpty ? savedPage : currentPage ?? '1';
+
+  if (!mounted) return;
+
+  setState(() {
+    currentPage = nextPage;
+  });
+
+  await ref.read(getMarketsProviderNew.notifier).get(
+    queryParams: {
+      'expiring_soon': 'true',
+      'page': nextPage,
+    },
+  );
+}
+
+void _startAutoRefresh() {
+  _autoRefreshTimer?.cancel();
+  _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (_) {
+    _pollCurrentPage();
+  });
+}
+
+bool _isCurrentRoute() {
+  if (!mounted) return false;
+  return GoRouterState.of(context).uri.path == DashboardRoutes.expiringSoon;
+}
+
+Future<void> _pollCurrentPage() async {
+  if (!_isCurrentRoute() || _isAutoRefreshing) {
+    return;
+  }
+
+  _isAutoRefreshing = true;
+  try {
+    await ref.read(getMarketsProviderNew.notifier).get(
+      queryParams: {
+        'expiring_soon': 'true',
+        'page': currentPage ?? '1',
+      },
+      preserveState: true,
+    );
+  } finally {
+    _isAutoRefreshing = false;
+  }
+}
+
 String getOdds(String? a, String? d, String? f, {double? impliedOdds}) {
   print('DEBUG getOdds called: preferredOdds=$preferredOdds, impliedOdds=$impliedOdds, a=$a, d=$d, f=$f');
   switch (preferredOdds) {
@@ -817,8 +866,9 @@ Future<void> fetchAndReplaceMarket(
 }
 
 
-@override
+  @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _scrollController.dispose(); // Always dispose your controller!
     super.dispose();
   }
@@ -827,6 +877,22 @@ Future<void> fetchAndReplaceMarket(
  @override
   Widget build(BuildContext context) {
     final state = ref.watch(getMarketsProviderNew);
+    final currentPath = GoRouterState.of(context).uri.path;
+    final isCurrent = currentPath == DashboardRoutes.expiringSoon;
+
+    if (!isCurrent) {
+      _didFetchForThisActivation = false;
+    } else if (!_didFetchForThisActivation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            GoRouterState.of(context).uri.path !=
+                DashboardRoutes.expiringSoon) {
+          return;
+        }
+        _didFetchForThisActivation = true;
+        _refreshForActivation();
+      });
+    }
 
     
 

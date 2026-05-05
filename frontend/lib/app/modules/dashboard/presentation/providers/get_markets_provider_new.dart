@@ -25,10 +25,35 @@ class GetMarketsNotifierNew extends Notifier<AppState<PaginatedMarketModel>> {
     return const Init();
   }
 
-  /// Fetch trending markets (or others based on filters)
-  Future<void> get({Map<String, String>? queryParams}) async {
-    state = const LoadingState();
-    state = await _repo.getMarkets(queryParams: queryParams);
+  /// Fetch markets (or others based on filters).
+  /// When [preserveState] is true and we already have data, refresh in place
+  /// so polling does not flash the UI back to a full loading state.
+  Future<void> get({
+    Map<String, String>? queryParams,
+    bool preserveState = false,
+  }) async {
+    final previousState = state;
+    final hasExistingData = previousState is SuccessState<PaginatedMarketModel> ||
+        previousState is LoadMoreState<PaginatedMarketModel> ||
+        previousState is ErrorDataState<PaginatedMarketModel>;
+
+    if (!(preserveState && hasExistingData)) {
+      state = const LoadingState();
+    }
+
+    final nextState = await _repo.getMarkets(queryParams: queryParams);
+
+    if (preserveState &&
+        hasExistingData &&
+        nextState is ErrorState<PaginatedMarketModel>) {
+      state = ErrorDataState(
+        data: previousState.data,
+        message: nextState.message,
+      );
+      return;
+    }
+
+    state = nextState;
   }
 
   /// ✅ Update one market in the current list

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -39,22 +40,34 @@ class MobileMarketsPage extends ConsumerStatefulWidget {
 class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
   final ScrollController _scrollController = ScrollController();
   final Map<int, MarketModel> _marketOverrides = {};
+  static const Duration _autoRefreshInterval = Duration(seconds: 30);
 
   String _preferredOdds = 'P';
   String _currentPage = '1';
   bool _prefsLoaded = false;
   bool _didFetchForThisActivation = false;
+  bool _isAutoRefreshing = false;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadPreferences();
+    _startAutoRefresh();
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (_) {
+      _pollCurrentPage();
+    });
   }
 
   Future<void> _loadPreferences() async {
@@ -75,6 +88,34 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
     });
   }
 
+  Future<void> _refreshForActivation() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedOdds = prefs.getString('odds_type');
+    final savedPage = prefs.getString(widget.pagePreferenceKey);
+
+    final nextOdds =
+        savedOdds != null && ['A', 'D', 'F', 'P'].contains(savedOdds)
+            ? savedOdds
+            : _preferredOdds;
+    final nextPage =
+        savedPage != null && savedPage.isNotEmpty ? savedPage : _currentPage;
+
+    if (!mounted) return;
+
+    setState(() {
+      _preferredOdds = nextOdds;
+      _currentPage = nextPage;
+      _marketOverrides.clear();
+    });
+
+    await ref.read(getMarketsProviderNew.notifier).get(
+      queryParams: {
+        ...widget.queryParams,
+        'page': nextPage,
+      },
+    );
+  }
+
   Future<void> _fetchPage(String page) async {
     await ref.read(getMarketsProviderNew.notifier).get(
       queryParams: {
@@ -88,6 +129,30 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
     setState(() {
       _marketOverrides.clear();
     });
+  }
+
+  bool _isCurrentRoute() {
+    if (!mounted) return false;
+    return GoRouterState.of(context).uri.path == widget.path;
+  }
+
+  Future<void> _pollCurrentPage() async {
+    if (!_prefsLoaded || !_isCurrentRoute() || _isAutoRefreshing) {
+      return;
+    }
+
+    _isAutoRefreshing = true;
+    try {
+      await ref.read(getMarketsProviderNew.notifier).get(
+        queryParams: {
+          ...widget.queryParams,
+          'page': _currentPage,
+        },
+        preserveState: true,
+      );
+    } finally {
+      _isAutoRefreshing = false;
+    }
   }
 
   Future<void> _goToPage(int page) async {
@@ -574,10 +639,12 @@ class _MobileMarketsPageState extends ConsumerState<MobileMarketsPage> {
     if (!isCurrent) {
       _didFetchForThisActivation = false;
     } else if (_prefsLoaded && !_didFetchForThisActivation) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted || !isCurrent) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || GoRouterState.of(context).uri.path != widget.path) {
+          return;
+        }
         _didFetchForThisActivation = true;
-        await _fetchPage(_currentPage);
+        _refreshForActivation();
       });
     }
 
