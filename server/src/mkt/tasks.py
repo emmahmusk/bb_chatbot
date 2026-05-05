@@ -526,3 +526,4 @@ def ingest_from_steadyapi(symbols: List[str]):
 
     finally:
         cache.delete(LOCK_KEY)
+

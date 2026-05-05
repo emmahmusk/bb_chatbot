@@ -13,7 +13,6 @@ from django.core.cache import cache
 
 from .market_chart import ODDS_LADDER_JSON
 from .utils import calculate_implied_probability_risk_neutral, get_side_and_american_odds
-# from .alpha_vantage_utils import get_current_stock_price
 from .models import OptionData
 from betengine.models import Market, Bet, Stock
 
@@ -93,14 +92,17 @@ def populate_market_for_stocks(stock_ids, job_start: float = None, job_budget: i
             continue
 
         markets_created = 0
+        valid_market_keys = set()
 
         try:
             # Step 1: Get latest stock price
             try:
-                current_price = stock.last_price
+                current_price = stock.get_current_price(
+                    api_key=getattr(settings, "ALPHA_VANTAGE_API_KEY", None)
+                )
             except Exception as e:
                 logger.exception("[%s] Price fetch failed: %s", stock.symbol, e)
-                continue
+                current_price = stock.last_price
 
             if not current_price or current_price <= 0:
                 logger.warning("[%s] Invalid price: %s", stock.symbol, current_price)
@@ -111,9 +113,27 @@ def populate_market_for_stocks(stock_ids, job_start: float = None, job_budget: i
             today = timezone.now().date()
 
             # Step 2: Gather option data
-            option_qs = OptionData.objects.filter(symbol__iexact=stock.symbol, expiration__gte=today)
+            latest_quote_date = (
+                OptionData.objects.filter(symbol__iexact=stock.symbol, expiration__gte=today)
+                .order_by("-quote_date")
+                .values_list("quote_date", flat=True)
+                .first()
+            )
+            option_qs = OptionData.objects.filter(
+                symbol__iexact=stock.symbol,
+                expiration__gte=today,
+            )
+            if latest_quote_date:
+                option_qs = option_qs.filter(quote_date=latest_quote_date)
             if not option_qs.exists():
                 logger.info("[%s] No options found.", stock.symbol)
+                Market.objects.filter(
+                    stock=stock,
+                    outcome_type="over",
+                    expiry_date__gte=today,
+                    is_active=True,
+                ).update(is_active=False)
+                cache.delete(f"market_grouped_{stock.symbol}")
                 continue
 
             grouped = defaultdict(lambda: {"call": None, "put": None})
@@ -164,6 +184,8 @@ def populate_market_for_stocks(stock_ids, job_start: float = None, job_budget: i
                 if total_volume == 0:
                     continue
 
+                valid_market_keys.add((strike, expiration_date))
+
                 # Step 4: Create or update Market
                 with transaction.atomic():
                     market, _ = Market.objects.update_or_create(
@@ -179,8 +201,8 @@ def populate_market_for_stocks(stock_ids, job_start: float = None, job_budget: i
                             "display_odds_over": display_odds["over"],
                             "display_odds_under": display_odds["under"],
                             "ladder_favored_side": ladder_favored_side,
-                            "total_volume": total_volume
-                            # "is_active": True,
+                            "total_volume": total_volume,
+                            "is_active": True,
                         },
                     )
 
@@ -192,6 +214,24 @@ def populate_market_for_stocks(stock_ids, job_start: float = None, job_budget: i
 
                     markets_created += 1
 
+            active_markets = list(
+                Market.objects.filter(
+                    stock=stock,
+                    outcome_type="over",
+                    expiry_date__gte=today,
+                    is_active=True,
+                ).values_list("id", "target_price", "expiry_date")
+            )
+            stale_market_ids = [
+                market_id
+                for market_id, target_price, expiry_date in active_markets
+                if (target_price, expiry_date) not in valid_market_keys
+            ]
+
+            if stale_market_ids:
+                Market.objects.filter(id__in=stale_market_ids).update(is_active=False)
+
+            cache.delete(f"market_grouped_{stock.symbol}")
             logger.info("[%s] %d markets created/updated", stock.symbol, markets_created)
 
         except Exception as e:
