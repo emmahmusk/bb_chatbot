@@ -331,6 +331,21 @@ def ingest_and_populate(symbols, api_key, date):
 
     start_time = time.time()
     try:
+        normalized_symbols = [
+            symbol.strip().upper()
+            for symbol in symbols
+            if isinstance(symbol, str) and symbol.strip()
+        ]
+
+        # Refresh stock prices even if the options ingest later returns no valid contracts.
+        if normalized_symbols:
+            stocks = Stock.objects.filter(symbol__in=normalized_symbols)
+            for stock in stocks:
+                try:
+                    stock.get_current_price(api_key=api_key)
+                except Exception as e:
+                    logger.warning("[%s] Pre-ingest stock refresh failed: %s", stock.symbol, e)
+
         # Step 1: ingest live options (parallel HTTP + DB writes via bulk ops)
         from .ingest import ingest_live_options  # import local module functions
         processed_symbols = ingest_live_options(symbols, api_key, date=date, job_start=start_time, job_budget=JOB_TIME_BUDGET)
