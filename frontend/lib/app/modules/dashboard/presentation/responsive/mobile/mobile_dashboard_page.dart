@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ import 'package:frontend/app/shared/classes/media/pngs.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
 import 'package:frontend/app/shared/functions/dialog_functions.dart';
 import 'package:frontend/app/shared/functions/format_amount.dart';
+import 'package:frontend/app/shared/functions/market_hours.dart';
 import 'package:frontend/app/shared/presentation/widgets/clickable.dart';
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:go_router/go_router.dart';
@@ -424,12 +426,42 @@ class _MobileDashboardHeader extends ConsumerWidget {
   }
 }
 
-class _MobileRouteChipHeader extends ConsumerWidget {
+class _MobileRouteChipHeader extends ConsumerStatefulWidget {
   const _MobileRouteChipHeader({
     required this.shell,
   });
 
   final StatefulNavigationShell shell;
+
+  @override
+  ConsumerState<_MobileRouteChipHeader> createState() =>
+      _MobileRouteChipHeaderState();
+}
+
+class _MobileRouteChipHeaderState
+    extends ConsumerState<_MobileRouteChipHeader> {
+  late bool _isMarketOpen;
+  late Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _isMarketOpen = isUsMarketOpenNow();
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      final currentStatus = isUsMarketOpenNow();
+      if (currentStatus != _isMarketOpen && mounted) {
+        setState(() {
+          _isMarketOpen = currentStatus;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -441,22 +473,22 @@ class _MobileRouteChipHeader extends ConsumerWidget {
       children: [
         _RouteChip(
           label: 'Trending Predictions',
-          isActive: shell.currentIndex == 0,
-          onTap: () => shell.goBranch(0),
+          isActive: widget.shell.currentIndex == 0,
+          onTap: () => widget.shell.goBranch(0),
         ),
         _RouteChip(
           label: 'Expiring Soon',
-          isActive: shell.currentIndex == 2,
-          onTap: () => shell.goBranch(2),
+          isActive: widget.shell.currentIndex == 2,
+          onTap: () => widget.shell.goBranch(2),
         ),
         _RouteChip(
           label: 'All Stocks',
-          isActive: shell.currentIndex == 3,
-          onTap: () => shell.goBranch(3),
+          isActive: widget.shell.currentIndex == 3,
+          onTap: () => widget.shell.goBranch(3),
         ),
         _RouteChip(
           label: 'My Predictions',
-          isActive: shell.currentIndex == 5,
+          isActive: widget.shell.currentIndex == 5,
           onTap: () async {
             if (!isAuthenticated()) {
               showCenterDialog(context, child: const LoginDialog());
@@ -464,7 +496,7 @@ class _MobileRouteChipHeader extends ConsumerWidget {
             }
             await ref.read(betHistoryProvider.notifier).get();
             if (!context.mounted) return;
-            shell.goBranch(5);
+            widget.shell.goBranch(5);
           },
         ),
         Container(
@@ -480,13 +512,11 @@ class _MobileRouteChipHeader extends ConsumerWidget {
               Icon(
                 Icons.circle,
                 size: 10,
-                color: _isUSMarketOpenNow()
-                    ? Colors.greenAccent
-                    : Colors.orangeAccent,
+                color: _isMarketOpen ? Colors.greenAccent : Colors.orangeAccent,
               ),
               const SizedBox(width: 8),
               Text(
-                _isUSMarketOpenNow() ? 'Market open' : 'Market closed',
+                _isMarketOpen ? 'Market open' : 'Market closed',
                 style: TextStyle(
                   color: colors.alwaysWhite,
                   fontSize: 12,
@@ -498,17 +528,6 @@ class _MobileRouteChipHeader extends ConsumerWidget {
         ),
       ],
     );
-  }
-
-  bool _isUSMarketOpenNow() {
-    final now = DateTime.now().toUtc();
-    final eastern = now.subtract(const Duration(hours: 4));
-    final isWeekday = eastern.weekday >= 1 && eastern.weekday <= 5;
-    final isOpenHours =
-        (eastern.hour > 9 || (eastern.hour == 9 && eastern.minute >= 30)) &&
-            eastern.hour < 16;
-
-    return isWeekday && isOpenHours;
   }
 }
 
