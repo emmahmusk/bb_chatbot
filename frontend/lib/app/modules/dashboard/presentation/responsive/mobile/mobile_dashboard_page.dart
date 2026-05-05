@@ -464,7 +464,7 @@ class _MobileRouteChipHeaderState
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
 
     return Wrap(
