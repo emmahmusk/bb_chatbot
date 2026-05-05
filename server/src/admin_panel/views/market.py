@@ -1,5 +1,4 @@
 import logging
-import time
 from django.db import transaction
 from admin_panel.utils import get_grouped_market_data
 from collections import defaultdict
@@ -22,6 +21,7 @@ from admin_panel.permissions import IsAdmin
 from user.models import PlatformSettings
 # Import your serializers
 from django.utils import timezone
+from django_q.tasks import async_task
 from mkt.utils import get_side_and_american_odds
 from mkt.market_chart import ODDS_LADDER_JSON
 logger = logging.getLogger(__name__)
@@ -877,53 +877,35 @@ class StockRefreshView(APIView):
             for symbol in raw_symbols.split(",")
             if symbol.strip()
         ]
-        delay_seconds = float(
-            request.query_params.get(
-                "delay_seconds",
-                getattr(settings, "ALPHA_VANTAGE_STOCK_REFRESH_DELAY_SECONDS", 0.8),
-            )
+        delay_raw = request.query_params.get(
+            "delay_seconds",
+            getattr(settings, "ALPHA_VANTAGE_STOCK_REFRESH_DELAY_SECONDS", 0.8),
         )
+        try:
+            delay_seconds = max(0.0, float(delay_raw))
+        except (TypeError, ValueError):
+            delay_seconds = getattr(settings, "ALPHA_VANTAGE_STOCK_REFRESH_DELAY_SECONDS", 0.8)
 
-        stocks = Stock.objects.all().order_by("symbol")
-        if symbols:
-            stocks = stocks.filter(symbol__in=symbols)
+        lock_key = "stock_price_refresh_lock"
+        lock_ttl = getattr(settings, "STOCK_REFRESH_LOCK_TTL", 900)
+        if cache.get(lock_key):
+            return Response(
+                {
+                    "message": "A stock price refresh job is already running.",
+                    "requested_symbols": symbols or "ALL",
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
 
-        updated_count = 0
-        unchanged_count = 0
-        failed_symbols = []
-        stock_list = list(stocks)
-
-        for index, stock in enumerate(stock_list):
-            try:
-                before_price = stock.last_price
-                stock.get_current_price(api_key=api_key)
-                stock.refresh_from_db(fields=["last_price", "last_change", "last_percent_change"])
-                cache.delete(f"market_grouped_{stock.symbol}")
-
-                if stock.last_price != before_price:
-                    updated_count += 1
-                else:
-                    unchanged_count += 1
-            except Exception as e:
-                logger.error(f"Error refreshing price for {stock.symbol}: {e}")
-                failed_symbols.append(stock.symbol)
-                continue
-
-            if delay_seconds > 0 and index < len(stock_list) - 1:
-                time.sleep(delay_seconds)
-
-        cache.delete("stock_admin_list")
+        cache.set(lock_key, True, timeout=lock_ttl)
+        async_task("mkt.tasks.refresh_stock_prices", symbols or None, api_key, delay_seconds)
         return Response(
             {
-                "message": "Stock data refresh completed.",
+                "message": "Stock data refresh job started.",
                 "requested_symbols": symbols or "ALL",
-                "total_stocks": len(stock_list),
-                "updated_count": updated_count,
-                "unchanged_count": unchanged_count,
-                "failed_count": len(failed_symbols),
-                "failed_symbols": failed_symbols,
+                "delay_seconds": delay_seconds,
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_202_ACCEPTED
         )
 
 class StockSteadyRefreshView(APIView):

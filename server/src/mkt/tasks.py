@@ -1,6 +1,6 @@
 from .alpha_vantage_utils import get_current_stock_price
 import logging
-from typing import List
+from typing import List, Optional
 from django.db import transaction
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
@@ -19,6 +19,66 @@ from .utils import  calculate_implied_probability_risk_neutral, get_side_and_ame
 import requests
 from django.utils import timezone
 logger = logging.getLogger(__name__)
+
+
+def refresh_stock_prices(symbols: Optional[List[str]] = None, api_key: str = None, delay_seconds: float = 0.8):
+    lock_key = "stock_price_refresh_lock"
+    try:
+        api_key = api_key or getattr(settings, "ALPHA_VANTAGE_API_KEY", None)
+        if not api_key:
+            logger.error("Stock refresh aborted: ALPHA_VANTAGE_API_KEY is missing.")
+            return
+
+        normalized_symbols = [
+            symbol.strip().upper()
+            for symbol in (symbols or [])
+            if isinstance(symbol, str) and symbol.strip()
+        ]
+        try:
+            delay_seconds = max(0.0, float(delay_seconds))
+        except (TypeError, ValueError):
+            delay_seconds = 0.8
+
+        stocks = Stock.objects.all().order_by("symbol")
+        if normalized_symbols:
+            stocks = stocks.filter(symbol__in=normalized_symbols)
+
+        stock_list = list(stocks)
+        updated_count = 0
+        unchanged_count = 0
+        failed_symbols = []
+
+        for index, stock in enumerate(stock_list):
+            try:
+                before_price = stock.last_price
+                stock.get_current_price(api_key=api_key)
+                stock.refresh_from_db(fields=["last_price", "last_change", "last_percent_change"])
+                cache.delete(f"market_grouped_{stock.symbol}")
+
+                if stock.last_price != before_price:
+                    updated_count += 1
+                else:
+                    unchanged_count += 1
+            except Exception as e:
+                logger.error("Error refreshing price for %s: %s", stock.symbol, e)
+                failed_symbols.append(stock.symbol)
+                continue
+
+            if delay_seconds > 0 and index < len(stock_list) - 1:
+                time.sleep(delay_seconds)
+
+        cache.delete("stock_admin_list")
+        logger.info(
+            "Stock refresh completed. requested=%s total=%s updated=%s unchanged=%s failed=%s failed_symbols=%s",
+            normalized_symbols or "ALL",
+            len(stock_list),
+            updated_count,
+            unchanged_count,
+            len(failed_symbols),
+            failed_symbols,
+        )
+    finally:
+        cache.delete(lock_key)
 
 # def ingest_historical_options(symbols: list, api_key: str, date: str = None) -> list:
 #     """
