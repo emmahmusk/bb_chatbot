@@ -362,7 +362,6 @@ def ingest_and_populate(symbols, api_key, date):
             return
 
         # Map processed symbols to stock ids
-        from betengine.models import Stock
         stock_ids = list(Stock.objects.filter(symbol__in=processed_symbols).values_list("id", flat=True))
         if not stock_ids:
             logger.info("No matching stocks found for processed symbols.")
