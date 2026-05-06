@@ -904,6 +904,13 @@ class StockRefreshView(APIView):
             delay_seconds = max(0.0, float(delay_raw))
         except (TypeError, ValueError):
             delay_seconds = getattr(settings, "ALPHA_VANTAGE_STOCK_REFRESH_DELAY_SECONDS", 0.8)
+        refresh_markets_raw = request.query_params.get("refresh_markets", "true")
+        refresh_markets = str(refresh_markets_raw).strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
 
         lock_key = "stock_price_refresh_lock"
         lock_ttl = getattr(settings, "STOCK_REFRESH_LOCK_TTL", 900)
@@ -912,17 +919,25 @@ class StockRefreshView(APIView):
                 {
                     "message": "A stock price refresh job is already running.",
                     "requested_symbols": symbols or "ALL",
+                    "refresh_markets": refresh_markets,
                 },
                 status=status.HTTP_202_ACCEPTED,
             )
 
         cache.set(lock_key, True, timeout=lock_ttl)
-        async_task("mkt.tasks.refresh_stock_prices", symbols or None, api_key, delay_seconds)
+        async_task(
+            "mkt.tasks.refresh_stock_prices",
+            symbols or None,
+            api_key,
+            delay_seconds,
+            refresh_markets,
+        )
         return Response(
             {
                 "message": "Stock data refresh job started.",
                 "requested_symbols": symbols or "ALL",
                 "delay_seconds": delay_seconds,
+                "refresh_markets": refresh_markets,
             },
             status=status.HTTP_202_ACCEPTED
         )

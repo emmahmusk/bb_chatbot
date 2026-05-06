@@ -21,7 +21,40 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
-def refresh_stock_prices(symbols: Optional[List[str]] = None, api_key: str = None, delay_seconds: float = 0.8):
+def _deactivate_markets_for_symbols(symbols: List[str]):
+    normalized_symbols = sorted(
+        {
+            symbol.strip().upper()
+            for symbol in (symbols or [])
+            if isinstance(symbol, str) and symbol.strip()
+        }
+    )
+    if not normalized_symbols:
+        return
+
+    today = timezone.now().date()
+    Market.objects.filter(
+        stock__symbol__in=normalized_symbols,
+        outcome_type="over",
+        expiry_date__gte=today,
+        is_active=True,
+    ).update(is_active=False)
+
+    for symbol in normalized_symbols:
+        cache.delete(f"market_grouped_{symbol}")
+
+    logger.warning(
+        "Deactivated active markets for symbols with no fresh sanitized option snapshot: %s",
+        normalized_symbols,
+    )
+
+
+def refresh_stock_prices(
+    symbols: Optional[List[str]] = None,
+    api_key: str = None,
+    delay_seconds: float = 0.8,
+    refresh_markets: bool = True,
+):
     lock_key = "stock_price_refresh_lock"
     try:
         api_key = api_key or getattr(settings, "ALPHA_VANTAGE_API_KEY", None)
@@ -68,6 +101,14 @@ def refresh_stock_prices(symbols: Optional[List[str]] = None, api_key: str = Non
                 time.sleep(delay_seconds)
 
         cache.delete("stock_admin_list")
+        if refresh_markets and stock_list:
+            from .populate import populate_market_for_stocks as guarded_populate_market_for_stocks
+
+            guarded_populate_market_for_stocks(
+                [stock.id for stock in stock_list],
+                refresh_prices=False,
+            )
+
         logger.info(
             "Stock refresh completed. requested=%s total=%s updated=%s unchanged=%s failed=%s failed_symbols=%s",
             normalized_symbols or "ALL",
@@ -151,7 +192,7 @@ def refresh_stock_prices(symbols: Optional[List[str]] = None, api_key: str = Non
 
 # tasks.py (inside markets app)
 
-def populate_market_for_stocks(stock_ids: List[int]):
+def populate_market_for_stocks(stock_ids: List[int], refresh_prices: bool = True):
     """
     Compatibility wrapper for older async/task callers.
     Delegate to the guarded populate path in ``mkt.populate`` so every
@@ -159,7 +200,7 @@ def populate_market_for_stocks(stock_ids: List[int]):
     """
     from .populate import populate_market_for_stocks as guarded_populate_market_for_stocks
 
-    guarded_populate_market_for_stocks(stock_ids)
+    guarded_populate_market_for_stocks(stock_ids, refresh_prices=refresh_prices)
 
 
 def core_populate(stock, option_qs, current_price):
@@ -208,10 +249,7 @@ def core_populate(stock, option_qs, current_price):
         except ValueError:
             continue
 
-        if not (
-            Decimal("0.20") <= p_over <= Decimal("0.80")
-            and Decimal("0.20") <= p_under <= Decimal("0.80")
-        ):
+        if not Market.probabilities_within_guardrail(p_over, p_under):
             continue
 
         try:
@@ -305,6 +343,10 @@ def ingest_and_populate(symbols, api_key, date):
         from .ingest import ingest_live_options  # import local module functions
         processed_symbols = ingest_live_options(symbols, api_key, date=date, job_start=start_time, job_budget=JOB_TIME_BUDGET)
 
+        failed_symbols = sorted(set(normalized_symbols) - set(processed_symbols))
+        if failed_symbols:
+            _deactivate_markets_for_symbols(failed_symbols)
+
         if not processed_symbols:
             logger.info("No symbols processed; exiting.")
             return
@@ -318,7 +360,12 @@ def ingest_and_populate(symbols, api_key, date):
 
         # Step 2: populate market data — function will enforce remaining time budget & re-enqueue if needed
         from .populate import populate_market_for_stocks  # import local function
-        populate_market_for_stocks(stock_ids, job_start=start_time, job_budget=JOB_TIME_BUDGET)
+        populate_market_for_stocks(
+            stock_ids,
+            job_start=start_time,
+            job_budget=JOB_TIME_BUDGET,
+            refresh_prices=False,
+        )
 
     except Exception as e:
         logger.exception("Ingest and populate top-level task failed: %s", e)
