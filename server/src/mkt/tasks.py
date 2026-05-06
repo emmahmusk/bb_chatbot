@@ -329,6 +329,7 @@ def ingest_and_populate(symbols, api_key, date):
             for symbol in symbols
             if isinstance(symbol, str) and symbol.strip()
         ]
+        current_prices = {}
 
         # Refresh stock prices even if the options ingest later returns no valid contracts.
         if normalized_symbols:
@@ -336,12 +337,21 @@ def ingest_and_populate(symbols, api_key, date):
             for stock in stocks:
                 try:
                     stock.get_current_price(api_key=api_key)
+                    if stock.last_price and stock.last_price > 0:
+                        current_prices[stock.symbol.upper()] = stock.last_price
                 except Exception as e:
                     logger.warning("[%s] Pre-ingest stock refresh failed: %s", stock.symbol, e)
 
         # Step 1: ingest live options (parallel HTTP + DB writes via bulk ops)
         from .ingest import ingest_live_options  # import local module functions
-        processed_symbols = ingest_live_options(symbols, api_key, date=date, job_start=start_time, job_budget=JOB_TIME_BUDGET)
+        processed_symbols = ingest_live_options(
+            symbols,
+            api_key,
+            date=date,
+            job_start=start_time,
+            job_budget=JOB_TIME_BUDGET,
+            current_prices=current_prices,
+        )
 
         failed_symbols = sorted(set(normalized_symbols) - set(processed_symbols))
         if failed_symbols:

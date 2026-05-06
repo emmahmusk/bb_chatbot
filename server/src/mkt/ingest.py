@@ -68,7 +68,14 @@ def fetch_live_options_batch_concurrent(
 
 # ingest.py (continued)
 
-def ingest_live_options(symbols: List[str], api_key: str, date: Optional[str] = None, job_start: float = None, job_budget: int = 240) -> List[str]:
+def ingest_live_options(
+    symbols: List[str],
+    api_key: str,
+    date: Optional[str] = None,
+    job_start: float = None,
+    job_budget: int = 240,
+    current_prices: Optional[Dict[str, Any]] = None,
+) -> List[str]:
     """
     Fetch and store options for a list of symbols. Returns list of successfully processed symbols.
     This orchestrates fetch -> bulk DB writes.
@@ -94,5 +101,10 @@ def ingest_live_options(symbols: List[str], api_key: str, date: Optional[str] = 
         return []
 
     # Bulk persist the OptionData rows (optimized implementation)
-    processed_symbols = populate_option_contracts_from_batch(valid_data, job_start=job_start, job_budget=job_budget)
+    processed_symbols = populate_option_contracts_from_batch(
+        valid_data,
+        job_start=job_start,
+        job_budget=job_budget,
+        current_prices=current_prices,
+    )
     return processed_symbols
