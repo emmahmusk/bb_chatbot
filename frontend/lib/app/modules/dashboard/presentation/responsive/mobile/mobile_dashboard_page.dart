@@ -44,6 +44,7 @@ class _MobileDashboardPageState extends ConsumerState<MobileDashboardPage> {
   bool _isPredictionSlipOpen = false;
   Timer? _marketRefreshTimer;
   bool _isMarketRefreshInFlight = false;
+  String? _persistedCompetitionId;
 
   @override
   void initState() {
@@ -108,6 +109,27 @@ class _MobileDashboardPageState extends ConsumerState<MobileDashboardPage> {
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
     final selectedStocks = ref.watch(selectedStockProvider);
+    final routeUri = GoRouterState.of(context).uri;
+    final myCompetitions = ref.watch(competitionMyProvider);
+    final activeCompetitionId = routeUri.queryParameters['competitionId'];
+    final isCompetitionPage = routeUri.path == DashboardRoutes.competitions;
+
+    String? effectiveCompetitionId = activeCompetitionId;
+    if ((effectiveCompetitionId == null || effectiveCompetitionId.isEmpty) &&
+        isCompetitionPage &&
+        myCompetitions.isSuccess &&
+        myCompetitions.data.results.isNotEmpty) {
+      effectiveCompetitionId =
+          myCompetitions.data.results.first.competition.toString();
+    }
+    effectiveCompetitionId ??= _persistedCompetitionId;
+
+    if (effectiveCompetitionId != null && effectiveCompetitionId.isNotEmpty) {
+      _persistedCompetitionId = effectiveCompetitionId;
+    }
+
+    final isCompetitionMode =
+        effectiveCompetitionId != null && effectiveCompetitionId.isNotEmpty;
 
     return SafeArea(
       child: Stack(
@@ -117,7 +139,10 @@ class _MobileDashboardPageState extends ConsumerState<MobileDashboardPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: const _MobileDashboardHeader(),
+                child: _MobileDashboardHeader(
+                  effectiveCompetitionId: effectiveCompetitionId,
+                  isCompetitionMode: isCompetitionMode,
+                ),
               ),
               const SizedBox(height: 18),
               Padding(
@@ -130,7 +155,17 @@ class _MobileDashboardPageState extends ConsumerState<MobileDashboardPage> {
               const SizedBox(height: 18),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _MobileRouteChipHeader(shell: widget.shell),
+                child: _MobileRouteChipHeader(
+                  shell: widget.shell,
+                  effectiveCompetitionId: effectiveCompetitionId,
+                  isCompetitionMode: isCompetitionMode,
+                  onExitCompetitionMode: () {
+                    setState(() {
+                      _persistedCompetitionId = null;
+                    });
+                    context.go(DashboardRoutes.trending);
+                  },
+                ),
               ),
               const SizedBox(height: 18),
               Expanded(
@@ -221,7 +256,7 @@ class _MobileDashboardPageState extends ConsumerState<MobileDashboardPage> {
 
     final routeUri = GoRouterState.of(context).uri;
     final competitionId = int.tryParse(
-      routeUri.queryParameters['competitionId'] ?? '',
+      routeUri.queryParameters['competitionId'] ?? _persistedCompetitionId ?? '',
     );
 
     setState(() {
@@ -273,7 +308,13 @@ class _MobileDashboardPageState extends ConsumerState<MobileDashboardPage> {
 }
 
 class _MobileDashboardHeader extends ConsumerWidget {
-  const _MobileDashboardHeader();
+  const _MobileDashboardHeader({
+    required this.effectiveCompetitionId,
+    required this.isCompetitionMode,
+  });
+
+  final String? effectiveCompetitionId;
+  final bool isCompetitionMode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -281,13 +322,7 @@ class _MobileDashboardHeader extends ConsumerWidget {
     final profile = ref.watch(currentUserProvider);
     final myCompetitions = ref.watch(competitionMyProvider);
     final colors = ref.watch(appThemeProvider).colors;
-    final routeUri = GoRouterState.of(context).uri;
-    final selectedCompetitionId = int.tryParse(
-      routeUri.queryParameters['competitionId'] ?? '',
-    );
-    final isCompetitionPage = routeUri.path == DashboardRoutes.competitions;
-    final isCompetitionMode =
-        isCompetitionPage || selectedCompetitionId != null;
+    final selectedCompetitionId = int.tryParse(effectiveCompetitionId ?? '');
 
     if (isCompetitionMode &&
         !myCompetitions.isLoading &&
@@ -298,13 +333,22 @@ class _MobileDashboardHeader extends ConsumerWidget {
     }
 
     String trendingRoute() {
-      if (selectedCompetitionId == null || isCompetitionPage) {
+      if (effectiveCompetitionId == null || effectiveCompetitionId.isEmpty) {
         return DashboardRoutes.trending;
       }
       return Uri(
         path: DashboardRoutes.trending,
-        queryParameters: {'competitionId': '$selectedCompetitionId'},
+        queryParameters: {'competitionId': effectiveCompetitionId},
       ).toString();
+    }
+
+    String competitionsRoute() {
+      if (effectiveCompetitionId == null || effectiveCompetitionId.isEmpty) {
+        return DashboardRoutes.competitions;
+      }
+      return DashboardRoutes.competitionLocation(
+        competitionId: effectiveCompetitionId,
+      );
     }
 
     String walletCoinBalance = '0.00';
@@ -357,7 +401,7 @@ class _MobileDashboardHeader extends ConsumerWidget {
             _HeaderActionPill(
               label: 'Competitions',
               icon: Icons.emoji_events_outlined,
-              onTap: () => context.go(DashboardRoutes.competitions),
+              onTap: () => context.go(competitionsRoute()),
             ),
           ],
         ),
@@ -494,9 +538,15 @@ class _MobileDashboardHeader extends ConsumerWidget {
 class _MobileRouteChipHeader extends ConsumerStatefulWidget {
   const _MobileRouteChipHeader({
     required this.shell,
+    required this.effectiveCompetitionId,
+    required this.isCompetitionMode,
+    required this.onExitCompetitionMode,
   });
 
   final StatefulNavigationShell shell;
+  final String? effectiveCompetitionId;
+  final bool isCompetitionMode;
+  final VoidCallback onExitCompetitionMode;
 
   @override
   ConsumerState<_MobileRouteChipHeader> createState() =>
@@ -509,16 +559,27 @@ class _MobileRouteChipHeaderState
   late Timer _timer;
 
   Future<void> _openMarketBranch({
-    required int index,
+    required String routePath,
     required String pagePreferenceKey,
     required Map<String, String> queryParams,
   }) async {
-    if (widget.shell.currentIndex == index) {
+    final routeUri = GoRouterState.of(context).uri;
+    final effectiveCompetitionId = widget.effectiveCompetitionId;
+
+    final targetRoute =
+        effectiveCompetitionId == null || effectiveCompetitionId.isEmpty
+            ? routePath
+            : Uri(
+                path: routePath,
+                queryParameters: {'competitionId': effectiveCompetitionId},
+              ).toString();
+
+    if (routeUri.toString() == targetRoute) {
       return;
     }
 
     ref.read(getMarketsProviderNew.notifier).showLoading();
-    widget.shell.goBranch(index);
+    context.go(targetRoute);
 
     final prefs = await SharedPreferences.getInstance();
     final savedPage = prefs.getString(pagePreferenceKey) ?? '1';
@@ -559,11 +620,18 @@ class _MobileRouteChipHeaderState
       spacing: 10,
       runSpacing: 10,
       children: [
+        if (widget.isCompetitionMode)
+          _RouteChip(
+            label: 'Main Page',
+            isActive: false,
+            onTap: widget.onExitCompetitionMode,
+            leadingIcon: Icons.arrow_back_rounded,
+          ),
         _RouteChip(
           label: 'Trending Predictions',
           isActive: widget.shell.currentIndex == 0,
           onTap: () => _openMarketBranch(
-            index: 0,
+            routePath: DashboardRoutes.trending,
             pagePreferenceKey: 'trendingPage',
             queryParams: const {'trending': 'true'},
           ),
@@ -572,7 +640,7 @@ class _MobileRouteChipHeaderState
           label: 'Expiring Soon',
           isActive: widget.shell.currentIndex == 2,
           onTap: () => _openMarketBranch(
-            index: 2,
+            routePath: DashboardRoutes.expiringSoon,
             pagePreferenceKey: 'expiringSoonPage',
             queryParams: const {'expiring_soon': 'true'},
           ),
@@ -581,7 +649,7 @@ class _MobileRouteChipHeaderState
           label: 'All Stocks',
           isActive: widget.shell.currentIndex == 3,
           onTap: () => _openMarketBranch(
-            index: 3,
+            routePath: DashboardRoutes.allStocks,
             pagePreferenceKey: 'allStocksPage',
             queryParams: const {},
           ),
@@ -727,11 +795,13 @@ class _RouteChip extends ConsumerWidget {
     required this.label,
     required this.onTap,
     required this.isActive,
+    this.leadingIcon,
   });
 
   final String label;
   final VoidCallback onTap;
   final bool isActive;
+  final IconData? leadingIcon;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -750,13 +820,26 @@ class _RouteChip extends ConsumerWidget {
               ? colors.alwaysWhite.withValues(alpha: 0.1)
               : colors.always30363D.withValues(alpha: 0.2),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: colors.alwaysWhite,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (leadingIcon != null) ...[
+              Icon(
+                leadingIcon,
+                size: 14,
+                color: colors.alwaysWhite,
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: colors.alwaysWhite,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
