@@ -70,6 +70,45 @@ class Stock(models.Model):
 
     def __str__(self):
         return self.symbol
+
+    def _alpha_vantage_quote_entitlement(self) -> str | None:
+        entitlement = str(
+            getattr(settings, "ALPHA_VANTAGE_QUOTE_ENTITLEMENT", "delayed") or ""
+        ).strip().lower()
+        if entitlement in {"realtime", "delayed"}:
+            return entitlement
+        return None
+
+    def _fetch_alpha_vantage_json(self, params: dict):
+        response = requests.get("https://www.alphavantage.co/query", params=params, timeout=10)
+        response.raise_for_status()
+        return response.json()
+
+    def _extract_intraday_price(self, payload) -> Decimal | None:
+        if not isinstance(payload, dict):
+            return None
+
+        series_key = next(
+            (key for key in payload.keys() if key.startswith("Time Series (")),
+            None,
+        )
+        if not series_key:
+            return None
+
+        series = payload.get(series_key) or {}
+        if not isinstance(series, dict) or not series:
+            return None
+
+        latest_timestamp = max(series.keys())
+        latest_bar = series.get(latest_timestamp) or {}
+        close_value = latest_bar.get("4. close")
+        if not close_value:
+            return None
+
+        try:
+            return Decimal(str(close_value))
+        except (InvalidOperation, ValueError, TypeError):
+            return None
     
     def get_steady_price(self, api_key: str = None):
         """
@@ -122,36 +161,85 @@ class Stock(models.Model):
         if not api_key:
             return Decimal("0")
 
-        url = "https://www.alphavantage.co/query"
-        params = {"function": "GLOBAL_QUOTE", "symbol": self.symbol, "apikey": api_key}
+        entitlement = self._alpha_vantage_quote_entitlement()
+        intraday_interval = getattr(settings, "ALPHA_VANTAGE_INTRADAY_INTERVAL", "5min")
+
+        quote_attempts = []
+        preferred_quote_params = {
+            "function": "GLOBAL_QUOTE",
+            "symbol": self.symbol,
+            "apikey": api_key,
+        }
+        if entitlement:
+            preferred_quote_params["entitlement"] = entitlement
+        quote_attempts.append(("global_quote", preferred_quote_params))
+
+        intraday_params = {
+            "function": "TIME_SERIES_INTRADAY",
+            "symbol": self.symbol,
+            "interval": intraday_interval,
+            "adjusted": "false",
+            "extended_hours": "false",
+            "outputsize": "compact",
+            "apikey": api_key,
+        }
+        if entitlement:
+            intraday_params["entitlement"] = entitlement
+
+        if entitlement:
+            quote_attempts.append(
+                (
+                    "global_quote_fallback",
+                    {
+                        "function": "GLOBAL_QUOTE",
+                        "symbol": self.symbol,
+                        "apikey": api_key,
+                    },
+                )
+            )
 
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            payload = response.json()
-            data = payload.get("Global Quote", {})
-            price_str = data.get("05. price")
-            change_str = data.get("09. change")
-            percent_str = data.get("10. change percent")
+            for attempt_name, params in quote_attempts:
+                payload = self._fetch_alpha_vantage_json(params)
+                data = payload.get("Global Quote", {})
+                price_str = data.get("05. price")
+                change_str = data.get("09. change")
+                percent_str = data.get("10. change percent")
 
-            if price_str:
-                self.last_price = Decimal(price_str)
-            if change_str:
-                self.last_change = Decimal(change_str)
-            if percent_str:
-                self.last_percent_change = percent_str
+                if price_str:
+                    self.last_price = Decimal(price_str)
+                    if change_str:
+                        self.last_change = Decimal(change_str)
+                    if percent_str:
+                        self.last_percent_change = percent_str
+                    self.save(update_fields=["last_price", "last_change", "last_percent_change"])
+                    return self.last_price or Decimal("0")
 
-            if not price_str:
                 logger.warning(
-                    "[%s] Alpha Vantage returned no price. Payload keys=%s note=%s information=%s",
+                    "[%s] Alpha Vantage %s returned no quote price. Payload keys=%s note=%s information=%s",
                     self.symbol,
+                    attempt_name,
                     list(payload.keys()),
                     payload.get("Note"),
                     payload.get("Information"),
                 )
-                return self.last_price or Decimal("0")
 
-            self.save(update_fields=["last_price", "last_change", "last_percent_change"])
+                if attempt_name == "global_quote":
+                    intraday_payload = self._fetch_alpha_vantage_json(intraday_params)
+                    intraday_price = self._extract_intraday_price(intraday_payload)
+                    if intraday_price is not None:
+                        self.last_price = intraday_price
+                        self.save(update_fields=["last_price", "last_change", "last_percent_change"])
+                        return self.last_price or Decimal("0")
+
+                    logger.warning(
+                        "[%s] Alpha Vantage intraday fallback returned no usable close. Payload keys=%s note=%s information=%s",
+                        self.symbol,
+                        list(intraday_payload.keys()),
+                        intraday_payload.get("Note"),
+                        intraday_payload.get("Information"),
+                    )
+
             return self.last_price or Decimal("0")
         except Exception as e:
             logger.warning("[%s] Alpha Vantage price refresh failed: %s", self.symbol, e)

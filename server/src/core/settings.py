@@ -170,6 +170,18 @@ OPTION_INGEST_MAX_WORKERS = 6 # concurrent HTTP fetch workers (default 6).
 
 OPTION_INGEST_BATCH_SIZE = 500 # batch size for bulk DB writes (default 500).
 
+ALPHA_VANTAGE_QUOTE_ENTITLEMENT = (
+    environ.get("ALPHA_VANTAGE_QUOTE_ENTITLEMENT", "delayed").strip().lower()
+)
+if ALPHA_VANTAGE_QUOTE_ENTITLEMENT not in {"", "realtime", "delayed"}:
+    ALPHA_VANTAGE_QUOTE_ENTITLEMENT = "delayed"
+
+ALPHA_VANTAGE_INTRADAY_INTERVAL = (
+    environ.get("ALPHA_VANTAGE_INTRADAY_INTERVAL", "5min").strip().lower()
+)
+if ALPHA_VANTAGE_INTRADAY_INTERVAL not in {"1min", "5min", "15min", "30min", "60min"}:
+    ALPHA_VANTAGE_INTRADAY_INTERVAL = "5min"
+
 # Celery Configuration
 # CELERY_BROKER_URL = 'redis://localhost:6379/0' # Use your Redis URL
 # CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' # Optional: for storing task results

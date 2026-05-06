@@ -62,6 +62,21 @@ def _group_latest_option_pairs(option_qs):
     return grouped
 
 
+def _deactivate_active_markets_for_stock(stock, today=None):
+    """
+    Deactivate all live display markets for a stock when we cannot safely
+    reconcile them against the latest option feed.
+    """
+    today = today or timezone.now().date()
+    Market.objects.filter(
+        stock=stock,
+        outcome_type="over",
+        expiry_date__gte=today,
+        is_active=True,
+    ).update(is_active=False)
+    cache.delete(f"market_grouped_{stock.symbol}")
+
+
 def update_market_odds_from_feed(market, feed_data):
     """
     Applies fresh Alpha Vantage implied probabilities,
@@ -157,6 +172,7 @@ def populate_market_for_stocks(
 
             if not current_price or current_price <= 0:
                 logger.warning("[%s] Invalid price: %s", stock.symbol, current_price)
+                _deactivate_active_markets_for_stock(stock)
                 continue
 
             lower_bound = current_price * Decimal("0.85")
@@ -178,13 +194,7 @@ def populate_market_for_stocks(
                 option_qs = option_qs.filter(quote_date=latest_quote_date)
             if not option_qs.exists():
                 logger.info("[%s] No options found.", stock.symbol)
-                Market.objects.filter(
-                    stock=stock,
-                    outcome_type="over",
-                    expiry_date__gte=today,
-                    is_active=True,
-                ).update(is_active=False)
-                cache.delete(f"market_grouped_{stock.symbol}")
+                _deactivate_active_markets_for_stock(stock, today=today)
                 continue
 
             grouped = _group_latest_option_pairs(option_qs)
