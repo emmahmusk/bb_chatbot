@@ -242,7 +242,8 @@ def populate_market_for_stocks(stock_ids, job_start: float = None, job_budget: i
     if remaining:
         try:
             logger.info("Re-enqueueing %d remaining stocks.", len(remaining))
-            async_task("mkt.tasks.populate_market_for_stocks", remaining, task_name="populate_market_resume")
+            # Re-enqueue the guarded population path, not the legacy tasks.py helper.
+            async_task("mkt.populate.populate_market_for_stocks", remaining, task_name="populate_market_resume")
         except Exception:
             logger.exception("Failed to re-enqueue remaining stocks.")
 

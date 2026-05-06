@@ -2,6 +2,7 @@
 from collections import defaultdict
 import logging
 
+from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 
@@ -76,6 +77,21 @@ class OverrideVigView(APIView):
                 put_mark=put_mark
             )
 
+            if not Market.probabilities_within_guardrail(p_over, p_under):
+                market.is_active = False
+                market.save(update_fields=["is_active", "updated_at"])
+                cache.delete(f"market_grouped_{stock.symbol}")
+                return Response(
+                    {
+                        "status": "skipped",
+                        "message": (
+                            "Market deactivated because recalculated probabilities fall "
+                            "outside the 20%-80% guardrail."
+                        ),
+                    },
+                    status=200,
+                )
+
             # Convert with new vig
             first_side, first_american_odd = get_side_and_american_odds(p_over, ODDS_LADDER_JSON, vig=vig_percent)
             second_side, second_american_odd = get_side_and_american_odds(p_under, ODDS_LADDER_JSON, vig=vig_percent)
@@ -99,6 +115,7 @@ class OverrideVigView(APIView):
                     "is_active": True
                 }
             )
+            cache.delete(f"market_grouped_{stock.symbol}")
 
             return Response({
                 "status": "success",
@@ -156,6 +173,21 @@ class AdminNudgeOdds(APIView):
                 put_mark=put_mark
             )
 
+            if not Market.probabilities_within_guardrail(p_over, p_under):
+                market.is_active = False
+                market.save(update_fields=["is_active", "updated_at"])
+                cache.delete(f"market_grouped_{stock.symbol}")
+                return Response(
+                    {
+                        "status": "skipped",
+                        "message": (
+                            "Market deactivated because recalculated probabilities fall "
+                            "outside the 20%-80% guardrail."
+                        ),
+                    },
+                    status=200,
+                )
+
             # Convert with new vig
             first_side, first_american_odd = get_side_and_american_odds(p_over, ODDS_LADDER_JSON, vig=vig_percent)
             second_side, second_american_odd = get_side_and_american_odds(p_under, ODDS_LADDER_JSON, vig=vig_percent)
@@ -179,6 +211,7 @@ class AdminNudgeOdds(APIView):
                     "is_active": True
                 }
             )
+            cache.delete(f"market_grouped_{stock.symbol}")
 
             return Response({
                 "status": "success",
@@ -250,6 +283,12 @@ class BulkOverrideVigByIdsView(APIView):
             except ValueError:
                 continue
 
+            if not Market.probabilities_within_guardrail(p_over, p_under):
+                market.is_active = False
+                market.save(update_fields=["is_active", "updated_at"])
+                cache.delete(f"market_grouped_{stock.symbol}")
+                continue
+
             # recalc american odds with new vig
             _, odd_over = get_side_and_american_odds(p_over, ODDS_LADDER_JSON, vig=vig_percent)
             _, odd_under = get_side_and_american_odds(p_under, ODDS_LADDER_JSON, vig=vig_percent)
@@ -266,6 +305,7 @@ class BulkOverrideVigByIdsView(APIView):
 
             market.is_active = True
             market.save()
+            cache.delete(f"market_grouped_{stock.symbol}")
             updated += 1
 
         return Response(

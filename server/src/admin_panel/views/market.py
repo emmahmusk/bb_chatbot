@@ -690,6 +690,20 @@ class MarketOddsResetView(APIView):
             base_over = feed_over if feed_over is not None else _valid_decimal(market.implied_odds_over) or Decimal("0.50")
             base_under = feed_under if feed_under is not None else _valid_decimal(market.implied_odds_under) or Decimal("0.50")
 
+            if not Market.probabilities_within_guardrail(base_over, base_under):
+                market.is_active = False
+                market.save(update_fields=["is_active", "updated_at"])
+                cache.delete(f"market_grouped_{market.stock.symbol}")
+                return Response(
+                    {
+                        "status": "success",
+                        "market_id": market.id,
+                        "stock_symbol": market.stock.symbol,
+                        "message": "Market deactivated because baseline probabilities are outside the 20%-80% guardrail.",
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
             # --- 3. Update implied odds and br_true_percent ---
             market.implied_odds_over = base_over.quantize(Decimal("0.0001"))
             market.implied_odds_under = base_under.quantize(Decimal("0.0001"))
@@ -776,6 +790,11 @@ class StockMarketBulkResetView(APIView):
                 # Restore base implied odds (prefer feed values)
                 base_over = getattr(market, "feed_implied_odds_over", None) or market.implied_odds_over
                 base_under = getattr(market, "feed_implied_odds_under", None) or market.implied_odds_under
+
+                if not Market.probabilities_within_guardrail(base_over, base_under):
+                    market.is_active = False
+                    market.save(update_fields=["is_active", "updated_at"])
+                    continue
 
                 market.implied_odds_over = base_over
                 market.implied_odds_under = base_under
