@@ -19,6 +19,49 @@ from betengine.models import Market, Bet, Stock
 logger = logging.getLogger(__name__)
 
 
+def _group_latest_option_pairs(option_qs):
+    """
+    Build one deterministic call/put pair per logical contract key.
+
+    We key by (symbol, expiration, strike) and, for each option_type, keep the
+    most recently updated row. This avoids same-day stale rows or mixed-provider
+    leftovers winning simply because queryset iteration order was arbitrary.
+    """
+    grouped = defaultdict(lambda: {"call": None, "put": None})
+
+    ordered_options = option_qs.order_by(
+        "symbol",
+        "expiration",
+        "strike",
+        "option_type",
+        "-updated_at",
+        "-created_at",
+        "-id",
+    )
+
+    for option in ordered_options:
+        try:
+            key = (option.symbol, option.expiration, Decimal(str(option.strike)))
+            option_type = (option.option_type or "").lower()
+            if option_type not in ("call", "put"):
+                continue
+
+            # Because the queryset is ordered newest-first per logical key/type,
+            # the first row we see for a side is the freshest one.
+            if grouped[key][option_type] is None:
+                grouped[key][option_type] = option
+        except Exception as e:
+            logger.warning(
+                "[%s] Skipping invalid option %s while grouping latest pair: %s",
+                getattr(option, "symbol", "N/A"),
+                getattr(option, "contract_id", "N/A"),
+                e,
+            )
+            continue
+
+    return grouped
+
+
 def update_market_odds_from_feed(market, feed_data):
     """
     Applies fresh Alpha Vantage implied probabilities,
@@ -144,14 +187,7 @@ def populate_market_for_stocks(
                 cache.delete(f"market_grouped_{stock.symbol}")
                 continue
 
-            grouped = defaultdict(lambda: {"call": None, "put": None})
-            for option in option_qs:
-                try:
-                    key = (option.symbol, option.expiration, Decimal(option.strike))
-                    grouped[key][option.option_type] = option
-                except Exception as e:
-                    logger.warning("[%s] Skipping invalid option %s: %s", stock.symbol, getattr(option, "contract_id", "N/A"), e)
-                    continue
+            grouped = _group_latest_option_pairs(option_qs)
 
             # Step 3: Calculate implied probabilities and update markets
             for (symbol, expiration_date, strike), pair in grouped.items():
