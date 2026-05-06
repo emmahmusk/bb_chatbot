@@ -14,21 +14,46 @@ import sys
 from os import environ
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
+
+# Minimal .env reader to avoid dependency/version differences between
+# `dotenv` and `python-dotenv` in local environments.
+def _read_local_env(path: Path) -> dict[str, str]:
+    values = {}
+    try:
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+
+            if not key:
+                continue
+
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+                value = value[1:-1]
+
+            values[key] = value
+    except FileNotFoundError:
+        return {}
+    return values
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load local env file before reading DEBUG / DJANGO_ENV so local runs
+# consistently pick up the intended database and environment settings.
+# File values intentionally override inherited shell values for local troubleshooting.
+dotenv_path = BASE_DIR.parent / ".env"
+if dotenv_path.exists():
+    for key, value in _read_local_env(dotenv_path).items():
+        environ[key] = value
 
 DEBUG = environ.get("DEBUG", "False").lower() == "true"
 
 LOGO_DEV_PUBLISHABLE_KEY = environ.get("LOGO_DEV_PUBLISHABLE_KEY", "YOUR_API_TOKEN_HERE")
-
-if DEBUG:
-    from dotenv import read_dotenv
-
-    dotenv_path = BASE_DIR.parent / ".env"
-    if dotenv_path.exists():
-        read_dotenv(dotenv_path)
-    else:
-        print(f"Warning: .env file not found at {dotenv_path}")
 
 SECRET_KEY = environ.get("SECRET_KEY")
 if not SECRET_KEY:
@@ -209,9 +234,10 @@ AWS_REGION = "eu-north-1"  # Define AWS_REGION here for consistency for all AWS 
 # Database Configuration
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Determine which database to use based on an environment variable, e.g., DJANGO_ENV
-DJANGO_ENV = environ.get("DJANGO_ENV", "production")  # Default to 'development' if not set
-# In production, you'll explicitly set DJANGO_ENV=production via docker run -e or SSM.
+# Determine which database to use.
+# Explicit DJANGO_ENV wins; otherwise fall back to DEBUG so local expectations stay intuitive.
+DJANGO_ENV = (environ.get("DJANGO_ENV") or ("development" if DEBUG else "production")).strip().lower()
+# In production, you should still explicitly set DJANGO_ENV=production via entrypoint or deployment config.
 DATABASES = {}  # Initialize empty dictionary
 
 if DJANGO_ENV == "production":
@@ -278,12 +304,10 @@ if DJANGO_ENV == "production":
             "PORT": AWS_RDS_DB_PORT,
         }
     else:
-        print(
-            "CRITICAL ERROR: Production Aurora RDS database credentials not found in environment variables!"
+        raise ImproperlyConfigured(
+            "Production database credentials missing from environment variables. "
+            "Expected DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, and DB_PORT for AWS RDS."
         )
-        # In production, you MUST raise an exception here to prevent silent failures.
-        # from django.core.exceptions import ImproperlyConfigured
-        print("Production database credentials missing from environment variables.")
 
 else:  # For development (local setup, using .env or hardcoded fallbacks)
     # These will be pulled from .env for local development, or default values if not present

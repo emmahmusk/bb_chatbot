@@ -46,6 +46,10 @@ def round_two_places(value):
     return float(Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
+PROBABILITY_GUARDRAIL_FLOOR = Decimal("0.20")
+PROBABILITY_GUARDRAIL_CEILING = Decimal("0.80")
+
+
 
 class Stock(models.Model):
     """
@@ -284,6 +288,35 @@ class Market(models.Model):
 
     def __str__(self):
         return f"{self.stock.symbol} {self.outcome_type.capitalize()} ${self.target_price} by {self.expiry_date.strftime('%Y-%m-%d')}"
+
+    @staticmethod
+    def probabilities_within_guardrail(prob_over, prob_under) -> bool:
+        try:
+            over = Decimal(str(prob_over))
+            under = Decimal(str(prob_under))
+        except Exception:
+            return False
+
+        return (
+            PROBABILITY_GUARDRAIL_FLOOR <= over <= PROBABILITY_GUARDRAIL_CEILING
+            and PROBABILITY_GUARDRAIL_FLOOR <= under <= PROBABILITY_GUARDRAIL_CEILING
+        )
+
+    @staticmethod
+    def clamp_probabilities_to_guardrail(prob_over, prob_under) -> tuple[Decimal, Decimal]:
+        over = Decimal(str(prob_over))
+        under = Decimal(str(prob_under))
+        total = over + under
+        if total <= 0:
+            return Decimal("0.5000"), Decimal("0.5000")
+
+        over = over / total
+        over = max(PROBABILITY_GUARDRAIL_FLOOR, min(over, PROBABILITY_GUARDRAIL_CEILING))
+        under = Decimal("1.0") - over
+        return (
+            over.quantize(Decimal("0.0001")),
+            under.quantize(Decimal("0.0001")),
+        )
     
     def _apply_new_odds(self):
         """
@@ -320,8 +353,8 @@ class Market(models.Model):
             new_over_percent += correction * (new_over_percent / total_percent)
             new_under_percent += correction * (new_under_percent / total_percent)
 
-        # Clip to valid range [1%, 99%] to avoid extreme probabilities
-        new_over_percent = max(1, min(new_over_percent, 99))
+        # Clip to the platform guardrail [20%, 80%].
+        new_over_percent = max(20, min(new_over_percent, 80))
         new_under_percent = 100 - new_over_percent
 
         return (
