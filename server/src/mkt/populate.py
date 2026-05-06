@@ -66,7 +66,12 @@ def update_market_odds_from_feed(market, feed_data):
 
 
 # ✅ Main population task
-def populate_market_for_stocks(stock_ids, job_start: float = None, job_budget: int = 240):
+def populate_market_for_stocks(
+    stock_ids,
+    job_start: float = None,
+    job_budget: int = 240,
+    refresh_prices: bool = True,
+):
     """
     Populate/refresh Market objects for a list of stock IDs.
     Integrates Alpha Vantage feed data and reapplies stored manual nudges.
@@ -95,13 +100,16 @@ def populate_market_for_stocks(stock_ids, job_start: float = None, job_budget: i
         valid_market_keys = set()
 
         try:
-            # Step 1: Get latest stock price
-            try:
-                current_price = stock.get_current_price(
-                    api_key=getattr(settings, "ALPHA_VANTAGE_API_KEY", None)
-                )
-            except Exception as e:
-                logger.exception("[%s] Price fetch failed: %s", stock.symbol, e)
+            # Step 1: Resolve the current stock price.
+            if refresh_prices:
+                try:
+                    current_price = stock.get_current_price(
+                        api_key=getattr(settings, "ALPHA_VANTAGE_API_KEY", None)
+                    )
+                except Exception as e:
+                    logger.exception("[%s] Price fetch failed: %s", stock.symbol, e)
+                    current_price = stock.last_price
+            else:
                 current_price = stock.last_price
 
             if not current_price or current_price <= 0:
@@ -163,7 +171,7 @@ def populate_market_for_stocks(stock_ids, job_start: float = None, job_budget: i
                     continue
 
                 p_over, p_under = calculate_implied_probability_risk_neutral(call_mark=call_mark, put_mark=put_mark)
-                if not (Decimal("0.20") <= p_over <= Decimal("0.80") and Decimal("0.20") <= p_under <= Decimal("0.80")):
+                if not Market.probabilities_within_guardrail(p_over, p_under):
                     continue
 
                 first_side, first_american_odd = get_side_and_american_odds(p_over, ODDS_LADDER_JSON, vig=Decimal("9.0"))
