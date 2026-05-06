@@ -322,7 +322,8 @@ class _MobileDashboardHeader extends ConsumerWidget {
     final profile = ref.watch(currentUserProvider);
     final myCompetitions = ref.watch(competitionMyProvider);
     final colors = ref.watch(appThemeProvider).colors;
-    final selectedCompetitionId = int.tryParse(effectiveCompetitionId ?? '');
+    final competitionRouteId = effectiveCompetitionId;
+    final selectedCompetitionId = int.tryParse(competitionRouteId ?? '');
 
     if (isCompetitionMode &&
         !myCompetitions.isLoading &&
@@ -333,21 +334,21 @@ class _MobileDashboardHeader extends ConsumerWidget {
     }
 
     String trendingRoute() {
-      if (effectiveCompetitionId == null || effectiveCompetitionId.isEmpty) {
+      if (competitionRouteId == null || competitionRouteId.isEmpty) {
         return DashboardRoutes.trending;
       }
       return Uri(
         path: DashboardRoutes.trending,
-        queryParameters: {'competitionId': effectiveCompetitionId},
+        queryParameters: {'competitionId': competitionRouteId},
       ).toString();
     }
 
     String competitionsRoute() {
-      if (effectiveCompetitionId == null || effectiveCompetitionId.isEmpty) {
+      if (competitionRouteId == null || competitionRouteId.isEmpty) {
         return DashboardRoutes.competitions;
       }
       return DashboardRoutes.competitionLocation(
-        competitionId: effectiveCompetitionId,
+        competitionId: competitionRouteId,
       );
     }
 
