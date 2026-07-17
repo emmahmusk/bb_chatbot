@@ -1,0 +1,111 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0D1117">
+  <title>BullBear Market Intelligence</title>
+  <link rel="icon" href="{% static 'chatbot/images/bullbear_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'chatbot/css/chat.css' %}?v=20260717-6">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="BullBear home">
+        <img src="{% static 'chatbot/images/bullbear_logo.png' %}" alt="BullBear">
+        <span class="brand-divider"></span>
+        <span class="brand-product">Intelligence</span>
+      </a>
+      <div class="topbar-actions">
+        <div class="market-pill"><span class="pulse"></span><span>Market data connected</span></div>
+        <div class="mobile-market-pill"><span class="pulse"></span><span>Live data</span></div>
+      </div>
+    </header>
+
+    <main class="chat-layout">
+      <aside class="intro-panel">
+        <div class="eyebrow"><span></span>BULLBEAR AI</div>
+        <h1>See the market<br><em>more clearly.</em></h1>
+        <p class="intro-copy">Turn live BullBear probabilities, targets, expiries, and odds into answers anyone can understand.</p>
+
+        <div class="index-card">
+          <div class="index-card-top">
+            <div class="data-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m5 10V5m6 14v-7m5 7V3"/></svg>
+            </div>
+            <span class="live-badge">LIVE INDEX</span>
+          </div>
+          <strong id="marketCount">Checking market data&hellip;</strong>
+          <span id="dataStatus">Connecting to the market index</span>
+          <div class="index-line"><i></i></div>
+        </div>
+
+        <div class="trust-row">
+          <span><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>Grounded in market data</span>
+          <span><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"/></svg>Educational guidance</span>
+        </div>
+      </aside>
+
+      <section class="chat-panel" aria-label="Market assistant chat">
+        <div class="chat-header">
+          <div class="assistant-identity">
+            <div class="assistant-mark"><img src="{% static 'chatbot/images/bullbear_logo.png' %}" alt=""></div>
+            <div>
+              <div class="assistant-name">Market Assistant <span>AI</span></div>
+              <p><i></i> Online <b>&middot;</b> Grounded in BullBear markets</p>
+            </div>
+          </div>
+          <div class="chat-header-actions">
+            <div class="secure-label">
+              <svg viewBox="0 0 24 24"><path d="M7 10V8a5 5 0 0 1 10 0v2m-11 0h12v10H6V10Z"/></svg>
+              Private session
+            </div>
+            <button class="new-chat-button" id="clearButton" title="Start a new conversation" aria-label="Start a new conversation">
+              <span class="new-chat-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"/></svg>
+              </span>
+              <span>New chat</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="messages" id="messages" aria-live="polite">
+          <article class="message assistant-message welcome-message">
+            <div class="avatar"><span>BB</span></div>
+            <div class="message-body">
+              <div class="message-meta">BULLBEAR ANALYSIS</div>
+              <div class="bubble welcome-bubble">
+                <h2>What would you like to understand?</h2>
+                <p>Ask about a stock, an amount you may invest, or how a BullBear wager works. I&rsquo;ll explain the numbers in plain English.</p>
+              </div>
+              <div class="suggestions" id="suggestions">
+                <button><span class="suggestion-icon">$</span><span>If I invest $300 in AAPL today, what could it be worth in 6 months?</span><i>&rarr;</i></button>
+                <button><span class="suggestion-icon">%</span><span>Compare the available odds for Apple&rsquo;s nearest expiry.</span><i>&rarr;</i></button>
+                <button><span class="suggestion-icon">&uarr;</span><span>Which markets currently show the strongest probability?</span><i>&rarr;</i></button>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="composer-wrap">
+          <div class="error-banner" id="errorBanner" role="alert"></div>
+          <form class="composer" id="chatForm">
+            <textarea id="messageInput" rows="1" maxlength="8000" placeholder="Ask BullBear anything about the market&hellip;" aria-label="Your message" required></textarea>
+            <button type="submit" id="sendButton" aria-label="Send message">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-8-5 16-2.7-6.3L5 12Zm6.3 1.7L19 4"/></svg>
+            </button>
+          </form>
+          <div class="composer-meta">
+            <span><i></i> Answers use available market data</span>
+            <span><kbd>Enter</kbd> to send <b>&middot;</b> <kbd>Shift</kbd> + <kbd>Enter</kbd> for new line</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="{% static 'chatbot/js/chat.js' %}?v=20260717-6" defer></script>
+</body>
+</html>
