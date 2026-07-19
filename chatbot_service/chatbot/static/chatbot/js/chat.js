@@ -81,7 +81,12 @@
         })
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || body.detail || `Request failed (${response.status})`);
+      if (!response.ok) {
+        const fallbackMessage = response.status >= 500
+          ? 'The market assistant had a temporary connection issue. Please try again.'
+          : `Request failed (${response.status}).`;
+        throw new Error(body.error || body.detail || fallbackMessage);
+      }
       rememberConversation(body.conversation_id);
       document.querySelector('#typingMessage')?.remove();
       addAssistantMessage(body.answer, body.structured_answer, body.sources || []);

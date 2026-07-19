@@ -1,4 +1,5 @@
 import re
+import logging
 
 from django.conf import settings
 from django.db import connection, transaction
@@ -22,6 +23,7 @@ REFERENCE_WITHOUT_CONTEXT_RE = re.compile(
     r"\b(?:it|that|this|those|them|same|other one|previous one)\b|^\s*(?:what|how)\s+about\b",
     re.I,
 )
+logger = logging.getLogger(__name__)
 
 
 def _plain_answer(structured):
@@ -75,6 +77,13 @@ def _conversation_history(conversation):
     messages = list(conversation.messages.order_by("-created_at", "-id")[:limit])
     messages.reverse()
     return [{"role": message.role, "content": message.content} for message in messages]
+
+
+def _contextual_fallback_query(message, history):
+    """Keep retrieval usable when a follow-up resolver is unnecessary or unavailable."""
+    user_turns = [item["content"] for item in history if item["role"] == "user"][-4:]
+    parts = user_turns + [message]
+    return "Conversation context: " + " | ".join(part.strip() for part in parts if part.strip())
 
 
 def _save_exchange(conversation, user_text, assistant_text, structured, sources, needs_clarification):
@@ -183,15 +192,31 @@ class ChatView(APIView):
             "needs_clarification": False,
             "clarification_question": "",
         }
-        should_resolve = bool(history) or bool(REFERENCE_WITHOUT_CONTEXT_RE.search(data["message"]))
-        if should_resolve:
+        latest_message = conversation.messages.order_by("-created_at", "-id").first()
+        answering_clarification = bool(
+            latest_message
+            and latest_message.role == "assistant"
+            and latest_message.needs_clarification
+        )
+        should_resolve = (
+            not answering_clarification
+            and (bool(history) or bool(REFERENCE_WITHOUT_CONTEXT_RE.search(data["message"])))
+        )
+        if answering_clarification:
+            resolution["standalone_query"] = _contextual_fallback_query(data["message"], history)
+        elif should_resolve:
             try:
                 resolution = resolve_followup(data["message"], history)
             except (OpenAIError, RuntimeError):
-                return Response(
-                    {"error": "The assistant could not understand the follow-up. Please try again."},
-                    status=status.HTTP_502_BAD_GATEWAY,
-                )
+                logger.exception("Follow-up resolution failed; using conversation-history fallback")
+                if history:
+                    resolution["standalone_query"] = _contextual_fallback_query(data["message"], history)
+                else:
+                    resolution = {
+                        "standalone_query": data["message"],
+                        "needs_clarification": True,
+                        "clarification_question": "Which stock, market, or earlier scenario do you mean?",
+                    }
 
         if resolution["needs_clarification"]:
             question = resolution["clarification_question"] or "Which stock or market do you mean?"
@@ -234,14 +259,16 @@ class ChatView(APIView):
         try:
             structured = generate_answer(resolved_query, history, context)
         except OpenAIError:
+            logger.exception("OpenAI answer generation failed for conversation %s", conversation.id)
             return Response(
                 {"error": "The market assistant is temporarily unavailable. Please try again."},
-                status=status.HTTP_502_BAD_GATEWAY,
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except RuntimeError:
+            logger.exception("Structured answer generation failed for conversation %s", conversation.id)
             return Response(
                 {"error": "The assistant could not prepare a complete answer. Please try again."},
-                status=status.HTTP_502_BAD_GATEWAY,
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
         answer = _plain_answer(structured)

@@ -150,6 +150,51 @@ class ChatAPITests(TestCase):
         generate.assert_not_called()
         self.assertEqual(conversation.messages.count(), 4)
 
+    @patch("chatbot.views.resolve_followup")
+    @patch("chatbot.views.generate_answer", return_value={
+        "summary": "The largest listed potential payout is identified from the available odds.",
+        "sections": [{
+            "heading": "Maximum potential payout",
+            "points": [{"label": "Highest decimal odds", "text": "Compare the tied 3.60 outcomes and their win conditions.", "style": "insight"}],
+        }],
+        "disclaimer": "Educational only - not financial advice.",
+    })
+    @patch("chatbot.services.retrieval.embed_texts", return_value=[[1.0, 0.0]])
+    def test_reply_to_clarification_skips_redundant_resolution_call(self, _embed, _answer, resolver):
+        conversation = Conversation.objects.create(title="Apple nearest expiry")
+        ChatMessage.objects.create(
+            conversation=conversation,
+            role="user",
+            content="Compare the available odds for Apple's nearest expiry.",
+        )
+        ChatMessage.objects.create(
+            conversation=conversation,
+            role="assistant",
+            content="Apple's nearest expiry is 21 August 2026.",
+        )
+        ChatMessage.objects.create(
+            conversation=conversation,
+            role="user",
+            content="Which should I stake on to get maximum returns?",
+        )
+        ChatMessage.objects.create(
+            conversation=conversation,
+            role="assistant",
+            content="Do you mean maximum potential payout or maximum expected value?",
+            needs_clarification=True,
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            {"message": "maximum potential payout", "conversation_id": str(conversation.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        resolver.assert_not_called()
+        self.assertIn("Apple's nearest expiry", response.data["resolved_query"])
+        self.assertIn("maximum potential payout", response.data["resolved_query"])
+
     def test_conversation_endpoint_restores_structured_messages(self):
         conversation = Conversation.objects.create(title="Saved chat")
         ChatMessage.objects.create(conversation=conversation, role="user", content="Tell me about AAPL.")

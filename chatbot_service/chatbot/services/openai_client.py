@@ -62,7 +62,10 @@ class QueryResolution(BaseModel):
 
 
 def get_openai_client():
-    return OpenAI()
+    return OpenAI(
+        timeout=settings.OPENAI_TIMEOUT_SECONDS,
+        max_retries=settings.OPENAI_MAX_RETRIES,
+    )
 
 
 def embed_texts(texts):
