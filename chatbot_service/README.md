@@ -28,19 +28,31 @@ The service reads `.env` locally. `OPENAI_API_KEY` and `MARKET_API_BASE_URL` are
 - `GET /api/health/`
 - `POST /api/markets/sync/` with optional `{"symbols":["AAPL"],"prune":false}`
 - `POST /api/chat/`
+- `GET /api/conversations/<conversation_id>/`
 
 Example:
 
 ```json
 {
   "message": "If I invest $300 in Apple today, what could it be worth in 6 months?",
-  "history": [],
+  "conversation_id": "optional-uuid-returned-by-the-previous-response",
   "top_k": 10
 }
 ```
 
 The response includes `answer`, the model/as-of time, and the exact market rows used
-under `sources`. The chat endpoint automatically builds the index if it is empty.
+under `sources`. It also returns a `conversation_id`. Send that ID on subsequent turns
+so the service can load stored history, resolve references such as "same amount" or
+"what about META?", and ask a clarification question when required. The web interface
+stores the active ID in local browser storage and restores its messages after reloads.
+
+Conversations and their messages are stored in the chatbot database, separately from
+the main BullBear server database. "New chat" starts a fresh browser session but does
+not delete historical database records. Conversation IDs are random UUIDs; an
+authenticated production integration should additionally associate conversations with
+the BullBear user and enforce ownership permissions.
+
+The chat endpoint automatically builds the market index if it is empty.
 For fresher data, schedule `python manage.py sync_markets --prune` (for example with a
 Render cron job) at the cadence used by the main market feed.
 

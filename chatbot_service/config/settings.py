@@ -66,3 +66,4 @@ RAG_TOP_K = int(os.getenv("RAG_TOP_K", "10"))
 OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-5-mini")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 AUTO_SYNC_EMPTY_INDEX = os.getenv("AUTO_SYNC_EMPTY_INDEX", "true").lower() == "true"
+CONVERSATION_HISTORY_LIMIT = int(os.getenv("CONVERSATION_HISTORY_LIMIT", "12"))

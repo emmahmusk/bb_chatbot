@@ -46,6 +46,21 @@ class StructuredAnswer(BaseModel):
         return clean_display_text(value)
 
 
+class QueryResolution(BaseModel):
+    standalone_query: str = Field(
+        description="A self-contained market question with relevant prior context resolved"
+    )
+    needs_clarification: bool
+    clarification_question: str = Field(
+        description="One concise question when clarification is essential; otherwise an empty string"
+    )
+
+    @field_validator("standalone_query", "clarification_question")
+    @classmethod
+    def clean_resolution_text(cls, value):
+        return clean_display_text(value)
+
+
 def get_openai_client():
     return OpenAI()
 
@@ -109,4 +124,33 @@ WRITING RULES
     )
     if not response.output_parsed:
         raise RuntimeError("The model did not return a structured answer.")
+    return response.output_parsed.model_dump()
+
+
+def resolve_followup(message, history):
+    instructions = """You resolve user messages in an ongoing BullBear market conversation.
+Use the conversation history to turn the newest user message into a self-contained market query.
+
+RULES
+- Resolve pronouns and short references such as it, that one, the other stock, same amount, or that expiry.
+- Preserve relevant tickers, companies, investment amounts, targets, dates, and the user's intended comparison.
+- A later explicit value replaces an earlier value. Never invent a ticker, amount, date, or preference.
+- If the history supplies enough context, set needs_clarification to false and produce standalone_query.
+- Ask for clarification only when a missing detail would materially change the answer and cannot be inferred.
+- Do not ask about optional preferences. Do not ask the user to repeat details already present in history.
+- When clarification is needed, ask exactly one short, specific question.
+- Return plain text only, without Markdown or HTML."""
+    conversation = [
+        {"role": item["role"], "content": item["content"]}
+        for item in history[-12:]
+    ]
+    conversation.append({"role": "user", "content": message})
+    response = get_openai_client().responses.parse(
+        model=settings.OPENAI_CHAT_MODEL,
+        instructions=instructions,
+        input=conversation,
+        text_format=QueryResolution,
+    )
+    if not response.output_parsed:
+        raise RuntimeError("The model did not resolve the follow-up query.")
     return response.output_parsed.model_dump()

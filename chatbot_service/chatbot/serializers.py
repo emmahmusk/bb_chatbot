@@ -8,6 +8,7 @@ class HistoryMessageSerializer(serializers.Serializer):
 
 class ChatRequestSerializer(serializers.Serializer):
     message = serializers.CharField(max_length=8000)
+    conversation_id = serializers.UUIDField(required=False)
     history = HistoryMessageSerializer(many=True, required=False, default=list)
     top_k = serializers.IntegerField(required=False, min_value=1, max_value=25)
 

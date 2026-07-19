@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 
 
@@ -18,3 +20,39 @@ class MarketDocument(models.Model):
 
     def __str__(self):
         return f"{self.symbol} market {self.source_id}"
+
+
+class Conversation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=160, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return self.title or f"Conversation {self.id}"
+
+
+class ChatMessage(models.Model):
+    ROLE_CHOICES = [("user", "User"), ("assistant", "Assistant")]
+
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    role = models.CharField(max_length=16, choices=ROLE_CHOICES)
+    content = models.TextField()
+    structured_answer = models.JSONField(default=dict, blank=True)
+    sources = models.JSONField(default=list, blank=True)
+    needs_clarification = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        indexes = [models.Index(fields=["conversation", "created_at"])]
+
+    def __str__(self):
+        return f"{self.role} message in {self.conversation_id}"

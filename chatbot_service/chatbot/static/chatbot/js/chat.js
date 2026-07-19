@@ -8,13 +8,27 @@
   const marketCount = document.querySelector('#marketCount');
   const dataStatus = document.querySelector('#dataStatus');
   const initialWelcome = document.querySelector('.welcome-message').outerHTML;
-  let history = [];
+  const conversationStorageKey = 'bullbear_active_conversation';
+  let conversationId = readConversationId();
   let busy = false;
 
   const escapeHtml = value => String(value).replace(/[&<>'"]/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
   }[char]));
   const scrollDown = () => { messages.scrollTop = messages.scrollHeight; };
+
+  function readConversationId() {
+    try { return window.localStorage.getItem(conversationStorageKey); }
+    catch (_) { return null; }
+  }
+
+  function rememberConversation(id) {
+    conversationId = id || null;
+    try {
+      if (conversationId) window.localStorage.setItem(conversationStorageKey, conversationId);
+      else window.localStorage.removeItem(conversationStorageKey);
+    } catch (_) { /* Conversation still works for the current page. */ }
+  }
 
   function formatStructuredAnswer(answer) {
     if (!answer || typeof answer.summary !== 'string' || !Array.isArray(answer.sections)) return '';
@@ -61,13 +75,16 @@
       const response = await fetch('/api/chat/', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({message: text, history: history.slice(-8)})
+        body: JSON.stringify({
+          message: text,
+          ...(conversationId ? {conversation_id: conversationId} : {})
+        })
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || body.detail || `Request failed (${response.status})`);
+      rememberConversation(body.conversation_id);
       document.querySelector('#typingMessage')?.remove();
-      addAssistantMessage(body.answer, body.structured_answer, body.sources);
-      history.push({role: 'user', content: text}, {role: 'assistant', content: body.answer});
+      addAssistantMessage(body.answer, body.structured_answer, body.sources || []);
     } catch (error) {
       document.querySelector('#typingMessage')?.remove();
       errorBanner.textContent = error.message;
@@ -95,12 +112,43 @@
   });
   clearButton.addEventListener('click', () => {
     if (busy) return;
-    history = [];
+    rememberConversation(null);
     messages.innerHTML = initialWelcome;
     errorBanner.classList.remove('show');
     messages.scrollTop = 0;
     input.focus();
   });
+
+  async function restoreConversation() {
+    if (!conversationId) return;
+    busy = true;
+    sendButton.disabled = true;
+    try {
+      const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/`);
+      if (response.status === 404) {
+        rememberConversation(null);
+        return;
+      }
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Could not restore the conversation.');
+      if (!Array.isArray(body.messages) || !body.messages.length) return;
+
+      messages.innerHTML = '';
+      for (const message of body.messages) {
+        if (message.role === 'user') addUserMessage(message.content);
+        if (message.role === 'assistant') {
+          addAssistantMessage(message.content, message.structured_answer, message.sources || []);
+        }
+      }
+      scrollDown();
+    } catch (error) {
+      errorBanner.textContent = error.message;
+      errorBanner.classList.add('show');
+    } finally {
+      busy = false;
+      sendButton.disabled = false;
+    }
+  }
 
   fetch('/api/health/').then(response => response.json()).then(body => {
     marketCount.textContent = `${Number(body.indexed_markets || 0).toLocaleString()} markets indexed`;
@@ -113,4 +161,6 @@
     marketCount.textContent = 'Market service unavailable';
     dataStatus.textContent = 'Check the service configuration';
   });
+
+  restoreConversation();
 })();

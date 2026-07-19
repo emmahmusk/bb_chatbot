@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from chatbot.models import MarketDocument
+from chatbot.models import ChatMessage, Conversation, MarketDocument
 from chatbot.services.indexer import sync_market_index
 from chatbot.services.retrieval import extract_investment_amount
 from chatbot.services.openai_client import StructuredAnswer
@@ -92,6 +92,80 @@ class ChatAPITests(TestCase):
         self.assertEqual(response.data["sources"][0]["market_id"], "42")
         self.assertIn("A careful market answer.", response.data["answer"])
         self.assertEqual(response.data["structured_answer"]["sections"][0]["heading"], "Key difference")
+        self.assertTrue(response.data["conversation_id"])
+        self.assertEqual(ChatMessage.objects.filter(conversation_id=response.data["conversation_id"]).count(), 2)
+
+    @patch("chatbot.views.resolve_followup", return_value={
+        "standalone_query": "Compare a $300 META investment with the prior AAPL scenario over 6 months.",
+        "needs_clarification": False,
+        "clarification_question": "",
+    })
+    @patch("chatbot.views.generate_answer", return_value={
+        "summary": "META is now compared using the same amount and horizon.",
+        "sections": [{
+            "heading": "Follow-up",
+            "points": [{"label": "Context retained", "text": "$300 and six months were carried forward.", "style": "insight"}],
+        }],
+        "disclaimer": "Educational only - not financial advice.",
+    })
+    @patch("chatbot.services.retrieval.embed_texts", return_value=[[1.0, 0.0]])
+    def test_followup_uses_stored_conversation_context(self, _embed, _answer, resolver):
+        first = self.client.post(
+            "/api/chat/",
+            {"message": "What could a $300 AAPL investment be worth in 6 months?"},
+            format="json",
+        )
+        second = self.client.post(
+            "/api/chat/",
+            {"message": "What about META with the same amount?", "conversation_id": first.data["conversation_id"]},
+            format="json",
+        )
+
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.data["resolved_query"], "Compare a $300 META investment with the prior AAPL scenario over 6 months.")
+        history = resolver.call_args.args[1]
+        self.assertTrue(any("$300 AAPL" in item["content"] for item in history))
+        self.assertEqual(ChatMessage.objects.filter(conversation_id=first.data["conversation_id"]).count(), 4)
+
+    @patch("chatbot.views.generate_answer")
+    @patch("chatbot.views.resolve_followup", return_value={
+        "standalone_query": "",
+        "needs_clarification": True,
+        "clarification_question": "Which stock do you want to compare with AAPL?",
+    })
+    def test_ambiguous_followup_yields_a_clarification(self, resolver, generate):
+        conversation = Conversation.objects.create(title="AAPL comparison")
+        ChatMessage.objects.create(conversation=conversation, role="user", content="Tell me about AAPL.")
+        ChatMessage.objects.create(conversation=conversation, role="assistant", content="AAPL context.")
+
+        response = self.client.post(
+            "/api/chat/",
+            {"message": "Compare it with the other one.", "conversation_id": str(conversation.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["needs_clarification"])
+        self.assertIn("Which stock", response.data["answer"])
+        generate.assert_not_called()
+        self.assertEqual(conversation.messages.count(), 4)
+
+    def test_conversation_endpoint_restores_structured_messages(self):
+        conversation = Conversation.objects.create(title="Saved chat")
+        ChatMessage.objects.create(conversation=conversation, role="user", content="Tell me about AAPL.")
+        ChatMessage.objects.create(
+            conversation=conversation,
+            role="assistant",
+            content="Saved answer.",
+            structured_answer={"summary": "Saved answer.", "sections": [], "disclaimer": "Educational only - not financial advice."},
+            sources=[{"market_id": "42", "symbol": "AAPL"}],
+        )
+
+        response = self.client.get(f"/api/conversations/{conversation.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["messages"]), 2)
+        self.assertEqual(response.data["messages"][1]["structured_answer"]["summary"], "Saved answer.")
 
     def test_health(self):
         response = self.client.get("/api/health/")
