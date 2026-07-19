@@ -104,7 +104,11 @@
 
   fetch('/api/health/').then(response => response.json()).then(body => {
     marketCount.textContent = `${Number(body.indexed_markets || 0).toLocaleString()} markets indexed`;
-    dataStatus.textContent = body.indexed_markets ? 'Ready for grounded questions' : 'Index will sync on your first question';
+    dataStatus.textContent = !body.indexed_markets
+      ? 'Index will sync on your first question'
+      : body.index_complete
+        ? 'Complete expiry coverage ready'
+        : 'Refresh required for complete expiries';
   }).catch(() => {
     marketCount.textContent = 'Market service unavailable';
     dataStatus.textContent = 'Check the service configuration';

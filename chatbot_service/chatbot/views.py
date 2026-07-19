@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import connection
+from django.db.models import Max, Min
 from django.utils import timezone
 from django.views.generic import TemplateView
 from rest_framework import status
@@ -23,7 +24,26 @@ class HealthView(APIView):
     def get(self, request):
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
-        return Response({"status": "ok", "indexed_markets": MarketDocument.objects.count()})
+        indexed_markets = MarketDocument.objects.count()
+        indexed_symbols = MarketDocument.objects.values("symbol").distinct().count()
+        expiry_range = MarketDocument.objects.aggregate(
+            earliest_expiry=Min("expiry_date"),
+            latest_expiry=Max("expiry_date"),
+        )
+        return Response({
+            "status": "ok",
+            "indexed_markets": indexed_markets,
+            "indexed_symbols": indexed_symbols,
+            "index_complete": indexed_markets > indexed_symbols > 0,
+            "earliest_expiry": (
+                expiry_range["earliest_expiry"].isoformat()
+                if expiry_range["earliest_expiry"] else None
+            ),
+            "latest_expiry": (
+                expiry_range["latest_expiry"].isoformat()
+                if expiry_range["latest_expiry"] else None
+            ),
+        })
 
 
 class MarketSyncView(APIView):

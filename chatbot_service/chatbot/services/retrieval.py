@@ -13,6 +13,14 @@ ACTION_AMOUNT_RE = re.compile(
     re.I,
 )
 MONTH_RE = re.compile(r"\b(?:in|over|for)\s+(\d{1,2})\s+months?\b", re.I)
+NEAREST_EXPIRY_RE = re.compile(
+    r"\b(?:nearest|earliest|soonest|closest|next)\s+(?:available\s+)?(?:market\s+)?(?:expiry|expiration)\b",
+    re.I,
+)
+COMPANY_STOP_WORDS = {
+    "inc", "incorporated", "corp", "corporation", "company", "co", "ltd",
+    "limited", "plc", "holdings", "holding", "group", "class", "common",
+}
 
 
 def _cosine(a, b):
@@ -23,19 +31,71 @@ def _cosine(a, b):
     return dot / denom if denom else 0.0
 
 
+def _company_tokens(company_name):
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", (company_name or "").lower())
+        if len(token) >= 3 and token not in COMPANY_STOP_WORDS
+    }
+
+
+def _query_symbols(query, docs):
+    upper_query = query.upper()
+    query_words = set(re.findall(r"[a-z0-9]+", query.lower()))
+    symbols = set()
+    for doc in docs:
+        if doc.symbol and re.search(rf"\b{re.escape(doc.symbol)}\b", upper_query):
+            symbols.add(doc.symbol)
+        elif _company_tokens(doc.company_name) & query_words:
+            symbols.add(doc.symbol)
+    return symbols
+
+
+def _desired_expiry_date(query):
+    month_match = MONTH_RE.search(query)
+    if not month_match:
+        return None
+    return date.today() + timedelta(days=int(month_match.group(1)) * 30)
+
+
 def retrieve_markets(query, top_k):
     query_embedding = embed_texts([query])[0]
-    docs = list(MarketDocument.objects.all())
+    all_docs = list(MarketDocument.objects.all())
+    requested_symbols = _query_symbols(query, all_docs)
+    docs = [doc for doc in all_docs if doc.symbol in requested_symbols] if requested_symbols else all_docs
     upper_query = query.upper()
+    lower_query = query.lower()
+    query_words = set(re.findall(r"[a-z0-9]+", lower_query))
     scored = []
     for doc in docs:
         score = _cosine(query_embedding, doc.embedding)
         if doc.symbol and re.search(rf"\b{re.escape(doc.symbol)}\b", upper_query):
             score += 0.35
-        if doc.company_name and doc.company_name.lower() in query.lower():
+        if doc.company_name and (
+            doc.company_name.lower() in lower_query
+            or _company_tokens(doc.company_name) & query_words
+        ):
             score += 0.35
         scored.append((score, doc))
-    return sorted(scored, key=lambda item: item[0], reverse=True)[:top_k]
+
+    desired_date = _desired_expiry_date(query)
+    if NEAREST_EXPIRY_RE.search(query):
+        scored.sort(
+            key=lambda item: (
+                item[1].expiry_date or date.max,
+                -item[0],
+            )
+        )
+    elif desired_date:
+        scored.sort(
+            key=lambda item: (
+                abs(((item[1].expiry_date or date.max) - desired_date).days),
+                -item[0],
+            )
+        )
+    else:
+        scored.sort(key=lambda item: item[0], reverse=True)
+    return scored[:top_k]
 
 
 def _decimal(value):
@@ -53,10 +113,7 @@ def extract_investment_amount(query):
 
 def build_context(query, matches):
     amount = extract_investment_amount(query)
-    month_match = MONTH_RE.search(query)
-    desired_date = None
-    if month_match:
-        desired_date = date.today() + timedelta(days=int(month_match.group(1)) * 30)
+    desired_date = _desired_expiry_date(query)
 
     ranked = matches
     if desired_date:

@@ -44,6 +44,29 @@ under `sources`. The chat endpoint automatically builds the index if it is empty
 For fresher data, schedule `python manage.py sync_markets --prune` (for example with a
 Render cron job) at the cadence used by the main market feed.
 
+### Rebuild after upgrading from the one-market-per-symbol index
+
+The server's unfiltered `/bet/markets/` response contains one representative row per
+stock. This service now uses that response only to discover symbols, then requests
+each symbol separately and follows every pagination link. Existing deployments must
+perform one full rebuild so their persistent SQLite index gains the missing expiries:
+
+```bash
+python manage.py sync_markets --prune
+```
+
+This command can create several thousand market embeddings, so run it from the Render
+Shell or a background/cron job rather than during a web request. Subsequent runs embed
+only new or changed markets. To refresh one stock while testing, use:
+
+```bash
+python manage.py sync_markets --symbol AAPL --prune
+```
+
+`GET /api/health/` reports the indexed market/symbol counts, expiry range, and an
+`index_complete` indicator. Questions containing "nearest expiry" are ordered by the
+actual earliest indexed date; questions such as "in 6 months" use the closest expiry.
+
 ## Render
 
 Create a Blueprint from the repository's root `render.yaml`, set the secret values,

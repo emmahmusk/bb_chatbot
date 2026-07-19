@@ -79,4 +79,15 @@ def sync_market_index(symbols=None, prune=False):
                 stale = stale.filter(symbol__in=symbols)
             deleted, _ = stale.delete()
 
-    return {"fetched": len(incoming), "indexed": len(prepared), "unchanged": len(incoming) - len(prepared), "deleted": deleted}
+    indexed_symbols = {
+        str((market.get("stock") or {}).get("symbol", "")).upper()
+        for market in incoming
+        if (market.get("stock") or {}).get("symbol")
+    }
+    return {
+        "fetched": len(incoming),
+        "symbols": len(indexed_symbols),
+        "indexed": len(prepared),
+        "unchanged": len(incoming) - len(prepared),
+        "deleted": deleted,
+    }
