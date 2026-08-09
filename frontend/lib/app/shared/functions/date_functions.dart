@@ -1,4 +1,5 @@
 import 'package:frontend/app/shared/functions/string_functions.dart';
+import 'package:intl/intl.dart';
 
 class Weekday {
   final int day;
@@ -80,6 +81,41 @@ extension StringDateFormatting on String {
     final dt = DateTime.parse(this);
     return dt.toShortDate();
   }
+}
+
+/// Formats supported API date strings using the North American display style.
+///
+/// Examples:
+/// - `2026-10-18` -> `Oct 18, 2026`
+/// - `Sun, 18 Oct 2026` -> `Oct 18, 2026`
+///
+/// Unrecognized values are returned unchanged so a malformed API value cannot
+/// break the UI while rendering a prediction slip.
+String formatDateToNam(String value) {
+  final input = value.trim();
+  if (input.isEmpty) return value;
+
+  DateTime? parsed = DateTime.tryParse(input);
+  if (parsed == null) {
+    const supportedFormats = [
+      'EEE, dd MMM yyyy',
+      'EEE, d MMM yyyy',
+      'dd MMM yyyy',
+      'd MMM yyyy',
+      'MMM d, yyyy',
+    ];
+
+    for (final pattern in supportedFormats) {
+      try {
+        parsed = DateFormat(pattern).parseStrict(input);
+        break;
+      } on FormatException {
+        // Try the next known API/display format.
+      }
+    }
+  }
+
+  return parsed?.toShortDate() ?? value;
 }
 
 String formatDateTimeToMMDDYYYY(DateTime dateTime) {

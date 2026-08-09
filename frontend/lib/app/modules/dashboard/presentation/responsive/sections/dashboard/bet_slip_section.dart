@@ -9,6 +9,7 @@ import 'package:frontend/app/modules/competition/presentation/providers/competit
 import 'package:frontend/app/modules/dashboard/presentation/widgets/trending/bet_slip_item.dart';
 import 'package:frontend/app/shared/functions/alert_functions.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
+import 'package:frontend/app/shared/functions/date_functions.dart';
 import 'package:frontend/app/shared/functions/dialog_functions.dart';
 import 'package:frontend/app/shared/functions/market_hours.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
@@ -499,7 +500,7 @@ class _BetSlipSectionState extends ConsumerState<BetSlipSection> {
                                                   color: Colors.white),
                                             ),
                                             Text(
-                                              item.expiryDate,
+                                              formatDateToNam(item.expiryDate),
                                               style: TextStyle(
                                                   color: Colors.white),
                                             )

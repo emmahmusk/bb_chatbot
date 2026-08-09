@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:frontend/app/shared/functions/date_functions.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
 import 'package:go_router/go_router.dart';
 class ParlaySuccessDialog extends StatelessWidget {
@@ -144,7 +145,10 @@ class ParlaySuccessDialog extends StatelessWidget {
                                               ],
                                             ),
                                             const SizedBox(height: 5),
-                                            infoRow('Exp Date', item.expiryDate),
+                                            infoRow(
+                                              'Exp Date',
+                                              formatDateToNam(item.expiryDate),
+                                            ),
                                             infoRow('Odds', item.odds),
                                           ],
                                         ),

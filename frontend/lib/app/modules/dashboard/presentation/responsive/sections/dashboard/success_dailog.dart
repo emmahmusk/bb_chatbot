@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/app/shared/functions/date_functions.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
 import 'package:go_router/go_router.dart';
 
@@ -109,7 +110,7 @@ class SuccessDialog extends StatelessWidget {
                 ),
               ),
 
-              infoRow('Exp Date', expDate),
+              infoRow('Exp Date', formatDateToNam(expDate)),
               infoRow('Odds', odds),
               infoRow('Wager Amount', wagerAmount),
 
