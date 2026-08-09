@@ -2,3 +2,8 @@
 
 /frontend/build/*
 .history/
+__pycache__/
+*.py[cod]
+.env
+chatbot_service/db.sqlite3
+chatbot_service/staticfiles/

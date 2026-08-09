@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: bullbear-market-chatbot
+    runtime: docker
+    rootDir: chatbot_service
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health/
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: MARKET_API_BASE_URL
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: CORS_ALLOW_ALL_ORIGINS
+        value: "true"
+      - key: AUTO_SYNC_EMPTY_INDEX
+        value: "true"
+      - key: SQLITE_PATH
+        value: /var/data/db.sqlite3
+    disk:
+      name: chatbot-data
+      mountPath: /var/data
+      sizeGB: 1

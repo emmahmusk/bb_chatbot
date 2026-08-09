@@ -8,8 +8,19 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from user.models import CompetitionMember, PlatformSettings, Wallet, Transaction
-from django.db.models import Sum, OuterRef, Subquery, IntegerField, Q, F, Value, Count
-from django.db.models.functions import Coalesce, Abs
+from django.db.models import (
+    Count,
+    DecimalField,
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    Window,
+)
+from django.db.models.functions import Abs, Coalesce, RowNumber
 from django.db.models import ProtectedError
 from rest_framework import generics, pagination, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -409,6 +420,40 @@ class MarketListAPIView(generics.ListAPIView):
         except ValueError:
             return None
 
+    def _order_tickers_by_platform_volume(self, queryset, representative_ordering):
+        """Return one market per ticker, ranked by valid BullBear wager volume."""
+        volume_field = DecimalField(max_digits=30, decimal_places=4)
+        valid_platform_volume = (
+            Bet.objects.filter(
+                market__stock_id=OuterRef("stock_id"),
+                competition__isnull=True,
+                is_placed=True,
+                amount_wagered__gt=0,
+                status__in=("pending", "won", "lost"),
+            )
+            .order_by()
+            .values("market__stock_id")
+            .annotate(volume=Sum("amount_wagered"))
+            .values("volume")[:1]
+        )
+
+        return (
+            queryset.annotate(
+                platform_trading_volume=Coalesce(
+                    Subquery(valid_platform_volume, output_field=volume_field),
+                    Value(Decimal("0.0000")),
+                    output_field=volume_field,
+                ),
+                ticker_market_rank=Window(
+                    expression=RowNumber(),
+                    partition_by=[F("stock_id")],
+                    order_by=representative_ordering,
+                ),
+            )
+            .filter(ticker_market_rank=1)
+            .order_by("-platform_trading_volume", "stock__symbol")
+        )
+
     # --- Main queryset ---
     def get_queryset(self):
         today = timezone.now().date()
@@ -476,11 +521,14 @@ class MarketListAPIView(generics.ListAPIView):
 
         # --- Ordering & distinct selection ---
         if trending:
-            # Postgres DISTINCT ON (stock__symbol), pick by diff_from_fair, then volume
-            queryset = (
-                queryset
-                .order_by("stock__symbol", "diff_from_fair", "-total_volume", "-created_at")
-                .distinct("stock__symbol")
+            queryset = self._order_tickers_by_platform_volume(
+                queryset,
+                representative_ordering=[
+                    F("diff_from_fair").asc(),
+                    F("expiry_date").asc(),
+                    F("created_at").desc(),
+                    F("pk").asc(),
+                ],
             )
 
         elif most_viewed:
@@ -498,10 +546,14 @@ class MarketListAPIView(generics.ListAPIView):
             )
 
         elif expiring_soon and not expiry:
-            queryset = (
-                queryset
-                .order_by("stock__symbol", "expiry_date", "diff_from_fair", "-total_volume")
-                .distinct("stock__symbol")
+            queryset = self._order_tickers_by_platform_volume(
+                queryset,
+                representative_ordering=[
+                    F("expiry_date").asc(),
+                    F("diff_from_fair").asc(),
+                    F("created_at").desc(),
+                    F("pk").asc(),
+                ],
             )
 
         elif search and expiry:
@@ -511,11 +563,14 @@ class MarketListAPIView(generics.ListAPIView):
             queryset = queryset.order_by("diff_from_fair", "expiry_date")
 
         else:
-            # Default ordering for distinct stocks
-            queryset = (
-                queryset
-                .order_by("stock__symbol", "diff_from_fair", "-total_volume", "stock__company_name", "-created_at")
-                .distinct("stock__symbol")
+            queryset = self._order_tickers_by_platform_volume(
+                queryset,
+                representative_ordering=[
+                    F("diff_from_fair").asc(),
+                    F("expiry_date").asc(),
+                    F("created_at").desc(),
+                    F("pk").asc(),
+                ],
             )
 
         return queryset
