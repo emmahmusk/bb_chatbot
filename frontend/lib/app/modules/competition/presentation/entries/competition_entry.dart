@@ -13,6 +13,7 @@ class CompetitionEntry extends StatelessWidget {
     this.initialTab = 'discover',
     this.initialDiscoverPage = 1,
     this.initialMyPage = 1,
+    this.initialMyStatus = 'live',
     this.initialLeaderboardPage = 1,
     this.initialPageSize = 20,
   });
@@ -24,6 +25,7 @@ class CompetitionEntry extends StatelessWidget {
   final String initialTab;
   final int initialDiscoverPage;
   final int initialMyPage;
+  final String initialMyStatus;
   final int initialLeaderboardPage;
   final int initialPageSize;
 
@@ -39,6 +41,7 @@ class CompetitionEntry extends StatelessWidget {
         initialTab: initialTab,
         initialDiscoverPage: initialDiscoverPage,
         initialMyPage: initialMyPage,
+        initialMyStatus: initialMyStatus,
         initialLeaderboardPage: initialLeaderboardPage,
         initialPageSize: initialPageSize,
       ),
@@ -50,6 +53,7 @@ class CompetitionEntry extends StatelessWidget {
         initialTab: initialTab,
         initialDiscoverPage: initialDiscoverPage,
         initialMyPage: initialMyPage,
+        initialMyStatus: initialMyStatus,
         initialLeaderboardPage: initialLeaderboardPage,
         initialPageSize: initialPageSize,
       ),

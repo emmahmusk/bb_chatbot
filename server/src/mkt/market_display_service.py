@@ -54,8 +54,8 @@ class MarketDisplayService:
                     "target_price": current_stock_price.quantize(Decimal("0.01")),
                     "over_odds": odds_result["over_odds"],
                     "under_odds": odds_result["under_odds"],
-                    "over_implied_probability_vig_adjusted": odds_result["over_implied_probability_vig_adjusted"].quantize(Decimal("0.0001")),
-                    "under_implied_probability_vig_adjusted": odds_result["under_implied_probability_vig_adjusted"].quantize(Decimal("0.0001")),
+                    "over_implied_probability": odds_result["over_implied_probability_raw"].quantize(Decimal("0.0001")),
+                    "under_implied_probability": odds_result["under_implied_probability_raw"].quantize(Decimal("0.0001")),
                 })
             else:
                 logger.warning(f"Could not calculate odds for {symbol} with expiry {expiry_date}. Skipping market listing.")

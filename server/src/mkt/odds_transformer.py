@@ -12,12 +12,19 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 class OddsCalculator:
     """
-    Handles all market odds calculations, including implied probability,
-    vig adjustment, and odds format conversions.
+    Handles implied probability and odds-format calculations.
+
+    Probability outputs are always true, complementary market probabilities;
+    the platform does not add vig to them.
     """
-    def __init__(self, vig: Union[Decimal, float] = Decimal('0.10'),
+    def __init__(self, vig: Union[Decimal, float] = Decimal('0.00'),
                  risk_free_rate: Union[Decimal, float] = Decimal('0.02')):
-        self._vig: Decimal = Decimal(str(vig))
+        requested_vig = Decimal(str(vig))
+        if requested_vig < 0:
+            raise ValueError("Vig must be non-negative.")
+        if requested_vig:
+            logger.info("Ignoring requested vig=%s; probability vig is disabled.", requested_vig)
+        self._vig = Decimal('0.00')
         self._risk_free_rate: Decimal = Decimal(str(risk_free_rate))
 
     @property
@@ -27,11 +34,12 @@ class OddsCalculator:
 
     @vig.setter
     def vig(self, value: Union[Decimal, float]):
-        """Sets the vig. This would be an admin-only function."""
+        """Keep the compatibility setting pinned to zero."""
         if not isinstance(value, (Decimal, float)) or value < 0:
             raise ValueError("Vig must be a non-negative Decimal or float.")
-        self._vig = Decimal(str(value))
-        logger.info(f"Vig set to: {self._vig}")
+        self._vig = Decimal('0.00')
+        if Decimal(str(value)):
+            logger.info("Ignoring requested vig=%s; probability vig is disabled.", value)
 
     @property
     def risk_free_rate(self) -> Decimal:
@@ -205,22 +213,9 @@ class OddsCalculator:
 
     def adjust_odds_with_vig(self, raw_probability: Decimal, market_side: str) -> Decimal:
         """
-        Adjusts raw implied probability to incorporate the vig.
-        This is a simplified representation of vig application.
-        The vig typically skews the true odds in favor of the house.
-        For a two-sided bet, the sum of implied probabilities (from offered odds) will exceed 1.
-        
-        Args:
-            raw_probability (Decimal): The probability derived from the market.
-            market_side (str): 'over' or 'under' to determine how vig is applied.
+        Backwards-compatible no-op. Probability values are never vig-adjusted.
         """
-        vig_as_decimal = self._vig # Assuming vig is like 0.10 for 10 cents
-        
-        # This is a simple approximation:
-        adjusted_probability = raw_probability * (1 + self._vig)
-        if adjusted_probability > Decimal('0.99'): # Cap at reasonable max
-            adjusted_probability = Decimal('0.99')
-        return adjusted_probability
+        return raw_probability
 
     def get_over_under_odds(
         self,
@@ -322,21 +317,16 @@ class OddsCalculator:
             logger.error("Implied probability calculation failed for 'over' or 'under' outcome after processing.")
             return {"over_odds": None, "under_odds": None}
 
-        # 6. Apply vig and convert to odds
-        over_prob_with_vig = self.adjust_odds_with_vig(over_implied_prob, 'over')
-        under_prob_with_vig = self.adjust_odds_with_vig(under_implied_prob, 'under')
-
-        over_odds = self.probability_to_american_odds(over_prob_with_vig)
-        under_odds = self.probability_to_american_odds(under_prob_with_vig)
+        # 6. Convert the true probabilities directly to fair odds.
+        over_odds = self.probability_to_american_odds(over_implied_prob)
+        under_odds = self.probability_to_american_odds(under_implied_prob)
         
         return {
             "over_odds": over_odds,
             "under_odds": under_odds,
             "over_implied_probability_raw": over_implied_prob,
             "under_implied_probability_raw": under_implied_prob,
-            "over_implied_probability_vig_adjusted": over_prob_with_vig,
-            "under_implied_probability_vig_adjusted": under_prob_with_vig,
-            "vig_applied": self.vig,
+            "vig_applied": Decimal('0.00'),
             "risk_free_rate_used": self.risk_free_rate,
             "market_data_for_debug": market_data # Optional: include for debugging
         }

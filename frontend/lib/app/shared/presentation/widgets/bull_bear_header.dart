@@ -83,12 +83,9 @@ void initState() {
 
     // Detect if on competition page
     final routeUri = GoRouterState.of(context).uri;
-    final location = routeUri.toString();
     final selectedCompetitionId = int.tryParse(
       routeUri.queryParameters['competitionId'] ?? '',
     );
-    final isCompetitionPage = location.contains('/dashboard/competitions');
-    final isCompetitionMode = isCompetitionPage || selectedCompetitionId != null;
 
     String trendingRouteWithContext() {
       if (selectedCompetitionId == null) {
@@ -100,35 +97,23 @@ void initState() {
       ).toString();
     }
 
-    String formattedWalletCoinBalance;
-    if (isCompetitionMode) {
-      // Prefer the currently selected competition from route; fallback to first joined.
-      final myCompetitions = ref.watch(competitionMyProvider);
-      String compBalance = '0.00';
-      if (myCompetitions.isSuccess && myCompetitions.data.results.isNotEmpty) {
-        String? selectedCompetitionBalance;
-        if (selectedCompetitionId != null) {
-          for (final membership in myCompetitions.data.results) {
-            if (membership.competition == selectedCompetitionId) {
-              selectedCompetitionBalance = membership.competitionCoinBalance;
-              break;
-            }
-          }
-        }
+    final myCompetitions = ref.watch(competitionMyProvider);
+    String displayedCoinBalance = profile?.walletCoinBalance ?? '0.00';
 
-        if (selectedCompetitionBalance != null) {
-          compBalance = selectedCompetitionBalance;
-        } else {
-          compBalance = myCompetitions.data.results.first.competitionCoinBalance;
+    // Only switch to a competition mini-wallet when the user explicitly opens
+    // a competition they joined. The competitions landing page should continue
+    // showing the user's normal BBC wallet, not an arbitrary historical balance.
+    if (selectedCompetitionId != null && myCompetitions.isSuccess) {
+      for (final membership in myCompetitions.data.results) {
+        if (membership.competition == selectedCompetitionId) {
+          displayedCoinBalance = membership.competitionCoinBalance;
+          break;
         }
       }
-      final parsed = double.tryParse(compBalance) ?? 0.0;
-      formattedWalletCoinBalance = formatAmount(parsed);
-    } else {
-      final walletCoinBalance = profile?.walletCoinBalance ?? '0.00';
-      final parsedWalletCoinBalance = double.tryParse(walletCoinBalance) ?? 0.0;
-      formattedWalletCoinBalance = formatAmount(parsedWalletCoinBalance);
     }
+    final formattedWalletCoinBalance = formatAmount(
+      double.tryParse(displayedCoinBalance) ?? 0.0,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 120),
       child: Row(

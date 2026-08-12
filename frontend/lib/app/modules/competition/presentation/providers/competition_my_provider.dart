@@ -13,9 +13,11 @@ class CompetitionMyNotifier
   late final CompetitionRepository _repository;
   int _currentPage = 1;
   int _pageSize = 20;
+  String _status = 'live';
 
   int get currentPage => _currentPage;
   int get pageSize => _pageSize;
+  String get status => _status;
 
   @override
   AppState<PaginatedCompetitionMembershipModel> build() {
@@ -23,12 +25,17 @@ class CompetitionMyNotifier
     return const Init();
   }
 
-  Future<void> load({int? page, int? pageSize}) async {
+  Future<void> load({int? page, int? pageSize, String? status}) async {
     _currentPage = page ?? _currentPage;
     if (pageSize != null) _pageSize = pageSize;
+    if (status != null) _status = status;
     state = const LoadingState();
     state = await _repository.getMyCompetitions(
-      queryParams: {'page': '$_currentPage', 'page_size': '$_pageSize'},
+      queryParams: {
+        'page': '$_currentPage',
+        'page_size': '$_pageSize',
+        'status': _status,
+      },
     );
   }
 

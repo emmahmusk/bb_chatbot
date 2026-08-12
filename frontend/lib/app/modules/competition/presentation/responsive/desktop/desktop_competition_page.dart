@@ -31,6 +31,7 @@ class DesktopCompetitionPage extends ConsumerStatefulWidget {
     this.initialTab = 'discover',
     this.initialDiscoverPage = 1,
     this.initialMyPage = 1,
+    this.initialMyStatus = 'live',
     this.initialLeaderboardPage = 1,
     this.initialPageSize = 20,
   });
@@ -42,6 +43,7 @@ class DesktopCompetitionPage extends ConsumerStatefulWidget {
   final String initialTab;
   final int initialDiscoverPage;
   final int initialMyPage;
+  final String initialMyStatus;
   final int initialLeaderboardPage;
   final int initialPageSize;
 
@@ -313,9 +315,34 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                     setState(() {
                       _activeTab = _CompetitionTab.myCompetitions;
                     });
+                    await myNotifier.load(
+                      page: 1,
+                      pageSize: _pageSize,
+                      status: _myStatus,
+                    );
                     _updateRoute(tab: 'mine');
                   },
                 ),
+                if (_activeTab == _CompetitionTab.myCompetitions) ...[
+                  const SizedBox(width: 16),
+                  Container(
+                    width: 1,
+                    height: 24,
+                    color: colors.always30363D,
+                  ),
+                  const SizedBox(width: 16),
+                  _tabChip(
+                    label: 'Live',
+                    selected: _myStatus == 'live',
+                    onTap: () => _setMyStatus('live'),
+                  ),
+                  const SizedBox(width: 8),
+                  _tabChip(
+                    label: 'Completed',
+                    selected: _myStatus == 'completed',
+                    onTap: () => _setMyStatus('completed'),
+                  ),
+                ],
                 const SizedBox(width: 8),
               ],
             ),
@@ -354,12 +381,22 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                             final next = myState.isSuccess ? myState.data.next : null;
                             if (next == null) return;
                             _myPage = int.tryParse(Uri.parse(next).queryParameters['page'] ?? '') ?? _myPage;
+                            await myNotifier.load(
+                              page: _myPage,
+                              pageSize: _pageSize,
+                              status: _myStatus,
+                            );
                             _updateRoute();
                           },
                           onMyPrevious: () async {
                             final previous = myState.isSuccess ? myState.data.previous : null;
                             if (previous == null) return;
                             _myPage = int.tryParse(Uri.parse(previous).queryParameters['page'] ?? '') ?? _myPage;
+                            await myNotifier.load(
+                              page: _myPage,
+                              pageSize: _pageSize,
+                              status: _myStatus,
+                            );
                             _updateRoute();
                           },
                         ),
@@ -410,6 +447,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
   int? _selectedCompetitionId;
   late int _discoverPage;
   late int _myPage;
+  late String _myStatus;
   late int _leaderboardPage;
   late int _pageSize;
 
@@ -425,6 +463,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     _selectedCompetitionId = widget.selectedCompetitionId;
     _discoverPage = widget.initialDiscoverPage;
     _myPage = widget.initialMyPage;
+    _myStatus = widget.initialMyStatus == 'completed' ? 'completed' : 'live';
     _leaderboardPage = widget.initialLeaderboardPage;
     _pageSize = widget.initialPageSize;
     // Trigger initial data load
@@ -622,6 +661,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
       await ref.read(competitionMyProvider.notifier).load(
         page: forceReload ? _myPage : null,
         pageSize: _pageSize,
+        status: _myStatus,
       );
     }
     if (_selectedCompetitionId != null) {
@@ -651,9 +691,27 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
         tab: tab ?? (_activeTab == _CompetitionTab.myCompetitions ? 'mine' : 'discover'),
         discoverPage: '$_discoverPage',
         myPage: '$_myPage',
+        myStatus: _myStatus,
         leaderboardPage: '$_leaderboardPage',
         pageSize: '$_pageSize',
       ),
+    );
+  }
+
+  Future<void> _setMyStatus(String status) async {
+    if (_myStatus == status) return;
+    setState(() {
+      _myStatus = status;
+      _myPage = 1;
+      _selectedCompetitionId = null;
+    });
+    ref.read(competitionDetailProvider.notifier).state = const Init();
+    ref.read(competitionLeaderboardProvider.notifier).state = const Init();
+    _updateRoute(competitionId: null, tab: 'mine');
+    await ref.read(competitionMyProvider.notifier).load(
+      page: 1,
+      pageSize: _pageSize,
+      status: status,
     );
   }
 
@@ -678,6 +736,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
       _selectedCompetitionId = null;
       _discoverPage = 1;
       _myPage = 1;
+      _myStatus = 'live';
       _leaderboardPage = 1;
       _pageSize = 20;
     });
@@ -787,12 +846,12 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                             for (int i = 0; i < rows.length; i++)
                               DataRow(cells: [
                                 DataCell(
-                                  Text('${rows[i].finalRank ?? (i + 1)}'),
+                                  Text('${rows[i].rank ?? (i + 1)}'),
                                 ),
                                 DataCell(Text(rows[i].username)),
                                 DataCell(
                                   Text(
-                                    '${rows[i].netProfit.toStringAsFixed(2)}',
+                                    rows[i].score.toStringAsFixed(2),
                                   ),
                                 ),
                                 DataCell(
@@ -852,7 +911,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
       }
       if (!discoverState.isSuccess || discoverState.data.results.isEmpty) {
         // Clear details if nothing is visible
-        _validateSelectedCompetition([]);
+        _validateSelectedCompetitionIds(const <int>[]);
         return const EmptyState(
           title: 'No competitions available',
           message: 'Create one and invite people to join.',
@@ -861,7 +920,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
 
       final items = discoverState.data.results;
       // Validate selected competition is still visible
-      _validateSelectedCompetition(items);
+      _validateSelectedCompetitionIds(items.map((item) => item.id));
       return Column(
         children: [
           Expanded(
@@ -894,16 +953,20 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
     }
     if (!myState.isSuccess || myState.data.results.isEmpty) {
       // Clear details if nothing is visible
-      _validateSelectedCompetition([]);
-      return const EmptyState(
-        title: 'No joined competitions',
-        message: 'Open Discover and join one to appear here.',
+      _validateSelectedCompetitionIds(const <int>[]);
+      return EmptyState(
+        title: _myStatus == 'live'
+            ? 'No live competitions'
+            : 'No completed competitions',
+        message: _myStatus == 'live'
+            ? 'Join an upcoming competition from Discover to get started.'
+            : 'Finished competitions will appear here.',
       );
     }
 
     final items = myState.data.results;
     // Validate selected competition is still visible
-    _validateSelectedCompetition(items.map((e) => e.competition is CompetitionModel ? e.competition as CompetitionModel : null).whereType<CompetitionModel>().toList());
+    _validateSelectedCompetitionIds(items.map((item) => item.competition));
     return Column(
       children: [
         Expanded(
@@ -940,6 +1003,8 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                               fontSize: 13,
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          _membershipStatusBadge(item.competitionStatus),
                         ],
                       ),
                     ),
@@ -1128,14 +1193,17 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
   }
 
   // Helper to check if selected competition is still visible in the current list
-  void _validateSelectedCompetition(List<CompetitionModel> visibleCompetitions) {
+  void _validateSelectedCompetitionIds(Iterable<int> visibleCompetitionIds) {
     if (_selectedCompetitionId != null &&
-        !visibleCompetitions.any((c) => c.id == _selectedCompetitionId)) {
-      setState(() {
-        _selectedCompetitionId = null;
+        !visibleCompetitionIds.contains(_selectedCompetitionId)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _selectedCompetitionId = null;
+        });
+        ref.read(competitionDetailProvider.notifier).state = const Init();
+        ref.read(competitionLeaderboardProvider.notifier).state = const Init();
       });
-      ref.read(competitionDetailProvider.notifier).state = const Init();
-      ref.read(competitionLeaderboardProvider.notifier).state = const Init();
     }
   }
 
@@ -1202,7 +1270,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
           child: ListView.separated(
             itemBuilder: (_, index) {
               final row = rows[index];
-              final rank = row.finalRank ?? (index + 1);
+              final rank = row.rank ?? (index + 1);
               return Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -1216,7 +1284,7 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                       radius: 15,
                       backgroundColor: colors.always2D333B,
                       child: Text(
-                        '',
+                        '$rank',
                         style: TextStyle(
                           color: colors.alwaysWhite,
                           fontWeight: FontWeight.w700,
@@ -1235,16 +1303,14 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
                       ),
                     ),
                     Text(
-                      'ROI  %',
+                      'Score ${row.score.toStringAsFixed(2)}',
                       style: TextStyle(color: colors.always52AAFF, fontSize: 12),
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      'P/L  ',
+                      'Win ${row.winRate.toStringAsFixed(2)}%',
                       style: TextStyle(
-                        color: row.netProfit >= 0
-                            ? colors.always27D07F
-                            : colors.alwaysFF4C4C,
+                        color: colors.always8B949E,
                         fontSize: 12,
                       ),
                     ),
@@ -1307,6 +1373,37 @@ class _DesktopCompetitionPageState extends ConsumerState<DesktopCompetitionPage>
           style: TextStyle(
             color: selected ? colors.alwaysWhite : colors.always8B949E,
             fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _membershipStatusBadge(String status) {
+    final colors = ref.watch(appThemeProvider).colors;
+    final isCompleted = status == 'completed';
+    final color = isCompleted ? colors.always8B949E : colors.always27D07F;
+    final label = isCompleted
+        ? 'Completed'
+        : status == 'registration'
+            ? 'Upcoming'
+            : 'Live';
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.7)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 10,
             fontWeight: FontWeight.w700,
           ),
         ),

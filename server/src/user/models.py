@@ -2,7 +2,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models import Sum, Q
+from django.db.models import Count, Sum, Q
 import math
 from django.db.models.functions import Coalesce
 
@@ -333,30 +333,64 @@ class CompetitionMember(models.Model):
         
         NOTE: Requires 'betengine.Bet' model to be available.
         """
-        from decimal import Decimal, ROUND_HALF_UP
-        from django.db.models import Sum
-        from betengine.models import Bet
+        from betengine.models import Bet, ParlayBet
         
         def round_two_places(value):
             return float(Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
         
-        # Get all bets placed by this user during competition period
-        bets = Bet.objects.filter(
+        # A competition leaderboard must only include wagers funded by that
+        # competition's mini-wallet. Parlay legs are represented by their
+        # parent parlay so a single stake is never counted once per leg.
+        single_bets = Bet.objects.filter(
             user=self.user,
-            created_at__gte=self.competition.start_date,
-            created_at__lte=self.competition.end_date,
+            competition=self.competition,
+            is_parlay_leg=False,
         )
-        
-        total_wagered = bets.aggregate(Sum("amount_wagered"))["amount_wagered__sum"] or Decimal("0")
-        total_payout = bets.filter(status="won").aggregate(Sum("payout_amount"))["payout_amount__sum"] or Decimal("0")
-        
-        won_count = bets.filter(status="won").count()
-        lost_count = bets.filter(status="lost").count()
-        void_count = bets.filter(status="void").count()
-        total_bets = bets.count()
-        
+
+        parlays = ParlayBet.objects.filter(
+            user=self.user,
+            competition=self.competition,
+        )
+
+        def aggregate_wagers(queryset):
+            return queryset.aggregate(
+                total_bets=Count("id"),
+                won=Count("id", filter=Q(status="won")),
+                lost=Count("id", filter=Q(status="lost")),
+                void=Count("id", filter=Q(status="void")),
+                total_wagered=Sum(
+                    "amount_wagered",
+                    filter=~Q(status="void"),
+                ),
+                total_payout=Sum(
+                    "payout_amount",
+                    filter=Q(status="won"),
+                ),
+            )
+
+        single_stats = aggregate_wagers(single_bets)
+        parlay_stats = aggregate_wagers(parlays)
+
+        total_wagered = (
+            (single_stats["total_wagered"] or Decimal("0"))
+            + (parlay_stats["total_wagered"] or Decimal("0"))
+        )
+        total_payout = (
+            (single_stats["total_payout"] or Decimal("0"))
+            + (parlay_stats["total_payout"] or Decimal("0"))
+        )
+        won_count = single_stats["won"] + parlay_stats["won"]
+        lost_count = single_stats["lost"] + parlay_stats["lost"]
+        void_count = single_stats["void"] + parlay_stats["void"]
+        total_bets = single_stats["total_bets"] + parlay_stats["total_bets"]
+
         net_profit = total_payout - total_wagered
-        win_rate = (won_count / total_bets * 100) if total_bets > 0 else Decimal("0")
+        settled_bets = won_count + lost_count
+        win_rate = (
+            Decimal(won_count) / Decimal(settled_bets) * Decimal("100")
+            if settled_bets > 0
+            else Decimal("0")
+        )
         roi = (net_profit / total_wagered * 100) if total_wagered > 0 else Decimal("0")
         
         return {
@@ -370,6 +404,22 @@ class CompetitionMember(models.Model):
             "win_rate": round_two_places(win_rate),
             "roi": round_two_places(roi),
         }
+
+    def calculate_score(self, stats=None):
+        """Return the live score using this competition's scoring method."""
+        stats = stats or self.get_member_stats()
+        scoring_method = self.competition.scoring_method
+
+        score_fields = {
+            "net_profit": "net_profit",
+            "roi": "roi",
+            "win_rate": "win_rate",
+            "total_payout": "total_payout",
+        }
+        field = score_fields.get(scoring_method)
+        if field is None:
+            return Decimal("0.00")
+        return Decimal(str(stats[field])).quantize(Decimal("0.01"))
 
 
 # user/models.py

@@ -32,6 +32,7 @@ class MobileCompetitionPage extends ConsumerStatefulWidget {
     this.initialTab = 'discover',
     this.initialDiscoverPage = 1,
     this.initialMyPage = 1,
+    this.initialMyStatus = 'live',
     this.initialLeaderboardPage = 1,
     this.initialPageSize = 20,
   });
@@ -43,6 +44,7 @@ class MobileCompetitionPage extends ConsumerStatefulWidget {
   final String initialTab;
   final int initialDiscoverPage;
   final int initialMyPage;
+  final String initialMyStatus;
   final int initialLeaderboardPage;
   final int initialPageSize;
 
@@ -62,6 +64,7 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
   int? _selectedCompetitionId;
   late int _discoverPage;
   late int _myPage;
+  late String _myStatus;
   late int _leaderboardPage;
   late int _pageSize;
 
@@ -77,6 +80,7 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
     _selectedCompetitionId = widget.selectedCompetitionId;
     _discoverPage = widget.initialDiscoverPage;
     _myPage = widget.initialMyPage;
+    _myStatus = widget.initialMyStatus == 'completed' ? 'completed' : 'live';
     _leaderboardPage = widget.initialLeaderboardPage;
     _pageSize = widget.initialPageSize;
     Future.microtask(() async {
@@ -94,7 +98,8 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
         oldWidget.initialQuery != widget.initialQuery ||
         oldWidget.initialStatus != widget.initialStatus ||
         oldWidget.initialOrdering != widget.initialOrdering ||
-        oldWidget.initialTab != widget.initialTab;
+        oldWidget.initialTab != widget.initialTab ||
+        oldWidget.initialMyStatus != widget.initialMyStatus;
 
     if (routeChanged) {
       _tab = widget.initialTab == 'mine'
@@ -106,6 +111,7 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
       _selectedCompetitionId = widget.selectedCompetitionId;
       _discoverPage = widget.initialDiscoverPage;
       _myPage = widget.initialMyPage;
+      _myStatus = widget.initialMyStatus == 'completed' ? 'completed' : 'live';
       _leaderboardPage = widget.initialLeaderboardPage;
       _pageSize = widget.initialPageSize;
       Future.microtask(() async {
@@ -131,6 +137,7 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
       await ref.read(competitionMyProvider.notifier).load(
         page: forceReload ? _myPage : null,
         pageSize: _pageSize,
+        status: _myStatus,
       );
     }
     if (_selectedCompetitionId != null) {
@@ -160,9 +167,25 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
         tab: tab ?? (_tab == _MobileCompetitionTab.mine ? 'mine' : 'discover'),
         discoverPage: '$_discoverPage',
         myPage: '$_myPage',
+        myStatus: _myStatus,
         leaderboardPage: '$_leaderboardPage',
         pageSize: '$_pageSize',
       ),
+    );
+  }
+
+  Future<void> _setMyStatus(String status) async {
+    if (_myStatus == status) return;
+    setState(() {
+      _myStatus = status;
+      _myPage = 1;
+      _selectedCompetitionId = null;
+    });
+    _updateRoute(competitionId: null, tab: 'mine');
+    await ref.read(competitionMyProvider.notifier).load(
+      page: 1,
+      pageSize: _pageSize,
+      status: status,
     );
   }
 
@@ -182,6 +205,7 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
       _selectedCompetitionId = null;
       _discoverPage = 1;
       _myPage = 1;
+      _myStatus = 'live';
       _leaderboardPage = 1;
       _pageSize = 20;
     });
@@ -438,12 +462,39 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
                       setState(() {
                         _tab = _MobileCompetitionTab.mine;
                       });
+                      await myNotifier.load(
+                        page: 1,
+                        pageSize: _pageSize,
+                        status: _myStatus,
+                      );
                       _updateRoute(tab: 'mine');
                     },
                   ),
                 ),
               ],
             ),
+            if (_tab == _MobileCompetitionTab.mine) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _tabChip(
+                      label: 'Live',
+                      selected: _myStatus == 'live',
+                      onTap: () => _setMyStatus('live'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _tabChip(
+                      label: 'Completed',
+                      selected: _myStatus == 'completed',
+                      onTap: () => _setMyStatus('completed'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             Expanded(
               child: Container(
@@ -474,17 +525,28 @@ class _MobileCompetitionPageState extends ConsumerState<MobileCompetitionPage> {
                       )
                     : _MyCompetitionMobileList(
                         state: myState,
+                        statusFilter: _myStatus,
                         currentPage: myNotifier.currentPage,
                         onNext: () async {
                           final next = myState.isSuccess ? myState.data.next : null;
                           if (next == null) return;
                           _myPage = int.tryParse(Uri.parse(next).queryParameters['page'] ?? '') ?? _myPage;
+                          await myNotifier.load(
+                            page: _myPage,
+                            pageSize: _pageSize,
+                            status: _myStatus,
+                          );
                           _updateRoute();
                         },
                         onPrevious: () async {
                           final previous = myState.isSuccess ? myState.data.previous : null;
                           if (previous == null) return;
                           _myPage = int.tryParse(Uri.parse(previous).queryParameters['page'] ?? '') ?? _myPage;
+                          await myNotifier.load(
+                            page: _myPage,
+                            pageSize: _pageSize,
+                            status: _myStatus,
+                          );
                           _updateRoute();
                         },
                         onOpen: _openCompetitionSheet,
@@ -703,6 +765,7 @@ class _CompetitionMobileList extends ConsumerWidget {
 class _MyCompetitionMobileList extends ConsumerWidget {
   const _MyCompetitionMobileList({
     required this.state,
+    required this.statusFilter,
     required this.currentPage,
     required this.onNext,
     required this.onPrevious,
@@ -710,6 +773,7 @@ class _MyCompetitionMobileList extends ConsumerWidget {
   });
 
   final AppState<PaginatedCompetitionMembershipModel> state;
+  final String statusFilter;
   final int currentPage;
   final Future<void> Function() onNext;
   final Future<void> Function() onPrevious;
@@ -735,9 +799,13 @@ class _MyCompetitionMobileList extends ConsumerWidget {
       );
     }
     if (!state.isSuccess || state.data.results.isEmpty) {
-      return const EmptyState(
-        title: 'No joined competitions',
-        message: 'Join one from the Discover tab.',
+      return EmptyState(
+        title: statusFilter == 'live'
+            ? 'No live competitions'
+            : 'No completed competitions',
+        message: statusFilter == 'live'
+            ? 'Join an upcoming competition from Discover to get started.'
+            : 'Finished competitions will appear here.',
       );
     }
 
@@ -775,6 +843,34 @@ class _MyCompetitionMobileList extends ConsumerWidget {
                           Text(
                             'Joined as @${item.username}',
                             style: TextStyle(color: colors.always8B949E, fontSize: 12),
+                          ),
+                          const SizedBox(height: 7),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: (item.competitionStatus == 'completed'
+                                      ? colors.always8B949E
+                                      : colors.always27D07F)
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              item.competitionStatus == 'completed'
+                                  ? 'Completed'
+                                  : item.competitionStatus == 'registration'
+                                      ? 'Upcoming'
+                                      : 'Live',
+                              style: TextStyle(
+                                color: item.competitionStatus == 'completed'
+                                    ? colors.always8B949E
+                                    : colors.always27D07F,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -893,7 +989,7 @@ class _CompetitionDetailsSheetState
                                             style: TextStyle(color: colors.alwaysWhite),
                                           ),
                                           subtitle: Text(
-                                            'ROI ${row.roi.toStringAsFixed(2)}% • P/L ${row.netProfit.toStringAsFixed(2)}',
+                                            '#${row.rank ?? (index + 1)} • Score ${row.score.toStringAsFixed(2)} • Win ${row.winRate.toStringAsFixed(2)}%',
                                             style: TextStyle(color: colors.always8B949E),
                                           ),
                                         );

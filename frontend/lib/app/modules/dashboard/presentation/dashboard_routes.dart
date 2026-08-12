@@ -29,6 +29,7 @@ class DashboardRoutes {
     String? tab,
     String? discoverPage,
     String? myPage,
+    String? myStatus,
     String? leaderboardPage,
     String? pageSize,
   }) {
@@ -53,6 +54,9 @@ class DashboardRoutes {
     }
     if (myPage != null && myPage.trim().isNotEmpty) {
       params['myPage'] = myPage.trim();
+    }
+    if (myStatus != null && myStatus.trim().isNotEmpty) {
+      params['myStatus'] = myStatus.trim();
     }
     if (leaderboardPage != null && leaderboardPage.trim().isNotEmpty) {
       params['leaderboardPage'] = leaderboardPage.trim();
@@ -137,6 +141,8 @@ class DashboardRoutes {
                       state.uri.queryParameters['myPage'] ?? '',
                     ) ??
                     1,
+                initialMyStatus:
+                    state.uri.queryParameters['myStatus'] ?? 'live',
                 initialLeaderboardPage: int.tryParse(
                       state.uri.queryParameters['leaderboardPage'] ?? '',
                     ) ??

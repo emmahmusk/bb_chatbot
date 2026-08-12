@@ -949,25 +949,3 @@ class Competition(models.Model):
         elif now >= self.start_date and self.status == CompetitionStatus.REGISTRATION:
             self.status = CompetitionStatus.ACTIVE
             self.save(update_fields=["status", "updated_at"])
-
-
-
-    
-    def calculate_score(self):
-        """
-        Calculate member's score based on competition's scoring_method.
-        """
-        stats = self.get_member_stats()
-        
-        scoring_method = self.competition.scoring_method
-        
-        if scoring_method == "net_profit":
-            return Decimal(str(stats["net_profit"]))
-        elif scoring_method == "roi":
-            return Decimal(str(stats["roi"]))
-        elif scoring_method == "win_rate":
-            return Decimal(str(stats["win_rate"]))
-        elif scoring_method == "total_payout":
-            return Decimal(str(stats["total_payout"]))
-        
-        return Decimal("0.00")

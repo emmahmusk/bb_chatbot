@@ -5,6 +5,7 @@ import 'package:frontend/app/modules/auth/domain/repositories/auth_repository.da
 import 'package:frontend/app/modules/auth/presentation/widgets/auth_dialog.dart';
 import 'package:frontend/app/modules/auth/presentation/widgets/create_account_dialog.dart';
 import 'package:frontend/app/modules/auth/presentation/widgets/forgot_password_dialog.dart';
+import 'package:frontend/app/shared/classes/http/failures.dart';
 import 'package:frontend/app/shared/functions/app_functions.dart';
 import 'package:frontend/app/shared/presentation/widgets/clickable.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
@@ -24,12 +25,20 @@ class LoginDialog extends ConsumerStatefulWidget {
 class _LoginDialogState extends ConsumerState<LoginDialog> {
   String username = "";
   String password = "";
+  String? loginError;
+
+  String _loginErrorMessage(Object? error) {
+    final message = error is FailureResponse
+        ? error.message.trim()
+        : error?.toString().trim() ?? '';
+    return message.isEmpty ? 'Unable to sign in. Please try again.' : message;
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
     return AuthDialog(
-      height: 620,
+      height: 680,
       child: Column(
         children: [
           Center(
@@ -45,6 +54,7 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
             onChanged: (value) {
               setState(() {
                 username = value;
+                loginError = null;
               });
             },
           ),
@@ -56,8 +66,55 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
             onChanged: (pass) {
               setState(() {
                 password = pass;
+                loginError = null;
               });
             },
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: loginError == null
+                ? const SizedBox.shrink()
+                : Container(
+                    key: ValueKey(loginError),
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.55),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: Color(0xFFFCA5A5),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              loginError!,
+                              style: const TextStyle(
+                                color: Color(0xFFFCA5A5),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
           ),
           const SizedBox(height: 10),
           Align(
@@ -83,12 +140,25 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
           CustomButton(
             text: 'Next',
             onPressed: () async {
+              if (loginError != null) {
+                setState(() {
+                  loginError = null;
+                });
+              }
+
               final repo = ref.read(authRepositoryProvider);
               
               // ✅ AWAIT the perform function to complete
               await perform(
                 context,
                 response: repo.login(username: username, password: password),
+                showSuccess: false,
+                onError: (error) {
+                  if (!mounted) return;
+                  setState(() {
+                    loginError = _loginErrorMessage(error);
+                  });
+                },
                 onSuccess: (d) async {
                   ref.read(currentUserProvider.notifier).state = d.profile;
                   

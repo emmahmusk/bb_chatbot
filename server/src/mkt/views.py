@@ -344,7 +344,7 @@ class MarketDataAPIView(APIView):
             # In a production setting, you might want to use dependency injection
             # or a singleton pattern for these services if they are costly to initialize.
             data_fetcher = PolygonDataFetcher()
-            odds_calculator = OddsCalculator(vig=Decimal('0.10'), risk_free_rate=Decimal('0.02'))
+            odds_calculator = OddsCalculator(vig=Decimal('0.00'), risk_free_rate=Decimal('0.02'))
 
             # Initialize the market display service
             market_service = MarketDisplayService(

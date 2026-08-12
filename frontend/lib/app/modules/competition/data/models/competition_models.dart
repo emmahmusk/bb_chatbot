@@ -127,6 +127,9 @@ class CompetitionMembershipModel {
   final int id;
   final int competition;
   final String competitionName;
+  final String competitionStatus;
+  final DateTime? competitionStartDate;
+  final DateTime? competitionEndDate;
   final int user;
   final String username;
   final DateTime? joinedAt;
@@ -139,6 +142,9 @@ class CompetitionMembershipModel {
     required this.id,
     required this.competition,
     required this.competitionName,
+    required this.competitionStatus,
+    required this.competitionStartDate,
+    required this.competitionEndDate,
     required this.user,
     required this.username,
     required this.joinedAt,
@@ -153,6 +159,14 @@ class CompetitionMembershipModel {
       id: int.tryParse((json['id'] ?? 0).toString()) ?? 0,
       competition: int.tryParse((json['competition'] ?? 0).toString()) ?? 0,
       competitionName: json['competition_name']?.toString() ?? '',
+      competitionStatus:
+          json['competition_status']?.toString() ?? 'registration',
+      competitionStartDate: json['competition_start_date'] == null
+          ? null
+          : DateTime.tryParse(json['competition_start_date'].toString()),
+      competitionEndDate: json['competition_end_date'] == null
+          ? null
+          : DateTime.tryParse(json['competition_end_date'].toString()),
       user: int.tryParse((json['user'] ?? 0).toString()) ?? 0,
       username: json['username']?.toString() ?? '',
       joinedAt: json['joined_at'] == null
@@ -201,6 +215,8 @@ class CompetitionLeaderboardEntry {
   final int user;
   final String username;
   final DateTime? joinedAt;
+  final int? rank;
+  final num score;
   final int? finalRank;
   final String? finalScore;
   final num totalBets;
@@ -213,6 +229,8 @@ class CompetitionLeaderboardEntry {
     required this.user,
     required this.username,
     required this.joinedAt,
+    required this.rank,
+    required this.score,
     required this.finalRank,
     required this.finalScore,
     required this.totalBets,
@@ -234,6 +252,10 @@ class CompetitionLeaderboardEntry {
       joinedAt: json['joined_at'] == null
           ? null
           : DateTime.tryParse(json['joined_at'].toString()),
+      rank: json['rank'] == null
+          ? null
+          : int.tryParse(json['rank'].toString()),
+      score: parseNum(json['score']),
       finalRank: json['final_rank'] == null
           ? null
           : int.tryParse(json['final_rank'].toString()),

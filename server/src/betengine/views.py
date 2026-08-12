@@ -2216,13 +2216,43 @@ class CompetitionLeaderboardAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         competition_id = self.kwargs.get("competition_id")
-        queryset = CompetitionMember.objects.filter(
+        return CompetitionMember.objects.filter(
             competition_id=competition_id,
             is_disqualified=False,
         ).select_related("user", "competition")
 
-        # Sort by finalized rank if available; otherwise by join date.
-        return queryset.order_by("final_rank", "joined_at")
+    def list(self, request, *args, **kwargs):
+        members = list(self.get_queryset())
+
+        for member in members:
+            stats = member.get_member_stats()
+            member._cached_member_stats = stats
+            member._leaderboard_score = member.calculate_score(stats)
+
+        members.sort(
+            key=lambda member: (
+                -member._leaderboard_score,
+                -Decimal(str(member._cached_member_stats["win_rate"])),
+                member.user.username.casefold(),
+                member.joined_at,
+            )
+        )
+
+        previous_score = None
+        current_rank = 0
+        for position, member in enumerate(members, start=1):
+            if previous_score is None or member._leaderboard_score != previous_score:
+                current_rank = position
+                previous_score = member._leaderboard_score
+            member._leaderboard_rank = current_rank
+
+        page = self.paginate_queryset(members)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(members, many=True)
+        return Response(serializer.data)
 
 
 class CompetitionMembershipListAPIView(generics.ListAPIView):
@@ -2236,6 +2266,33 @@ class CompetitionMembershipListAPIView(generics.ListAPIView):
     pagination_class = CompetitionListPagination
 
     def get_queryset(self):
-        return CompetitionMember.objects.filter(user=self.request.user).select_related(
+        queryset = CompetitionMember.objects.filter(user=self.request.user).select_related(
             "competition", "user"
         )
+
+        status_value = self.request.query_params.get("status", "all").lower()
+        now = timezone.now()
+
+        if status_value == "live":
+            queryset = queryset.filter(
+                competition__status__in=[
+                    CompetitionStatus.REGISTRATION,
+                    CompetitionStatus.ACTIVE,
+                ],
+                competition__end_date__gt=now,
+            ).order_by("competition__start_date", "competition__name")
+        elif status_value == "completed":
+            queryset = queryset.exclude(
+                competition__status=CompetitionStatus.CANCELLED,
+            ).filter(
+                Q(competition__status=CompetitionStatus.COMPLETED)
+                | Q(competition__end_date__lte=now)
+            ).order_by("-competition__end_date", "competition__name")
+        elif status_value in CompetitionStatus.values:
+            queryset = queryset.filter(
+                competition__status=status_value,
+            ).order_by("-competition__created_at")
+        else:
+            queryset = queryset.order_by("-competition__created_at")
+
+        return queryset

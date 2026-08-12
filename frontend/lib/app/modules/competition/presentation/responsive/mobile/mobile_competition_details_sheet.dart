@@ -676,7 +676,7 @@ class _MobileCompetitionDetailsSheetState
                                                       cells: [
                                                         DataCell(
                                                           Text(
-                                                            '${leaderboardState.data.results[i].finalRank ?? (i + 1)}',
+                                                            '${leaderboardState.data.results[i].rank ?? (i + 1)}',
                                                           ),
                                                         ),
                                                         DataCell(
@@ -692,7 +692,7 @@ class _MobileCompetitionDetailsSheetState
                                                             leaderboardState
                                                                 .data
                                                                 .results[i]
-                                                                .netProfit
+                                                                .score
                                                                 .toStringAsFixed(
                                                                   2,
                                                                 ),
@@ -851,9 +851,9 @@ class _LeaderboardRowCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = ref.watch(appThemeProvider).colors;
-    final rank = row.finalRank ?? 0;
-    final profitColor =
-        row.netProfit >= 0 ? colors.always27D07F : colors.alwaysFF4C4C;
+    final rank = row.rank ?? 0;
+    final scoreColor =
+        row.score >= 0 ? colors.always27D07F : colors.alwaysFF4C4C;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -909,9 +909,9 @@ class _LeaderboardRowCard extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _MiniStat(
-                  label: 'P/L',
-                  value: row.netProfit.toStringAsFixed(2),
-                  valueColor: profitColor,
+                  label: 'Score',
+                  value: row.score.toStringAsFixed(2),
+                  valueColor: scoreColor,
                 ),
               ),
               const SizedBox(width: 10),

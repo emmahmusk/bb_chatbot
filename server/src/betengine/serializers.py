@@ -229,6 +229,15 @@ class CompetitionSerializer(serializers.ModelSerializer):
 class CompetitionMemberSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username", read_only=True)
     competition_name = serializers.CharField(source="competition.name", read_only=True)
+    competition_status = serializers.SerializerMethodField()
+    competition_start_date = serializers.DateTimeField(
+        source="competition.start_date",
+        read_only=True,
+    )
+    competition_end_date = serializers.DateTimeField(
+        source="competition.end_date",
+        read_only=True,
+    )
     competition_coin_balance = serializers.DecimalField(
         max_digits=16,
         decimal_places=2,
@@ -241,6 +250,9 @@ class CompetitionMemberSerializer(serializers.ModelSerializer):
             "id",
             "competition",
             "competition_name",
+            "competition_status",
+            "competition_start_date",
+            "competition_end_date",
             "user",
             "username",
             "competition_coin_balance",
@@ -251,9 +263,25 @@ class CompetitionMemberSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def get_competition_status(self, obj):
+        competition = obj.competition
+        if competition.status == CompetitionStatus.CANCELLED:
+            return CompetitionStatus.CANCELLED
+
+        from django.utils import timezone
+
+        now = timezone.now()
+        if competition.end_date <= now:
+            return CompetitionStatus.COMPLETED
+        if competition.start_date <= now:
+            return CompetitionStatus.ACTIVE
+        return CompetitionStatus.REGISTRATION
+
 
 class CompetitionLeaderboardEntrySerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username", read_only=True)
+    rank = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
     total_bets = serializers.SerializerMethodField()
     net_profit = serializers.SerializerMethodField()
     roi = serializers.SerializerMethodField()
@@ -266,6 +294,8 @@ class CompetitionLeaderboardEntrySerializer(serializers.ModelSerializer):
             "user",
             "username",
             "joined_at",
+            "rank",
+            "score",
             "final_rank",
             "final_score",
             "total_bets",
@@ -279,6 +309,15 @@ class CompetitionLeaderboardEntrySerializer(serializers.ModelSerializer):
         if not hasattr(obj, "_cached_member_stats"):
             obj._cached_member_stats = obj.get_member_stats()
         return obj._cached_member_stats
+
+    def get_rank(self, obj):
+        return getattr(obj, "_leaderboard_rank", obj.final_rank)
+
+    def get_score(self, obj):
+        score = getattr(obj, "_leaderboard_score", None)
+        if score is None:
+            score = obj.calculate_score(self._stats(obj))
+        return str(score)
 
     def get_total_bets(self, obj):
         return self._stats(obj).get("total_bets")

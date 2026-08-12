@@ -1,6 +1,6 @@
 from datetime import datetime
 import time
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 import traceback
 from typing import Any, Dict, List, Optional
 from django.conf import settings
@@ -43,18 +43,11 @@ def estimate_implied_probability(bid: Decimal, ask: Decimal) -> Decimal:
         return Decimal("0.50")  # fallback neutral probability
 
 
-def apply_vig(probability: Decimal, vig: Decimal = Decimal("0.09")) -> Decimal:
-    """
-    Applies vig (e.g., 9%) to make the sportsbook edge realistic.
-    """
-    if probability <= 0 or probability >= 1:
-        raise ValueError("Invalid probability for vig application.")
-
-    overround_prob = probability + (vig * probability)
-    if overround_prob >= 1:
-        overround_prob = Decimal("0.99")
-
-    return overround_prob.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+def calculate_true_probabilities(bid: Decimal, ask: Decimal) -> tuple[Decimal, Decimal]:
+    """Return complementary, no-vig probabilities derived from the option midpoint."""
+    prob_over = estimate_implied_probability(bid, ask).quantize(Decimal("0.0001"))
+    prob_under = Decimal("1.0000") - prob_over
+    return prob_over, prob_under
 
 def create_markets_from_options_data(stock_symbol: str, options_data: list):
     """
@@ -94,10 +87,9 @@ def create_markets_from_options_data(stock_symbol: str, options_data: list):
                 skipped_count += 2
                 continue
 
-            # Estimate base probability and apply vig
-            base_prob = estimate_implied_probability(bid, ask)
-            prob_over = apply_vig(base_prob)
-            prob_under = apply_vig(Decimal("1.0") - base_prob)
+            # Store true complementary probabilities. Payout pricing must never
+            # be folded back into the probability values shown to users.
+            prob_over, prob_under = calculate_true_probabilities(bid, ask)
 
             # Convert to American odds (skip if invalid)
             try:

@@ -352,34 +352,18 @@ class _MobileDashboardHeader extends ConsumerWidget {
       );
     }
 
-    String walletCoinBalance = '0.00';
-    if (isCompetitionMode) {
-      String competitionBalance = '0.00';
-
-      if (myCompetitions.isSuccess && myCompetitions.data.results.isNotEmpty) {
-        String? selectedCompetitionBalance;
-
-        if (selectedCompetitionId != null) {
-          for (final membership in myCompetitions.data.results) {
-            if (membership.competition == selectedCompetitionId) {
-              selectedCompetitionBalance = membership.competitionCoinBalance;
-              break;
-            }
-          }
+    String displayedCoinBalance = profile?.walletCoinBalance ?? '0.00';
+    if (selectedCompetitionId != null && myCompetitions.isSuccess) {
+      for (final membership in myCompetitions.data.results) {
+        if (membership.competition == selectedCompetitionId) {
+          displayedCoinBalance = membership.competitionCoinBalance;
+          break;
         }
-
-        competitionBalance = selectedCompetitionBalance ??
-            myCompetitions.data.results.first.competitionCoinBalance;
       }
-
-      walletCoinBalance = formatAmount(
-        double.tryParse(competitionBalance) ?? 0.0,
-      );
-    } else if (profile != null) {
-      walletCoinBalance = formatAmount(
-        double.tryParse(profile.walletCoinBalance) ?? 0.0,
-      );
     }
+    final walletCoinBalance = formatAmount(
+      double.tryParse(displayedCoinBalance) ?? 0.0,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
