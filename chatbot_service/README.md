@@ -21,6 +21,17 @@ OpticOdds v3 API through `GET /api/odds/providers/` and
 stays usable in clearly labelled Preview mode with sample prices; the key is
 never sent to the browser.
 
+The comparison form loads its sport, active league, and market options from the
+server-side `GET /api/odds/catalog/` endpoint. The service proxies OpticOdds'
+`/sports`, `/leagues/active`, `/markets`, and `/fixtures` resources so users can
+choose the exact league, fixture, and market supported for the selected sport.
+Catalog responses are cached briefly and the independent OpticOdds resources are
+requested in parallel, keeping dropdown changes responsive while still allowing
+fresh options. Adjust `OPTIC_ODDS_CATALOG_CACHE_SECONDS` if needed.
+The page performs a lightweight sports-only bootstrap on first load; league,
+market, and fixture data are fetched only after the user starts choosing a sport
+or league.
+
 Optional OpticOdds settings:
 
 ```text

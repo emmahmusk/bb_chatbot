@@ -2,7 +2,19 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .services.optic_odds import OpticOddsError, compare_odds, sportsbooks
+from .services.optic_odds import OpticOddsError, catalog, compare_odds, sportsbooks
+
+
+class OpticCatalogView(APIView):
+    def get(self, request):
+        sport = str(request.query_params.get("sport") or "basketball").strip()
+        league = str(request.query_params.get("league") or "").strip()
+        bootstrap = request.query_params.get("bootstrap") == "1"
+        try:
+            data, preview = catalog(sport=sport, league=league or None, bootstrap=bootstrap)
+        except OpticOddsError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({**data, "preview": preview, "provider": "OpticOdds"})
 
 
 class OpticSportsbooksView(APIView):
