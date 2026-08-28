@@ -55,7 +55,7 @@
   };
   const setFixtureOptions = (items) => {
     fixtureSelect.innerHTML = `<option value="">${esc(items?.length ? 'Select a fixture' : 'No upcoming fixtures')}</option>` + (items || []).map((fixture) => {
-      const date = fixture.start_date ? new Date(fixture.start_date).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : 'Preview';
+      const date = fixture.is_live ? 'Live now' : (fixture.start_date ? new Date(fixture.start_date).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : 'Preview');
       return `<option value="${esc(fixture.id)}">${esc(fixture.label)} · ${esc(date)}</option>`;
     }).join('');
     fixtureSelect.disabled = !(items || []).length;

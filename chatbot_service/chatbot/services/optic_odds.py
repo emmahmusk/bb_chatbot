@@ -101,7 +101,7 @@ def catalog(*, sport=None, league=None, bootstrap=False):
     if bootstrap:
         return {"sports": _list_data(_request("sports"), "sports"), "leagues": [], "markets": [], "fixtures": []}, False
 
-    cache_key = f"opticodds-catalog:{sport or 'all'}:{league or 'all'}"
+    cache_key = f"opticodds-catalog:v2:{sport or 'all'}:{league or 'all'}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached, False
@@ -113,12 +113,14 @@ def catalog(*, sport=None, league=None, bootstrap=False):
     if league:
         market_params["league"] = league
     fixture_params = None
+    live_fixture_params = None
     if league:
         fixture_params = {
             "sport": sport,
             "league": league,
             "start_date_after": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
+        live_fixture_params = {"sport": sport, "league": league, "is_live": "true"}
 
     # These resources are independent; parallel requests remove three network
     # round trips from the dropdown's critical path.
@@ -132,7 +134,9 @@ def catalog(*, sport=None, league=None, bootstrap=False):
         raw_fixtures = []
         if fixture_params:
             fixtures_future = executor.submit(_request, "fixtures", fixture_params)
+            live_future = executor.submit(_request, "fixtures", live_fixture_params)
             raw_fixtures = _list_data(fixtures_future.result(), "fixtures")
+            raw_fixtures += _list_data(live_future.result(), "fixtures")
     markets = []
     for item in raw_markets:
         if item.get("id"):
@@ -144,13 +148,16 @@ def catalog(*, sport=None, league=None, bootstrap=False):
             continue
         home = fixture.get("home_team_display") or (fixture.get("home_competitors") or [{}])[0].get("name", "Home")
         away = fixture.get("away_team_display") or (fixture.get("away_competitors") or [{}])[0].get("name", "Away")
+        is_live = bool(fixture.get("is_live")) or str(fixture.get("status", "")).casefold() in {"live", "in_play", "in_progress"}
         fixtures.append({
             "id": fixture_id,
-            "label": f"{away} @ {home}",
+            "label": f"{'LIVE · ' if is_live else ''}{away} @ {home}",
             "start_date": fixture.get("start_date"),
             "status": fixture.get("status"),
+            "is_live": is_live,
             "has_odds": fixture.get("has_odds", True),
         })
+    fixtures.sort(key=lambda item: (not item["is_live"], item.get("start_date") or ""))
     result = {"sports": sports, "leagues": leagues, "markets": markets, "fixtures": fixtures}
     cache.set(cache_key, result, getattr(settings, "OPTIC_ODDS_CATALOG_CACHE_SECONDS", 60))
     return result, False

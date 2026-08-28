@@ -31,6 +31,8 @@ fresh options. Adjust `OPTIC_ODDS_CATALOG_CACHE_SECONDS` if needed.
 The page performs a lightweight sports-only bootstrap on first load; league,
 market, and fixture data are fetched only after the user starts choosing a sport
 or league.
+For a selected league, fixture discovery merges upcoming events with OpticOdds'
+live (`is_live=true`) events and labels in-play games with a `LIVE` prefix.
 
 Optional OpticOdds settings:
 
