@@ -1,0 +1,40 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1018"><title>Odds comparison · BullBear</title>
+  <link rel="icon" href="{% static 'chatbot/images/bullbear_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'chatbot/css/odds-comparison.css' %}">
+</head>
+<body>
+  <div class="glow glow-a"></div><div class="glow glow-b"></div>
+  <header class="topbar"><a class="brand" href="/"><img src="{% static 'chatbot/images/bullbear_logo.png' %}" alt="BullBear"><span></span><b>ODDS LAB</b></a><div class="top-actions"><a href="/">Market assistant</a><div class="connection"><i></i> OpticOdds feed</div></div></header>
+  <main>
+    <section class="workspace">
+      <aside class="control-card">
+        <div class="step"><small>01</small><div><h2>Set your market</h2><p>Start with a fixture and the market you want to shop.</p></div></div>
+        <label>Sport<select id="sport"><option value="basketball">Basketball</option><option value="football">Football</option><option value="soccer">Soccer</option><option value="baseball">Baseball</option><option value="hockey">Hockey</option><option value="tennis">Tennis</option></select></label>
+        <label>Fixture ID <span class="optional">optional in preview</span><input id="fixtureId" placeholder="e.g. BCE4E01B8D3D"></label>
+        <label>League <span class="optional">optional</span><input id="league" placeholder="e.g. NBA"></label>
+        <label>Market<select id="market"><option value="moneyline">Moneyline</option><option value="point_spread">Point spread</option><option value="total_points">Total points</option></select></label>
+        <div class="step provider-step"><small>02</small><div><h2>Pick providers</h2><p>Compare up to five books side by side.</p></div></div>
+        <div class="multi-select" id="providerSelect"><button type="button" class="select-trigger" id="providerTrigger"><span>Loading providers…</span><b>⌄</b></button><div class="options" id="providerOptions"></div></div>
+        <p class="selection-note" id="selectionNote">Select at least two providers.</p>
+        <button class="compare-button" id="compareButton"><span>Compare odds</span><b>→</b></button>
+        <div class="form-error" id="formError" role="alert"></div>
+      </aside>
+      <section class="results-card">
+        <div class="results-head"><div><div class="eyebrow muted"><i></i> LIVE SNAPSHOT</div><h2>Market comparison</h2></div><div class="updated" id="updated">Ready when you are</div></div>
+        <div class="preview-banner" id="previewBanner"><span>✦</span><p><b>Preview mode</b> Add <code>OPTIC_ODDS_API_KEY</code> on Render to replace sample prices with live OpticOdds data.</p></div>
+        <div class="empty-results" id="emptyResults"><div class="empty-icon">↗</div><h3>Your comparison will appear here</h3><p>Choose a sport, select your providers, then compare.</p></div>
+        <div class="table-wrap hidden" id="tableWrap"><table><thead><tr><th>Provider</th><th>Event / market</th><th>Selection</th><th>American</th><th>Decimal</th><th>Updated</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+        <div class="mobile-results hidden" id="mobileResults"></div>
+        <div class="result-foot hidden" id="resultFoot"><span><i></i> Prices are normalized by OpticOdds</span><span id="resultCount"></span></div>
+      </section>
+    </section>
+    <p class="fine-print">Odds move quickly. Always verify the final price and terms with the sportsbook before placing a wager.</p>
+  </main>
+  <script src="{% static 'chatbot/js/odds-comparison.js' %}" defer></script>
+</body>
+</html>

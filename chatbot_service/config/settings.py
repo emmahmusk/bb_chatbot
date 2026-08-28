@@ -43,6 +43,10 @@ DATABASES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Keep local `runserver` and an already-built static directory resilient when
+# a new asset has not yet been collected. Production still runs collectstatic
+# in entrypoint.sh; this finder fallback is harmless for the small standalone service.
+WHITENOISE_USE_FINDERS = os.getenv("WHITENOISE_USE_FINDERS", "true").lower() == "true"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
@@ -69,3 +73,6 @@ OPENAI_TIMEOUT_SECONDS = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "60"))
 OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "2"))
 AUTO_SYNC_EMPTY_INDEX = os.getenv("AUTO_SYNC_EMPTY_INDEX", "true").lower() == "true"
 CONVERSATION_HISTORY_LIMIT = int(os.getenv("CONVERSATION_HISTORY_LIMIT", "12"))
+OPTIC_ODDS_BASE_URL = os.getenv("OPTIC_ODDS_BASE_URL", "https://api.opticodds.com/api/v3").rstrip("/")
+OPTIC_ODDS_API_KEY = os.getenv("OPTIC_ODDS_API_KEY", "")
+OPTIC_ODDS_TIMEOUT_SECONDS = int(os.getenv("OPTIC_ODDS_TIMEOUT_SECONDS", "12"))

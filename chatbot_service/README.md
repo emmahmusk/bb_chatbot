@@ -8,6 +8,26 @@ the result with the supporting market IDs.
 The service root (`GET /`) provides a responsive BullBear-styled HTML/CSS/JavaScript
 chat interface for testing the API without the Flutter frontend.
 
+Both browser experiences use Django's static-file pipeline. If a local browser
+still shows the unstyled HTML, run `python manage.py collectstatic --noinput`,
+restart the development server, and hard-refresh the page. The service enables
+WhiteNoise's finder fallback so newly added assets are also available before a
+collectstatic run; Render's `entrypoint.sh` always collects them during deploy.
+
+The odds comparison experience is available at `/odds-comparison/`. It uses the
+OpticOdds v3 API through `GET /api/odds/providers/` and
+`POST /api/odds/compare/`, with two to five sportsbooks per comparison. Set
+`OPTIC_ODDS_API_KEY` on Render to enable live prices. Without a key, the page
+stays usable in clearly labelled Preview mode with sample prices; the key is
+never sent to the browser.
+
+Optional OpticOdds settings:
+
+```text
+OPTIC_ODDS_BASE_URL=https://api.opticodds.com/api/v3
+OPTIC_ODDS_TIMEOUT_SECONDS=12
+```
+
 ## Local setup
 
 ```bash

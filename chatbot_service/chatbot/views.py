@@ -113,6 +113,10 @@ class ChatPageView(TemplateView):
     template_name = "chatbot/index.html"
 
 
+class OddsComparisonPageView(TemplateView):
+    template_name = "chatbot/odds_comparison.html"
+
+
 class HealthView(APIView):
     def get(self, request):
         with connection.cursor() as cursor:
