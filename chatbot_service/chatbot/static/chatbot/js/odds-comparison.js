@@ -11,10 +11,11 @@
   const marketSelect = $('market');
   const fixtureSelect = $('fixtureId');
   let providers = [];
+  let lastRows = [];
   let catalogController = null;
   const FALLBACK_PROVIDERS = ['DraftKings', 'BetMGM', 'FanDuel', 'Caesars', 'bet365', 'Fanatics Sportsbook'].map((name) => ({id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name}));
-  const FALLBACK_SPORTS = [{id:'basketball',name:'Basketball'},{id:'football',name:'Football'},{id:'soccer',name:'Soccer'}];
-  const FALLBACK_LEAGUES = [{id:'nba',name:'NBA'},{id:'ncaab',name:'NCAAB'},{id:'wnba',name:'WNBA'}];
+  const FALLBACK_SPORTS = [{id:'baseball',name:'Baseball'},{id:'basketball',name:'Basketball'},{id:'football',name:'Football'},{id:'soccer',name:'Soccer'}];
+  const FALLBACK_LEAGUES = [{id:'mlb',name:'MLB'},{id:'npb',name:'NPB'},{id:'kbo',name:'KBO'}];
   const FALLBACK_MARKETS = [{id:'moneyline',name:'Moneyline'},{id:'point_spread',name:'Point Spread'},{id:'total_points',name:'Total Points'}];
   const fetchWithTimeout = (url, options = {}, timeout = 8000) => {
     const controller = new AbortController();
@@ -36,7 +37,11 @@
   };
   const renderProviders = () => {
     options.innerHTML = providers.map((book) => `<label class="option"><input type="checkbox" value="${esc(book.id || book.name)}" data-label="${esc(book.name || book.id)}"><span>${esc(book.name || book.id)}</span></label>`).join('');
-    options.querySelectorAll('input').forEach((input) => input.addEventListener('change', syncSelection));
+    const hasBetMgm = providers.some((book) => String(book.id || '').toLowerCase() === 'betmgm');
+    options.querySelectorAll('input').forEach((input, index) => {
+      input.checked = ['betmgm', 'draftkings', 'fanduel'].includes(input.value.toLowerCase()) || (!hasBetMgm && index < 3);
+      input.addEventListener('change', syncSelection);
+    });
     syncSelection();
   };
   const loadProviders = async () => {
@@ -102,10 +107,30 @@
     $('emptyResults').classList.add('hidden'); $('tableWrap').classList.remove('hidden'); $('resultFoot').classList.remove('hidden'); $('mobileResults').classList.remove('hidden');
     $('resultCount').textContent = `${body.count} price${body.count === 1 ? '' : 's'} compared`;
     const rows = body.rows || [];
-    $('resultsBody').innerHTML = rows.map((row) => `<tr><td>${esc(row.sportsbook)}</td><td class="event">${esc(row.event)}<div class="market-label">${esc(row.market)}</div></td><td>${esc(row.selection)}${row.points !== null && row.points !== undefined ? ` <small>${esc(row.points)}</small>` : ''}</td><td class="price">${formatPrice(row.price)}</td><td class="decimal">${row.decimal ?? '—'}</td><td>${formatTime(row.updated_at)}</td></tr>`).join('');
-    $('mobileResults').innerHTML = rows.map((row) => `<article class="mobile-row"><div class="mobile-row-top"><span class="mobile-book">${esc(row.sportsbook)}</span><span class="mobile-price">${formatPrice(row.price)} <small>${row.decimal ?? ''}</small></span></div><div class="mobile-event">${esc(row.selection)}</div><div class="mobile-meta">${esc(row.event)} · ${esc(row.market)}</div></article>`).join('');
+    lastRows = rows;
+    $('resultsBody').innerHTML = rows.map((row, index) => `<tr class="auditable-row" data-row-index="${index}" tabindex="0"><td>${esc(row.sportsbook)}</td><td class="event">${esc(row.event)}<div class="market-label">${esc(row.market)}</div></td><td>${esc(row.selection)}${row.points !== null && row.points !== undefined ? ` <small>${esc(row.points)}</small>` : ''}</td><td class="price">${formatPrice(row.price)}</td><td class="decimal">${row.decimal ?? '—'}</td><td>${formatTime(row.updated_at)}</td></tr>`).join('');
+    $('mobileResults').innerHTML = rows.map((row, index) => `<article class="mobile-row auditable-row" data-row-index="${index}" tabindex="0"><div class="mobile-row-top"><span class="mobile-book">${esc(row.sportsbook)}</span><span class="mobile-price">${formatPrice(row.price)} <small>${row.decimal ?? ''}</small></span></div><div class="mobile-event">${esc(row.selection)}</div><div class="mobile-meta">${esc(row.event)} · ${esc(row.market)}</div></article>`).join('');
     $('updated').textContent = `Updated ${new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
   };
+  const renderHistory = (audits) => {
+    $('auditHistory').innerHTML = audits?.length ? `<h3>Recent audits</h3>` + audits.map((audit) => `<div class="audit-history-row"><span class="audit-dot ${audit.is_bad_bet ? 'bad' : 'good'}"></span><div><b>${audit.chosen_sportsbook} · ${esc(audit.selection)}</b><small>${esc(audit.best_sportsbook ? `Best available: ${audit.best_sportsbook}` : 'No better peer price found')} · ${new Date(audit.created_at).toLocaleString()}</small></div><strong class="${audit.is_bad_bet ? 'bad-text' : 'good-text'}">${audit.is_bad_bet ? 'Review' : 'Looks best'}</strong></div>`).join('') : '';
+  };
+  const auditSelection = async (index) => {
+    const selectedRow = lastRows[index];
+    if (!selectedRow) return;
+    $('auditEmpty').classList.add('hidden'); $('auditResult').classList.remove('hidden'); $('auditResult').innerHTML = '<div class="audit-loading">Checking this price against the selected providers…</div>';
+    try {
+      const response = await fetchWithTimeout('/api/odds/audits/', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({selected_row:selectedRow, rows:lastRows, sport:sportSelect.value, league:leagueSelect.value, market:marketSelect.value})});
+      const audit = await response.json(); if (!response.ok) throw new Error(audit.error || 'Audit failed.');
+      const bad = audit.is_bad_bet;
+      $('auditResult').innerHTML = `<div class="audit-status ${bad ? 'bad' : 'good'}"><span>${bad ? '!' : '✓'}</span><div><b>${bad ? 'Potentially inferior price' : 'Competitive price'}</b><small>${bad ? `${esc(audit.best_sportsbook)} offers a higher decimal price (${audit.best_decimal}) for the same selection.` : 'No selected provider offers a higher decimal price for this selection.'}</small></div></div><div class="audit-facts"><span><small>Selected</small><b>${esc(audit.chosen_sportsbook)} · ${formatPrice(audit.chosen_price)}</b></span><span><small>Compared with</small><b>${esc(audit.best_sportsbook || 'No peer')}</b></span><span><small>Recorded</small><b>${new Date(audit.created_at).toLocaleString()}</b></span></div>`;
+      const historyResponse = await fetchWithTimeout('/api/odds/audits/'); const history = await historyResponse.json(); renderHistory(history.audits || []);
+    } catch (e) { $('auditResult').innerHTML = `<div class="audit-status bad"><span>!</span><div><b>Audit unavailable</b><small>${esc(e.message)}</small></div></div>`; }
+  };
+  $('resultsBody').addEventListener('click', (event) => { const row = event.target.closest('[data-row-index]'); if (row) auditSelection(Number(row.dataset.rowIndex)); });
+  $('resultsBody').addEventListener('keydown', (event) => { if (event.key === 'Enter') event.target.click(); });
+  $('mobileResults').addEventListener('click', (event) => { const row = event.target.closest('[data-row-index]'); if (row) auditSelection(Number(row.dataset.rowIndex)); });
+  $('mobileResults').addEventListener('keydown', (event) => { if (event.key === 'Enter') event.target.click(); });
   compare.addEventListener('click', async () => {
     error.textContent = ''; const books = selected();
     if (books.length < 2 || books.length > 5) { error.textContent = 'Choose between 2 and 5 providers.'; return; }
@@ -119,11 +144,12 @@
   providers = FALLBACK_PROVIDERS;
   renderProviders();
   setOptions(sportSelect, FALLBACK_SPORTS, 'Select sport');
-  sportSelect.value = 'basketball';
+  sportSelect.value = 'baseball';
   setOptions(leagueSelect, FALLBACK_LEAGUES, 'Select league');
   setOptions(marketSelect, FALLBACK_MARKETS, 'Select market');
   marketSelect.value = 'moneyline';
   setFixtureOptions([{id:'preview-basketball-001', label:'Celtics @ Lakers', start_date:null}]);
+  fetchWithTimeout('/api/odds/audits/').then((response) => response.json()).then((body) => renderHistory(body.audits || [])).catch(() => {});
   loadProviders();
-  loadCatalog('basketball', '', true);
+  loadCatalog('baseball', '', true);
 })();

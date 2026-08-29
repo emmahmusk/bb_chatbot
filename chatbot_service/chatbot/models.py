@@ -56,3 +56,27 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f"{self.role} message in {self.conversation_id}"
+
+
+class BetAudit(models.Model):
+    fixture_id = models.CharField(max_length=128, blank=True)
+    sport = models.CharField(max_length=64, blank=True)
+    league = models.CharField(max_length=128, blank=True)
+    market = models.CharField(max_length=128, blank=True)
+    selection = models.CharField(max_length=255, blank=True)
+    chosen_sportsbook = models.CharField(max_length=128)
+    chosen_price = models.FloatField(null=True, blank=True)
+    chosen_decimal = models.FloatField(null=True, blank=True)
+    best_sportsbook = models.CharField(max_length=128, blank=True)
+    best_price = models.FloatField(null=True, blank=True)
+    best_decimal = models.FloatField(null=True, blank=True)
+    edge_decimal = models.FloatField(null=True, blank=True)
+    is_bad_bet = models.BooleanField(default=False, db_index=True)
+    comparison_snapshot = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.chosen_sportsbook} audit for {self.selection}"

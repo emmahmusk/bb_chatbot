@@ -21,6 +21,12 @@ OpticOdds v3 API through `GET /api/odds/providers/` and
 stays usable in clearly labelled Preview mode with sample prices; the key is
 never sent to the browser.
 
+Clicking a comparison price opens the Audit panel and checks that selection
+against the same fixture, market, and outcome at the other chosen sportsbooks.
+Potentially inferior prices are flagged and saved with a timestamp and the full
+comparison snapshot. Audit history is available through `GET /api/odds/audits/`;
+new records are created with `POST /api/odds/audits/`.
+
 The comparison form loads its sport, active league, and market options from the
 server-side `GET /api/odds/catalog/` endpoint. The service proxies OpticOdds'
 `/sports`, `/leagues/active`, `/markets`, and `/fixtures` resources so users can

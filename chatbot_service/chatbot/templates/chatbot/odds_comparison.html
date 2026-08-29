@@ -33,6 +33,12 @@
         <div class="result-foot hidden" id="resultFoot"><span><i></i> Prices are normalized by OpticOdds</span><span id="resultCount"></span></div>
       </section>
     </section>
+    <section class="audit-panel" id="auditPanel">
+      <div class="audit-head"><div><div class="eyebrow muted"><i></i> BET QUALITY CONTROL</div><h2>Audit panel</h2><p>Select any price above to check whether another sportsbook offers a better line.</p></div><span class="audit-badge">Saved automatically</span></div>
+      <div class="audit-empty" id="auditEmpty"><span>✓</span><div><b>No bet selected</b><small>Your audit history and the latest comparison will appear here.</small></div></div>
+      <div class="audit-result hidden" id="auditResult"></div>
+      <div class="audit-history" id="auditHistory"></div>
+    </section>
     <p class="fine-print">Odds move quickly. Always verify the final price and terms with the sportsbook before placing a wager.</p>
   </main>
   <script src="{% static 'chatbot/js/odds-comparison.js' %}?v=3" defer></script>
