@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -27,6 +28,10 @@ def _audit_payload(audit):
         "best_sportsbook": audit.best_sportsbook,
         "best_price": audit.best_price,
         "best_decimal": audit.best_decimal,
+        "lowest_sportsbook": audit.lowest_sportsbook,
+        "lowest_decimal": audit.lowest_decimal,
+        "spread_decimal": audit.spread_decimal,
+        "audit_reason": audit.audit_reason,
         "edge_decimal": audit.edge_decimal,
         "is_bad_bet": audit.is_bad_bet,
         "comparison_snapshot": audit.comparison_snapshot,
@@ -110,10 +115,16 @@ class BetAuditView(APIView):
             return Response({"error": "Comparison rows are required for an audit."}, status=status.HTTP_400_BAD_REQUEST)
         chosen_decimal = _number(selected.get("decimal"))
         peers = [row for row in rows if isinstance(row, dict) and row.get("sportsbook") != selected.get("sportsbook") and row.get("selection") == selected.get("selection") and row.get("event") == selected.get("event") and row.get("market") == selected.get("market") and _number(row.get("decimal")) is not None]
-        best = max(peers, key=lambda row: _number(row.get("decimal")), default=None)
-        best_decimal = _number(best.get("decimal")) if best else None
-        edge = round(best_decimal - chosen_decimal, 4) if chosen_decimal is not None and best_decimal is not None else None
-        is_bad = bool(edge is not None and edge > 0.0001)
+        highest = max(peers, key=lambda row: _number(row.get("decimal")), default=None)
+        lowest = min(peers, key=lambda row: _number(row.get("decimal")), default=None)
+        highest_decimal = _number(highest.get("decimal")) if highest else None
+        lowest_decimal = _number(lowest.get("decimal")) if lowest else None
+        spread = round(chosen_decimal - lowest_decimal, 4) if chosen_decimal is not None and lowest_decimal is not None else None
+        relative_spread = (spread / lowest_decimal) if spread is not None and lowest_decimal else 0
+        above_all = bool(chosen_decimal is not None and highest_decimal is not None and chosen_decimal > highest_decimal)
+        significant_outlier = bool(spread is not None and spread >= getattr(settings, "ODDS_AUDIT_MIN_DECIMAL_GAP", 0.20) and relative_spread >= getattr(settings, "ODDS_AUDIT_MIN_RELATIVE_GAP", 0.10))
+        is_bad = above_all or significant_outlier
+        reason = "Higher than every selected provider" if above_all else ("Significantly above the lowest selected price" if significant_outlier else "Within the selected market range")
         audit = BetAudit.objects.create(
             fixture_id=str(selected.get("fixture_id") or ""),
             sport=str(request.data.get("sport") or ""),
@@ -123,10 +134,14 @@ class BetAuditView(APIView):
             chosen_sportsbook=str(selected.get("sportsbook") or ""),
             chosen_price=_number(selected.get("price")),
             chosen_decimal=chosen_decimal,
-            best_sportsbook=str(best.get("sportsbook") or "") if best else "",
-            best_price=_number(best.get("price")) if best else None,
-            best_decimal=best_decimal,
-            edge_decimal=edge,
+            best_sportsbook=str(highest.get("sportsbook") or "") if highest else "",
+            best_price=_number(highest.get("price")) if highest else None,
+            best_decimal=highest_decimal,
+            lowest_sportsbook=str(lowest.get("sportsbook") or "") if lowest else "",
+            lowest_decimal=lowest_decimal,
+            spread_decimal=spread,
+            edge_decimal=spread,
+            audit_reason=reason,
             is_bad_bet=is_bad,
             comparison_snapshot=rows,
         )

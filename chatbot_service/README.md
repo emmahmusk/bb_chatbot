@@ -23,7 +23,8 @@ never sent to the browser.
 
 Clicking a comparison price opens the Audit panel and checks that selection
 against the same fixture, market, and outcome at the other chosen sportsbooks.
-Potentially inferior prices are flagged and saved with a timestamp and the full
+Prices that are higher than every peer, or materially above the lowest peer,
+are flagged as suspicious outliers and saved with a timestamp and the full
 comparison snapshot. Audit history is available through `GET /api/odds/audits/`;
 new records are created with `POST /api/odds/audits/`.
 
