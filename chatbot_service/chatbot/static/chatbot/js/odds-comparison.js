@@ -115,6 +115,23 @@
   const renderHistory = (audits) => {
     $('auditHistory').innerHTML = audits?.length ? `<h3>Recent audits</h3>` + audits.map((audit) => `<div class="audit-history-row"><span class="audit-dot ${audit.is_bad_bet ? 'bad' : 'good'}"></span><div><b>${audit.chosen_sportsbook} · ${esc(audit.selection)}</b><small>${esc(audit.audit_reason || (audit.best_sportsbook ? `Peer range: ${audit.lowest_decimal ?? '—'}–${audit.best_decimal ?? '—'}` : 'No peer prices found'))} · ${new Date(audit.created_at).toLocaleString()}</small></div><strong class="${audit.is_bad_bet ? 'bad-text' : 'good-text'}">${audit.is_bad_bet ? 'Review' : 'Within range'}</strong></div>`).join('') : '';
   };
+  const renderBetLog = (bets) => {
+    const body = $('betLogBody');
+    if (!bets?.length) { $('betLogEmpty').classList.remove('hidden'); $('betLogTableWrap').classList.add('hidden'); return; }
+    $('betLogEmpty').classList.add('hidden'); $('betLogTableWrap').classList.remove('hidden');
+    body.innerHTML = bets.map((bet) => `<tr><td>${new Date(bet.created_at).toLocaleString()}</td><td>${esc(bet.event)}</td><td class="bet-selection">${esc(bet.selection)}</td><td class="price">${formatPrice(bet.price)} <small>${bet.decimal ?? '—'}</small></td><td>${esc(bet.market)}</td></tr>`).join('');
+  };
+  const recordBet = async (index) => {
+    const selectedRow = lastRows[index];
+    if (!selectedRow) return;
+    const button = $('recordBetButton'); if (button) { button.disabled = true; button.textContent = 'Saving…'; }
+    try {
+      const response = await fetchWithTimeout('/api/odds/bets/', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({selected_row:selectedRow, rows:lastRows, sport:sportSelect.value, league:leagueSelect.value, market:marketSelect.value})});
+      const bet = await response.json(); if (!response.ok) throw new Error(bet.error || 'Could not record selection.');
+      if (button) { button.textContent = 'Recorded'; button.classList.add('recorded'); }
+      const historyResponse = await fetchWithTimeout('/api/odds/bets/'); const history = await historyResponse.json(); renderBetLog(history.bets || []);
+    } catch (e) { if (button) { button.disabled = false; button.textContent = 'Record selection'; } error.textContent = e.message; }
+  };
   const auditSelection = async (index) => {
     const selectedRow = lastRows[index];
     if (!selectedRow) return;
@@ -123,7 +140,7 @@
       const response = await fetchWithTimeout('/api/odds/audits/', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({selected_row:selectedRow, rows:lastRows, sport:sportSelect.value, league:leagueSelect.value, market:marketSelect.value})});
       const audit = await response.json(); if (!response.ok) throw new Error(audit.error || 'Audit failed.');
       const bad = audit.is_bad_bet;
-      $('auditResult').innerHTML = `<div class="audit-status ${bad ? 'bad' : 'good'}"><span>${bad ? '!' : '✓'}</span><div><b>${bad ? 'Potentially suspicious price' : 'Within market range'}</b><small>${esc(audit.audit_reason)}. ${bad ? `Selected ${audit.chosen_decimal}; peer range ${audit.lowest_decimal ?? '—'}–${audit.best_decimal ?? '—'}.` : 'The selected price is not materially above the comparison range.'}</small></div></div><div class="audit-facts"><span><small>Selected</small><b>${esc(audit.chosen_sportsbook)} · ${formatPrice(audit.chosen_price)}</b></span><span><small>Peer range</small><b>${audit.lowest_decimal ?? '—'} – ${audit.best_decimal ?? '—'}</b></span><span><small>Recorded</small><b>${new Date(audit.created_at).toLocaleString()}</b></span></div>`;
+      $('auditResult').innerHTML = `<div class="audit-status ${bad ? 'bad' : 'good'}"><span>${bad ? '!' : '✓'}</span><div><b>${bad ? 'Potentially suspicious price' : 'Within market range'}</b><small>${esc(audit.audit_reason)}. ${bad ? `Selected ${audit.chosen_decimal}; peer range ${audit.lowest_decimal ?? '—'}–${audit.best_decimal ?? '—'}.` : 'The selected price is not materially above the comparison range.'}</small></div></div><div class="audit-facts"><span><small>Selected</small><b>${esc(audit.chosen_sportsbook)} · ${formatPrice(audit.chosen_price)}</b></span><span><small>Peer range</small><b>${audit.lowest_decimal ?? '—'} – ${audit.best_decimal ?? '—'}</b></span><span><small>Recorded</small><b>${new Date(audit.created_at).toLocaleString()}</b></span></div><button class="record-bet-button" id="recordBetButton" data-row-index="${lastRows.indexOf(selectedRow)}">Record this selection</button>`;
       const historyResponse = await fetchWithTimeout('/api/odds/audits/'); const history = await historyResponse.json(); renderHistory(history.audits || []);
     } catch (e) { $('auditResult').innerHTML = `<div class="audit-status bad"><span>!</span><div><b>Audit unavailable</b><small>${esc(e.message)}</small></div></div>`; }
   };
@@ -131,6 +148,7 @@
   $('resultsBody').addEventListener('keydown', (event) => { if (event.key === 'Enter') event.target.click(); });
   $('mobileResults').addEventListener('click', (event) => { const row = event.target.closest('[data-row-index]'); if (row) auditSelection(Number(row.dataset.rowIndex)); });
   $('mobileResults').addEventListener('keydown', (event) => { if (event.key === 'Enter') event.target.click(); });
+  $('auditResult').addEventListener('click', (event) => { const button = event.target.closest('#recordBetButton'); if (button) recordBet(Number(button.dataset.rowIndex)); });
   compare.addEventListener('click', async () => {
     error.textContent = ''; const books = selected();
     if (books.length < 2 || books.length > 5) { error.textContent = 'Choose between 2 and 5 providers.'; return; }
@@ -150,6 +168,7 @@
   marketSelect.value = 'moneyline';
   setFixtureOptions([{id:'preview-basketball-001', label:'Celtics @ Lakers', start_date:null}]);
   fetchWithTimeout('/api/odds/audits/').then((response) => response.json()).then((body) => renderHistory(body.audits || [])).catch(() => {});
+  fetchWithTimeout('/api/odds/bets/').then((response) => response.json()).then((body) => renderBetLog(body.bets || [])).catch(() => {});
   loadProviders();
   loadCatalog('baseball', '', true);
 })();

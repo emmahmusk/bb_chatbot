@@ -84,3 +84,23 @@ class BetAudit(models.Model):
 
     def __str__(self):
         return f"{self.chosen_sportsbook} audit for {self.selection}"
+
+
+class BetRecord(models.Model):
+    fixture_id = models.CharField(max_length=128, blank=True)
+    event = models.CharField(max_length=255, blank=True)
+    sport = models.CharField(max_length=64, blank=True)
+    league = models.CharField(max_length=128, blank=True)
+    market = models.CharField(max_length=128, blank=True)
+    selection = models.CharField(max_length=255, blank=True)
+    sportsbook = models.CharField(max_length=128)
+    price = models.FloatField(null=True, blank=True)
+    decimal = models.FloatField(null=True, blank=True)
+    comparison_snapshot = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.sportsbook} bet for {self.selection}"

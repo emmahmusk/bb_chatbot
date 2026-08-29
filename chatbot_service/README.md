@@ -27,6 +27,8 @@ Prices that are higher than every peer, or materially above the lowest peer,
 are flagged as suspicious outliers and saved with a timestamp and the full
 comparison snapshot. Audit history is available through `GET /api/odds/audits/`;
 new records are created with `POST /api/odds/audits/`.
+Recorded selections are available through `GET /api/odds/bets/` and are created
+with `POST /api/odds/bets/`.
 
 The comparison form loads its sport, active league, and market options from the
 server-side `GET /api/odds/catalog/` endpoint. The service proxies OpticOdds'

@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .services.optic_odds import OpticOddsError, catalog, compare_odds, sportsbooks
-from .models import BetAudit
+from .models import BetAudit, BetRecord
 
 
 def _number(value):
@@ -36,6 +36,22 @@ def _audit_payload(audit):
         "is_bad_bet": audit.is_bad_bet,
         "comparison_snapshot": audit.comparison_snapshot,
         "created_at": audit.created_at.isoformat(),
+    }
+
+
+def _bet_payload(bet):
+    return {
+        "id": bet.id,
+        "fixture_id": bet.fixture_id,
+        "event": bet.event,
+        "sport": bet.sport,
+        "league": bet.league,
+        "market": bet.market,
+        "selection": bet.selection,
+        "sportsbook": bet.sportsbook,
+        "price": bet.price,
+        "decimal": bet.decimal,
+        "created_at": bet.created_at.isoformat(),
     }
 
 
@@ -146,3 +162,26 @@ class BetAuditView(APIView):
             comparison_snapshot=rows,
         )
         return Response(_audit_payload(audit), status=status.HTTP_201_CREATED)
+
+
+class BetRecordView(APIView):
+    def get(self, request):
+        return Response({"bets": [_bet_payload(item) for item in BetRecord.objects.all()[:100]]})
+
+    def post(self, request):
+        selected = request.data.get("selected_row") or {}
+        if not isinstance(selected, dict) or not selected.get("sportsbook") or not selected.get("selection"):
+            return Response({"error": "Select a sportsbook outcome to record."}, status=status.HTTP_400_BAD_REQUEST)
+        bet = BetRecord.objects.create(
+            fixture_id=str(selected.get("fixture_id") or ""),
+            event=str(selected.get("event") or ""),
+            sport=str(request.data.get("sport") or ""),
+            league=str(request.data.get("league") or ""),
+            market=str(selected.get("market") or request.data.get("market") or ""),
+            selection=str(selected.get("selection") or ""),
+            sportsbook=str(selected.get("sportsbook") or ""),
+            price=_number(selected.get("price")),
+            decimal=_number(selected.get("decimal")),
+            comparison_snapshot=request.data.get("rows") if isinstance(request.data.get("rows"), list) else [],
+        )
+        return Response(_bet_payload(bet), status=status.HTTP_201_CREATED)

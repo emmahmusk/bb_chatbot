@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import ChatView, ConversationDetailView, HealthView, MarketSyncView
-from .optic_odds_views import BetAuditView, OpticCatalogView, OpticOddsCompareView, OpticSportsbooksView
+from .optic_odds_views import BetAuditView, BetRecordView, OpticCatalogView, OpticOddsCompareView, OpticSportsbooksView
 
 urlpatterns = [
     path("health/", HealthView.as_view(), name="health"),
@@ -11,4 +11,5 @@ urlpatterns = [
     path("odds/catalog/", OpticCatalogView.as_view(), name="optic-odds-catalog"),
     path("odds/compare/", OpticOddsCompareView.as_view(), name="optic-odds-compare"),
     path("odds/audits/", BetAuditView.as_view(), name="bet-audits"),
+    path("odds/bets/", BetRecordView.as_view(), name="bet-records"),
 ]
