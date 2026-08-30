@@ -104,10 +104,22 @@
   const formatPrice = (price) => { if (price === null || price === undefined || price === '') return '—'; const number = Number(price); return Number.isFinite(number) ? (number > 0 ? `+${number}` : `${number}`) : String(price); };
   const formatTime = (value) => { if (!value) return 'Just now'; const numeric = Number(value); const date = Number.isFinite(numeric) ? new Date(numeric > 100000000000 ? numeric : numeric * 1000) : new Date(value); return Number.isNaN(date.getTime()) ? 'Live' : date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); };
   const renderResults = (body) => {
-    $('emptyResults').classList.add('hidden'); $('tableWrap').classList.remove('hidden'); $('resultFoot').classList.remove('hidden'); $('mobileResults').classList.remove('hidden');
+    $('emptyResults').classList.add('hidden'); $('resultFoot').classList.remove('hidden');
     $('resultCount').textContent = `${body.count} price${body.count === 1 ? '' : 's'} compared`;
     const rows = body.rows || [];
     lastRows = rows;
+    const isMoneyline = String(body.market || '').toLowerCase() === 'moneyline';
+    $('tableWrap').classList.toggle('hidden', isMoneyline);
+    $('mobileResults').classList.toggle('hidden', isMoneyline);
+    $('moneylineResults').classList.toggle('hidden', !isMoneyline);
+    if (isMoneyline) {
+      const groups = new Map();
+      rows.forEach((row, index) => { const key = `${row.event}|${row.market}`; if (!groups.has(key)) groups.set(key, {event: row.event, market: row.market, rows: []}); groups.get(key).rows.push({...row, index}); });
+      $('moneylineResults').innerHTML = [...groups.values()].map((group) => {
+        const outcomes = new Map(); group.rows.forEach((row) => { if (!outcomes.has(row.selection)) outcomes.set(row.selection, []); outcomes.get(row.selection).push(row); });
+        return `<article class="moneyline-match"><div class="match-heading"><div><b>${esc(group.event)}</b><small>${esc(group.market)} · choose a side</small></div><span>BetMGM line</span></div><div class="moneyline-sides">${[...outcomes.entries()].map(([selection, offers]) => { offers.sort((a,b) => String(a.sportsbook).toLowerCase().includes('betmgm') ? -1 : String(b.sportsbook).toLowerCase().includes('betmgm') ? 1 : 0); return `<div class="moneyline-side"><div class="side-name">${esc(selection)}</div><div class="odds-choices">${offers.map((row) => `<button class="odds-choice ${String(row.sportsbook).toLowerCase().includes('betmgm') ? 'primary' : ''}" data-row-index="${row.index}" title="Audit ${esc(row.sportsbook)} price"><span>${esc(row.sportsbook)}</span><strong>${formatPrice(row.price)}</strong><small>${row.decimal ?? '—'} decimal</small></button>`).join('')}</div></div>`; }).join('')}</div></article>`;
+      }).join('');
+    }
     $('resultsBody').innerHTML = rows.map((row, index) => `<tr class="auditable-row" data-row-index="${index}" tabindex="0"><td>${esc(row.sportsbook)}</td><td class="event">${esc(row.event)}<div class="market-label">${esc(row.market)}</div></td><td>${esc(row.selection)}${row.points !== null && row.points !== undefined ? ` <small>${esc(row.points)}</small>` : ''}</td><td class="price">${formatPrice(row.price)}</td><td class="decimal">${row.decimal ?? '—'}</td><td>${formatTime(row.updated_at)}</td></tr>`).join('');
     $('mobileResults').innerHTML = rows.map((row, index) => `<article class="mobile-row auditable-row" data-row-index="${index}" tabindex="0"><div class="mobile-row-top"><span class="mobile-book">${esc(row.sportsbook)}</span><span class="mobile-price">${formatPrice(row.price)} <small>${row.decimal ?? ''}</small></span></div><div class="mobile-event">${esc(row.selection)}</div><div class="mobile-meta">${esc(row.event)} · ${esc(row.market)}</div></article>`).join('');
     $('updated').textContent = `Updated ${new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
@@ -148,6 +160,7 @@
   $('resultsBody').addEventListener('keydown', (event) => { if (event.key === 'Enter') event.target.click(); });
   $('mobileResults').addEventListener('click', (event) => { const row = event.target.closest('[data-row-index]'); if (row) auditSelection(Number(row.dataset.rowIndex)); });
   $('mobileResults').addEventListener('keydown', (event) => { if (event.key === 'Enter') event.target.click(); });
+  $('moneylineResults').addEventListener('click', (event) => { const choice = event.target.closest('[data-row-index]'); if (choice) auditSelection(Number(choice.dataset.rowIndex)); });
   $('auditResult').addEventListener('click', (event) => { const button = event.target.closest('#recordBetButton'); if (button) recordBet(Number(button.dataset.rowIndex)); });
   compare.addEventListener('click', async () => {
     error.textContent = ''; const books = selected();
