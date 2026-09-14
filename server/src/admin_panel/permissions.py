@@ -1,4 +1,5 @@
 from rest_framework.permissions import BasePermission
+from django.conf import settings
 
 
 
@@ -23,6 +24,17 @@ class IsAdmin(BasePermission):
             return True
         admin_obj = getattr(request.user, "admin", None)
         return getattr(admin_obj, "role", None) in ["admin", "superadmin"]
+
+
+class IsAdminOrServiceKey(BasePermission):
+    """Admin JWT for people, or a private service key for the chatbot proxy."""
+
+    def has_permission(self, request, view):
+        configured = str(getattr(settings, "ADMIN_SERVER_API_KEY", "") or "").strip()
+        supplied = str(request.headers.get("X-Admin-API-Key", "") or "").strip()
+        if configured and supplied and supplied == configured:
+            return True
+        return IsAdmin().has_permission(request, view)
 
 
 class IsSuperAdmin(BasePermission):

@@ -131,3 +131,31 @@ with pgvector; the retrieval interface is intentionally isolated for that migrat
 Important: the source endpoint paginates and only returns active future markets. The
 service therefore answers from available BullBear markets, not live exchange prices,
 and must not present implied probabilities as guaranteed investment returns.
+
+## Admin sportsbook screens
+
+The standalone Render service includes two separate routes backed by the EC2
+server's admin OpticOdds API:
+
+- `/sportsbook/` — browse live/upcoming fixtures, select comparison books, view
+  DraftKings as the baseline, and record a simulated selection.
+- `/sportsbook/monitor/` — review timestamped comparison notes and potentially
+  bad-bet flags. The feed refreshes automatically every 30 seconds.
+
+Configure these Render environment variables (the JWT remains server-side and
+is never placed in browser JavaScript):
+
+```text
+ADMIN_SERVER_BASE_URL=https://api.bbbprediction.com
+ADMIN_SERVER_API_KEY=<same-long-random-secret-as-EC2>
+ADMIN_SERVER_JWT=<long-lived admin JWT>
+ADMIN_SERVER_TIMEOUT_SECONDS=15
+```
+
+On the EC2 server, configure `OPTIC_ODDS_API_KEY` (the production entrypoint
+reads `/bullbear/production/optic_odds/api_key` from SSM), then run the admin
+migration. The API calls made by these pages are proxied through the chatbot
+service at `/api/admin-sportsbook/` and `/api/admin-monitor/`, so neither the
+OpticOdds credential nor the private admin service key is exposed to the browser.
+`ADMIN_SERVER_JWT` is retained only as a fallback for deployments that have not
+yet switched to the service key.

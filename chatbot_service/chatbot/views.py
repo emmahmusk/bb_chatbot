@@ -117,6 +117,14 @@ class OddsComparisonPageView(TemplateView):
     template_name = "chatbot/odds_comparison.html"
 
 
+class AdminSportsbookPageView(TemplateView):
+    template_name = "chatbot/admin_sportsbook.html"
+
+
+class AdminMonitorPageView(TemplateView):
+    template_name = "chatbot/admin_monitor.html"
+
+
 class HealthView(APIView):
     def get(self, request):
         with connection.cursor() as cursor:

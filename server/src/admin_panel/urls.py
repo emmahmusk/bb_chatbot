@@ -15,8 +15,15 @@ from admin_panel.views.competition import (
     AdminCompetitionDeleteView,
 )
 from admin_panel.api import AdminMarketOverrideAPIView, UpdateUserCRSView, UpdatePlatformSettingsView, AnalyticsDashboardAPIView, AnalyticsUserDashboardAPIView, AdminAnalyticsAPIView, DeleteExpiringMarketsView, KYCFileReviewListAPIView, TotalGGRAPIView, AdminSettleBetView, AdminUserListView, SignupAPIView, LoginAPIView, AdminBetFeedView, AdminKYCViewSet, AdminUserListAPIView, AnalyticsDashboardAPIViewNew
+from admin_panel.optic_odds_api import AdminOpticOddsSportsView, AdminOpticOddsLeaguesView, AdminOpticOddsFixturesView, AdminOpticOddsFixtureOddsView, AdminOpticOddsBetMonitorView, AdminOpticOddsBetMonitorListView
 
 urlpatterns = [
+    path("optic-odds/sports/", AdminOpticOddsSportsView.as_view(), name="optic-odds-sports"),
+    path("optic-odds/leagues/", AdminOpticOddsLeaguesView.as_view(), name="optic-odds-leagues"),
+    path("optic-odds/fixtures/", AdminOpticOddsFixturesView.as_view(), name="optic-odds-fixtures"),
+    path("optic-odds/fixtures/<str:fixture_id>/odds/", AdminOpticOddsFixtureOddsView.as_view(), name="optic-odds-fixture-odds"),
+    path("optic-odds/bets/", AdminOpticOddsBetMonitorView.as_view(), name="optic-odds-bet-monitor"),
+    path("optic-odds/bets/monitor/", AdminOpticOddsBetMonitorListView.as_view(), name="optic-odds-bet-monitor-list"),
     path("login/", LoginAPIView.as_view(), name="login"),
     path("signup/", SignupAPIView.as_view(), name="signup"),
     path('user_list/', AdminUserListView.as_view(), name='user_list'),

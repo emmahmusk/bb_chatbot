@@ -280,3 +280,35 @@ class WithdrawalRequest(models.Model):
     requested_at = models.DateTimeField(auto_now_add=True)
     is_approved = models.BooleanField(default=False)
     flagged = models.BooleanField(default=False)
+
+
+class OpticOddsBetMonitor(models.Model):
+    """Immutable sportsbook bet snapshot for the admin odds-audit POC."""
+
+    admin_user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="optic_odds_bets")
+    fixture_id = models.CharField(max_length=128)
+    event = models.CharField(max_length=255, blank=True)
+    sport = models.CharField(max_length=80, blank=True)
+    league = models.CharField(max_length=120, blank=True)
+    market = models.CharField(max_length=120)
+    selection = models.CharField(max_length=255)
+    primary_sportsbook = models.CharField(max_length=80, default="draftkings")
+    primary_price = models.CharField(max_length=40, blank=True)
+    primary_decimal = models.FloatField(null=True, blank=True)
+    stake = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    provider_odds = models.JSONField(default=dict)
+    provider_weights = models.JSONField(default=dict)
+    weighted_implied_probability = models.FloatField(null=True, blank=True)
+    fair_decimal = models.FloatField(null=True, blank=True)
+    is_potentially_bad = models.BooleanField(default=False)
+    audit_reason = models.CharField(max_length=255, blank=True)
+    edge_decimal = models.FloatField(null=True, blank=True)
+    note = models.TextField()
+    odds_snapshot = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.event or self.fixture_id} | {self.selection} | {self.created_at:%Y-%m-%d %H:%M}"

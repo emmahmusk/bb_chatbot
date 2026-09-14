@@ -27,6 +27,7 @@ setuptools = "*"
 django-q2 = "*"
 django-taggit = "*"
 pytz = "*"
+requests = "*"
 
 [dev-packages]
 isort = "*"

@@ -8,6 +8,16 @@ services:
     envVars:
       - key: OPENAI_API_KEY
         sync: false
+      - key: OPTIC_ODDS_API_KEY
+        sync: false
+      - key: ADMIN_SERVER_BASE_URL
+        sync: false
+      - key: ADMIN_SERVER_API_KEY
+        sync: false
+      - key: ADMIN_SERVER_JWT
+        sync: false
+      - key: ADMIN_SERVER_TIMEOUT_SECONDS
+        value: "15"
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: MARKET_API_BASE_URL

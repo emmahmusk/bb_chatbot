@@ -52,6 +52,12 @@ export TWILIO_ACCOUNT_ID=$(get_ssm_parameter "${SSM_BASE_PATH}/twilio/account_id
 export TWILIO_AUTH_TOKEN=$(get_ssm_parameter "${SSM_BASE_PATH}/twilio/auth_token")
 export POLYGON_API_KEY=$(get_ssm_parameter "${SSM_BASE_PATH}/polygon/api_key")
 
+# OpticOdds sportsbook feed used by the admin sportsbook POC.
+export OPTIC_ODDS_API_KEY=$(get_ssm_parameter "${SSM_BASE_PATH}/optic_odds/api_key")
+export ADMIN_SERVER_API_KEY=$(get_ssm_parameter "${SSM_BASE_PATH}/admin_server/api_key")
+OPTIC_ODDS_SSM_BASE_URL=$(get_ssm_parameter "${SSM_BASE_PATH}/optic_odds/base_url")
+export OPTIC_ODDS_BASE_URL="${OPTIC_ODDS_SSM_BASE_URL:-${OPTIC_ODDS_BASE_URL:-https://api.opticodds.com/api/v3}}"
+
 echo "✅ All environment variables fetched and set."
 
 # ---------------------------

@@ -182,6 +182,35 @@ ALPHA_VANTAGE_INTRADAY_INTERVAL = (
 if ALPHA_VANTAGE_INTRADAY_INTERVAL not in {"1min", "5min", "15min", "30min", "60min"}:
     ALPHA_VANTAGE_INTRADAY_INTERVAL = "5min"
 
+# OpticOdds is only used by the admin-facing sportsbook POC.  Keep the key in
+# the deployment environment (never in source control) and fail closed when it
+# is not configured.
+OPTIC_ODDS_BASE_URL = environ.get(
+    "OPTIC_ODDS_BASE_URL", "https://api.opticodds.com/api/v3"
+).rstrip("/")
+OPTIC_ODDS_API_KEY = environ.get("OPTIC_ODDS_API_KEY", "").strip()
+ADMIN_SERVER_API_KEY = environ.get("ADMIN_SERVER_API_KEY", "").strip()
+try:
+    OPTIC_ODDS_TIMEOUT_SECONDS = float(environ.get("OPTIC_ODDS_TIMEOUT_SECONDS", "12"))
+except ValueError:
+    OPTIC_ODDS_TIMEOUT_SECONDS = 12.0
+OPTIC_ODDS_PRIMARY_SPORTSBOOK = environ.get(
+    "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings"
+).strip().lower()
+OPTIC_ODDS_COMPARISON_SPORTSBOOKS = [
+    book.strip().lower()
+    for book in environ.get(
+        "OPTIC_ODDS_COMPARISON_SPORTSBOOKS", "draftkings,fanduel,pinnacle"
+    ).split(",")
+    if book.strip()
+]
+try:
+    OPTIC_ODDS_AUDIT_MIN_DECIMAL_GAP = float(environ.get("OPTIC_ODDS_AUDIT_MIN_DECIMAL_GAP", "0.20"))
+    OPTIC_ODDS_AUDIT_MIN_RELATIVE_GAP = float(environ.get("OPTIC_ODDS_AUDIT_MIN_RELATIVE_GAP", "0.10"))
+except ValueError:
+    OPTIC_ODDS_AUDIT_MIN_DECIMAL_GAP = 0.20
+    OPTIC_ODDS_AUDIT_MIN_RELATIVE_GAP = 0.10
+
 # Celery Configuration
 # CELERY_BROKER_URL = 'redis://localhost:6379/0' # Use your Redis URL
 # CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' # Optional: for storing task results

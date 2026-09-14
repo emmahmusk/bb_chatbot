@@ -1,0 +1,21 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090e17"><title>Bet monitor · BullBear</title>
+  <link rel="icon" href="{% static 'chatbot/images/bullbear_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'chatbot/css/admin-sportsbook.css' %}">
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <header class="topbar"><a class="brand" href="/"><img src="{% static 'chatbot/images/bullbear_logo.png' %}" alt="BullBear"><span></span><b>ODDS LAB</b></a><nav><a href="/sportsbook/">Sportsbook</a><a class="active" href="/sportsbook/monitor/">Monitor <em id="alertCount"></em></a><a href="/">Market assistant</a></nav><div class="feed"><i></i> Admin odds feed</div></header>
+  <main class="monitor-page"><section class="intro compact"><div class="kicker"><i></i> BET QUALITY CONTROL</div><h1>See every line<br><strong>before it costs you.</strong></h1><p>Every DraftKings selection is preserved with its provider snapshot, weighted comparison and audit status.</p></section>
+    <section class="monitor-toolbar panel"><div><div class="eyebrow"><i></i> MONITORING FEED</div><h2>Recorded selections</h2><p>Potentially bad bets are flagged when DraftKings is above every selected peer or materially above the lowest line.</p></div><div class="toolbar-actions"><span class="updated" id="updated">Waiting for feed</span><button class="secondary" id="refresh">↻ Refresh</button></div></section>
+    <section class="summary-row"><div class="metric panel"><small>RECORDED</small><strong id="total">—</strong><span>selections tracked</span></div><div class="metric danger panel"><small>REVIEW</small><strong id="flagged">—</strong><span>potentially bad bets</span></div><div class="metric panel"><small>BASELINE</small><strong>DK</strong><span>DraftKings first</span></div></section>
+    <section class="monitor-list" id="monitorList"><div class="empty panel"><div>◌</div><h3>Loading the monitoring feed</h3><p>The latest recorded comparison notes will appear here.</p></div></section>
+    <p class="fine-print">Audit flags are signals for review, not proof that a wager is incorrect. Verify prices and terms at the sportsbook.</p>
+  </main>
+  <script src="{% static 'chatbot/js/admin-monitor.js' %}" defer></script>
+</body>
+</html>

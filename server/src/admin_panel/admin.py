@@ -1,8 +1,15 @@
+from django.contrib import admin
 from django.contrib.auth.models import User
 from django.db import models
+from .models import OpticOddsBetMonitor
 
 
 # Register your models here.
+@admin.register(OpticOddsBetMonitor)
+class OpticOddsBetMonitorAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "event", "selection", "primary_sportsbook", "primary_decimal", "weighted_implied_probability")
+    list_filter = ("primary_sportsbook", "sport", "league")
+    search_fields = ("event", "fixture_id", "selection", "market")
 class Admin(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     role = models.CharField(
