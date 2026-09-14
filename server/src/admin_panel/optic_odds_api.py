@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from django.conf import settings
@@ -10,6 +11,8 @@ from rest_framework.views import APIView
 from admin_panel.models import OpticOddsBetMonitor
 from admin_panel.optic_odds import OpticOddsClient, OpticOddsError, default_sportsbooks
 from admin_panel.permissions import IsAdminOrServiceKey
+
+logger = logging.getLogger(__name__)
 
 
 def _error(exc: OpticOddsError) -> Response:
@@ -60,6 +63,16 @@ def _weighted(rows: list[dict], weights: dict) -> tuple[dict, float | None, floa
 
 class OpticOddsBaseView(APIView):
     permission_classes = [IsAdminOrServiceKey]
+
+    def handle_exception(self, exc):
+        response = super().handle_exception(exc)
+        if response is not None:
+            return response
+        logger.exception("Unhandled OpticOdds admin API error")
+        return Response({
+            "detail": "The admin OpticOdds service failed while processing the request.",
+            "error_type": exc.__class__.__name__,
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class AdminOpticOddsSportsView(OpticOddsBaseView):
@@ -153,8 +166,13 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
         formula = " + ".join(f"{book} {float(weights.get(book, 1 / len(provider_odds))):.2g} × 1/{values['decimal']:.2f}" for book, values in provider_odds.items())
         audit_note = f" | Audit: POTENTIALLY BAD — {audit_reason}" if is_potentially_bad else " | Audit: within selected market range"
         note = f"{label} | {primary_line['decimal']:.2f} vs. {comparison} | Weighted implied probability: {probability:.2%} (EV proxy: {formula}; weights: {weight_text}){audit_note}"
+        # Service-key calls authenticate the application, not an individual
+        # Django user. AnonymousUser cannot be assigned to a User FK, so keep
+        # admin_user NULL for those records; JWT-authenticated admin calls keep
+        # their actor identity.
+        admin_user = request.user if getattr(request.user, "is_authenticated", False) else None
         record = OpticOddsBetMonitor.objects.create(
-            admin_user=request.user,
+            admin_user=admin_user,
             fixture_id=str(data["fixture_id"]), event=str(event),
             sport=str(data.get("sport", "")), league=str(data.get("league", "")),
             market=str(data["market"]), selection=str(data["selection"]),
