@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timezone
 
 from django.conf import settings
+from django.core.paginator import Paginator
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -165,7 +167,7 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
         weight_text = ", ".join(f"{book} {float(weights.get(book, 1 / len(provider_odds))):.2g}" for book in provider_odds)
         formula = " + ".join(f"{book} {float(weights.get(book, 1 / len(provider_odds))):.2g} × 1/{values['decimal']:.2f}" for book, values in provider_odds.items())
         audit_note = f" | Audit: POTENTIALLY BAD — {audit_reason}" if is_potentially_bad else " | Audit: within selected market range"
-        note = f"{label} | {primary_line['decimal']:.2f} vs. {comparison} | Weighted implied probability: {probability:.2%} (EV proxy: {formula}; weights: {weight_text}){audit_note}"
+        note = f"{label} | {primary_line['decimal']:.2f} vs. {comparison} | Weighted implied probability: {probability:.2%}{audit_note}"
         # Service-key calls authenticate the application, not an individual
         # Django user. AnonymousUser cannot be assigned to a User FK, so keep
         # admin_user NULL for those records; JWT-authenticated admin calls keep
@@ -189,8 +191,27 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
 class AdminOpticOddsBetMonitorListView(OpticOddsBaseView):
     def get(self, request):
         try:
-            limit = min(max(int(request.query_params.get("limit", 50)), 1), 200)
+            page = max(int(request.query_params.get("page", 1)), 1)
+            page_size = min(max(int(request.query_params.get("page_size", 20)), 1), 100)
         except (TypeError, ValueError):
-            limit = 50
-        records = OpticOddsBetMonitor.objects.select_related("admin_user")[:limit]
-        return Response({"bets": [{"id": row.id, "created_at": row.created_at, "fixture_id": row.fixture_id, "event": row.event, "sport": row.sport, "league": row.league, "market": row.market, "selection": row.selection, "primary_sportsbook": row.primary_sportsbook, "primary_decimal": row.primary_decimal, "provider_odds": row.provider_odds, "provider_weights": row.provider_weights, "weighted_implied_probability": row.weighted_implied_probability, "fair_decimal": row.fair_decimal, "is_potentially_bad": row.is_potentially_bad, "audit_reason": row.audit_reason, "edge_decimal": row.edge_decimal, "note": row.note} for row in records]})
+            page, page_size = 1, 20
+        queryset = OpticOddsBetMonitor.objects.select_related("admin_user").all()
+        query = str(request.query_params.get("q", "")).strip()
+        status_filter = str(request.query_params.get("status", "all")).lower()
+        sport = str(request.query_params.get("sport", "")).strip()
+        league = str(request.query_params.get("league", "")).strip()
+        if query:
+            queryset = queryset.filter(Q(event__icontains=query) | Q(selection__icontains=query) | Q(market__icontains=query) | Q(fixture_id__icontains=query))
+        if status_filter == "flagged":
+            queryset = queryset.filter(is_potentially_bad=True)
+        elif status_filter in {"clear", "within_range"}:
+            queryset = queryset.filter(is_potentially_bad=False)
+        if sport:
+            queryset = queryset.filter(sport__iexact=sport)
+        if league:
+            queryset = queryset.filter(league__iexact=league)
+        flagged_total = queryset.filter(is_potentially_bad=True).count()
+        paginator = Paginator(queryset, page_size)
+        page_obj = paginator.get_page(page)
+        records = page_obj.object_list
+        return Response({"bets": [{"id": row.id, "created_at": row.created_at, "fixture_id": row.fixture_id, "event": row.event, "sport": row.sport, "league": row.league, "market": row.market, "selection": row.selection, "primary_sportsbook": row.primary_sportsbook, "primary_decimal": row.primary_decimal, "provider_odds": row.provider_odds, "provider_weights": row.provider_weights, "weighted_implied_probability": row.weighted_implied_probability, "fair_decimal": row.fair_decimal, "is_potentially_bad": row.is_potentially_bad, "audit_reason": row.audit_reason, "edge_decimal": row.edge_decimal, "note": row.note} for row in records], "pagination": {"page": page_obj.number, "page_size": page_size, "total": paginator.count, "flagged_total": flagged_total, "pages": paginator.num_pages, "has_next": page_obj.has_next(), "has_previous": page_obj.has_previous()}})

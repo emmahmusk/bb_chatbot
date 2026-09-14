@@ -104,3 +104,21 @@ class BetRecord(models.Model):
 
     def __str__(self):
         return f"{self.sportsbook} bet for {self.selection}"
+
+
+class SportsbookPreference(models.Model):
+    """The comparison books selected by the admin sportsbook operator.
+
+    The standalone service has one shared admin sportsbook configuration. The
+    primary DraftKings book is intentionally not stored here; it is always
+    added by the sportsbook flow as the baseline.
+    """
+
+    selected_books = models.JSONField(default=list, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return ", ".join(self.selected_books or []) or "No comparison books"
