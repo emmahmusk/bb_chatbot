@@ -94,6 +94,7 @@ class _MyAppState extends ConsumerState<MyApp> {
       () {
         final http = ref.read(httpProvider);
         http.setBaseUrl(widget.config.baseUrl);
+        http.setChatbotBaseUrl(widget.config.chatbotBaseUrl);
 
         // ✅ Log base URL once
         print("🌍 Base URL set to: ${http.baseUrl}");

@@ -652,6 +652,12 @@ class _MobileRouteChipHeaderState
             widget.shell.goBranch(5);
           },
         ),
+        _RouteChip(
+          label: 'Sportsbook',
+          isActive: false,
+          leadingIcon: Icons.sports_soccer_outlined,
+          onTap: () => context.go(DashboardRoutes.sportsbook),
+        ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(

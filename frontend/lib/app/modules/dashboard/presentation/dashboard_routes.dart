@@ -7,6 +7,7 @@ import 'package:frontend/app/modules/dashboard/presentation/entries/stock_profil
 import 'package:frontend/app/modules/dashboard/presentation/entries/tech_stocks_entry.dart';
 import 'package:frontend/app/modules/dashboard/presentation/entries/trending_entry.dart';
 import 'package:go_router/go_router.dart';
+import 'package:frontend/app/modules/sportsbook/presentation/sportsbook_page.dart';
 
 
 class DashboardRoutes {
@@ -20,6 +21,7 @@ class DashboardRoutes {
   static const String competitions = '$dashboard/competitions';
   static const String allBets = '$dashboard/all-bets';
   static const String stockProfile = '$dashboard/stock-profile';
+  static const String sportsbook = '/sportsbook';
 
   static String competitionLocation({
     String? competitionId,
@@ -70,6 +72,10 @@ class DashboardRoutes {
   }
 
   static final values = <RouteBase>[
+    GoRoute(
+      path: sportsbook,
+      builder: (_, __) => const SportsbookPage(),
+    ),
     StatefulShellRoute.indexedStack(
       // redirect: [HasLoggedInGuard()].run,
       builder: (_, __, shell) => DashboardEntry(shell: shell),

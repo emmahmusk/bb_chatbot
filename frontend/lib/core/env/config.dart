@@ -23,10 +23,12 @@ enum Environment {
 
 class Config {
   final String baseUrl;
+  final String chatbotBaseUrl;
   final Environment environment;
 
   Config({
     required this.baseUrl,
+    this.chatbotBaseUrl = '',
     required this.environment,
   });
 }
@@ -38,6 +40,7 @@ Future<Config> loadConfig(Environment env) async {
   final Map<String, dynamic> configJson = json.decode(configString);
   return Config(
     baseUrl: configJson['baseUrl'],
+    chatbotBaseUrl: (configJson['chatbotBaseUrl'] ?? '').toString(),
     environment: env,
   );
 }

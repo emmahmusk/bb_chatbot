@@ -139,6 +139,13 @@ void initState() {
           ),
           const SizedBox(width: 12),
           CustomOutlinedButtonWithIcon(
+            icon: const Icon(Icons.sports_soccer_outlined, size: 18, color: Colors.white),
+            text: 'Sportsbook',
+            color: colors.alwaysWhite,
+            onTap: () => context.go('/sportsbook'),
+          ),
+          const SizedBox(width: 12),
+          CustomOutlinedButtonWithIcon(
             icon: Image.asset(
               Pngs.moon,
               width: 16,

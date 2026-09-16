@@ -300,11 +300,15 @@ class OpticOddsBetMonitor(models.Model):
     provider_weights = models.JSONField(default=dict)
     weighted_implied_probability = models.FloatField(null=True, blank=True)
     fair_decimal = models.FloatField(null=True, blank=True)
+    aggregate_comp_odds = models.FloatField(null=True, blank=True, help_text="Average peer implied probability: mean(1 / peer decimal odds).")
+    ev_odds = models.FloatField(null=True, blank=True, help_text="Baseline implied probability minus aggregate peer implied probability.")
+    ev_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True, help_text="Cash EV using the configured EV amount formula.")
     is_potentially_bad = models.BooleanField(default=False)
     audit_reason = models.CharField(max_length=255, blank=True)
     edge_decimal = models.FloatField(null=True, blank=True)
     note = models.TextField()
     odds_snapshot = models.JSONField(default=list)
+    sportsbook_slip = models.ForeignKey("SportsbookBetSlip", null=True, blank=True, on_delete=models.SET_NULL, related_name="monitored_legs")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -312,3 +316,26 @@ class OpticOddsBetMonitor(models.Model):
 
     def __str__(self):
         return f"{self.event or self.fixture_id} | {self.selection} | {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class SportsbookBetSlip(models.Model):
+    """A sports betslip snapshot recorded from the OpticOdds sportsbook POC."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sportsbook_betslips")
+    stake = models.DecimalField(max_digits=14, decimal_places=2)
+    combined_decimal_odds = models.DecimalField(max_digits=18, decimal_places=8)
+    potential_payout = models.DecimalField(max_digits=18, decimal_places=2)
+    ev_odds = models.FloatField(null=True, blank=True)
+    ev_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    leg_aggregate_comp_odds = models.JSONField(default=list, blank=True)
+    leg_count = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=20, default="recorded")
+    legs = models.JSONField(default=list)
+    comparison_notes = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Sportsbook slip #{self.pk} · {self.leg_count} leg(s)"

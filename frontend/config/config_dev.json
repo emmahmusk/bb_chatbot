@@ -1,3 +1,4 @@
 {
-  "baseUrl": "https://api.bbbprediction.com"
+  "baseUrl": "https://api.bbbprediction.com",
+  "chatbotBaseUrl": "https://bb-chatbot-2tes.onrender.com"
 }

@@ -11,7 +11,7 @@ from .models import SportsbookPreference
 DEFAULT_COMPARISON_BOOKS = ["fanduel", "pinnacle"]
 
 
-def _proxy(request, path, method="get", payload=None):
+def _server_request(request, path, method="get", payload=None):
     base = getattr(settings, "ADMIN_SERVER_BASE_URL", "").rstrip("/")
     # Accept either the shared API host or a value that already includes the
     # admin prefix, without ever producing /admin_panel/admin_panel/...
@@ -20,7 +20,9 @@ def _proxy(request, path, method="get", payload=None):
     if not base:
         return Response({"detail": "ADMIN_SERVER_BASE_URL is not configured."}, status=503)
     service_key = str(getattr(settings, "ADMIN_SERVER_API_KEY", "") or "").strip()
-    token = getattr(settings, "ADMIN_SERVER_JWT", "") or request.headers.get("Authorization", "")
+    # Preserve the logged-in user's JWT for bet placement. The deployment JWT
+    # remains a fallback for the admin-only proxy screens.
+    token = request.headers.get("Authorization", "") or getattr(settings, "ADMIN_SERVER_JWT", "")
     if token and not token.lower().startswith("bearer "):
         token = f"Bearer {token}"
     headers = {"Accept": "application/json"}
@@ -31,7 +33,7 @@ def _proxy(request, path, method="get", payload=None):
     try:
         response = requests.request(
             method,
-            f"{base}/admin_panel/optic-odds/{path.lstrip('/')}",
+            f"{base}/{path.lstrip('/')}",
             params=request.query_params,
             json=payload,
             headers=headers,
@@ -48,12 +50,36 @@ def _proxy(request, path, method="get", payload=None):
         return Response({"detail": "The admin sportsbook server is unavailable."}, status=status.HTTP_502_BAD_GATEWAY)
 
 
+def _proxy(request, path, method="get", payload=None):
+    return _server_request(request, f"admin_panel/optic-odds/{path.lstrip('/')}", method=method, payload=payload)
+
+
 class AdminSportsbookProxyView(APIView):
     def get(self, request, resource="sports"):
         return _proxy(request, resource)
 
     def post(self, request):
         return _proxy(request, "bets/", method="post", payload=request.data)
+
+
+class AdminSportsbookBetSlipView(APIView):
+    """Forward a user betslip using the books saved in the monitor settings.
+
+    The Flutter sportsbook only sends DraftKings prices to the user interface.
+    This server-side bridge adds the monitor's saved comparison books before
+    forwarding the authenticated betslip to the EC2 API, so peer prices never
+    need to be exposed in the betting UI.
+    """
+
+    def post(self, request):
+        if not request.headers.get("Authorization"):
+            return Response({"detail": "Log in before placing a sportsbook bet."}, status=status.HTTP_401_UNAUTHORIZED)
+        preference = SportsbookPreference.objects.filter(pk=1).first()
+        selected = preference.selected_books if preference else DEFAULT_COMPARISON_BOOKS
+        books = list(dict.fromkeys(["draftkings", *[str(book).strip().lower() for book in selected if str(book).strip()]]))[:5]
+        payload = dict(request.data)
+        payload["sportsbooks"] = books
+        return _server_request(request, "bet/sportsbook/betslips/", method="post", payload=payload)
 
 
 class AdminMonitorProxyView(APIView):

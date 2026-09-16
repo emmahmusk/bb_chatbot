@@ -27,9 +27,16 @@ class HTTP {
   );
 
   String _baseUrl = "";
+  String _chatbotBaseUrl = "";
 
   void setBaseUrl(String url) {
     _baseUrl = url;
+  }
+
+  String get chatbotBaseUrl => _chatbotBaseUrl;
+
+  void setChatbotBaseUrl(String url) {
+    _chatbotBaseUrl = url;
   }
 
   Map<String, String> get getHeaders {

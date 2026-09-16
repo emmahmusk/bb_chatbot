@@ -5,20 +5,30 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#090e17"><title>Bet monitor · BullBear</title>
   <link rel="icon" href="{% static 'chatbot/images/bullbear_logo.png' %}">
-  <link rel="stylesheet" href="{% static 'chatbot/css/admin-sportsbook.css' %}">
+  <link rel="stylesheet" href="{% static 'chatbot/css/admin-sportsbook.css' %}?v=3">
 </head>
 <body>
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
   <header class="topbar"><a class="brand" href="/"><img src="{% static 'chatbot/images/bullbear_logo.png' %}" alt="BullBear"><span></span><b>ODDS LAB</b></a><nav><a href="/sportsbook/">Sportsbook</a><a class="active" href="/sportsbook/monitor/">Monitor <em id="alertCount"></em></a><a href="/">Market assistant</a></nav><div class="feed"><i></i> Admin odds feed</div></header>
   <main class="monitor-page">
     <section class="monitor-toolbar panel"><div><div class="eyebrow"><i></i> MONITORING FEED</div><h2>Recorded selections</h2><p>DraftKings baseline, provider comparison and audit status in one clean feed.</p></div><div class="toolbar-actions"><span class="updated" id="updated">Waiting for feed</span><button class="secondary" id="refresh">↻ Refresh</button></div></section>
-    <section class="provider-settings panel" id="comparison-settings"><div><div class="eyebrow"><i></i> COMPARISON SETTINGS</div><h2>Choose your comparison books</h2><p>DraftKings is always the baseline. Only the saved peer books are requested and used in every audit.</p></div><div class="provider-settings-grid"><div class="baseline-book"><span class="provider-mark">DK</span><div><b>DraftKings</b><small>Baseline · always included</small></div><span class="locked">LOCKED</span></div><div class="provider-list" id="providerList"><div class="settings-loading">Loading supported books…</div></div></div><div class="provider-settings-actions"><span class="settings-status" id="settingsStatus">Loading comparison settings…</span><button class="primary settings-save" id="saveSettings" disabled><span>Save comparison books</span><b>→</b></button></div></section>
+    <section class="provider-settings panel" id="comparison-settings">
+      <button class="settings-toggle" id="settingsToggle" type="button" aria-expanded="false" aria-controls="settingsBody">
+        <span><span class="eyebrow"><i></i> COMPARISON SETTINGS</span><strong>Comparison books</strong><small id="savedBooksSummary">Loading saved providers…</small></span>
+        <span class="settings-toggle-action"><span>Edit</span><b>⌄</b></span>
+      </button>
+      <div class="settings-body hidden" id="settingsBody">
+        <div class="settings-copy"><h2>Choose your comparison books</h2><p>DraftKings is always the baseline. Only saved peer books are requested and used in every audit.</p></div>
+        <div class="provider-settings-grid"><div class="baseline-book"><span class="provider-mark">DK</span><div><b>DraftKings</b><small>Baseline · always included</small></div><span class="locked">LOCKED</span></div><div class="provider-list" id="providerList"><button class="provider-select-trigger" id="providerTrigger" type="button"><span>Select comparison books</span><b>⌄</b></button><div class="provider-options" id="providerOptions"></div></div></div>
+        <div class="provider-settings-actions"><span class="settings-status" id="settingsStatus">Loading comparison settings…</span><button class="primary settings-save" id="saveSettings" disabled><span>Save comparison books</span><b>→</b></button></div>
+      </div>
+    </section>
     <section class="monitor-filters panel"><div class="filter-search"><span>⌕</span><input id="search" type="search" placeholder="Search event, selection or market"></div><select id="statusFilter"><option value="all">All statuses</option><option value="flagged">Review required</option><option value="clear">Within range</option></select><select id="pageSize"><option value="10">10 per page</option><option value="20" selected>20 per page</option><option value="50">50 per page</option></select></section>
     <section class="summary-row"><div class="metric panel"><small>RECORDED</small><strong id="total">—</strong><span>selections tracked</span></div><div class="metric danger panel"><small>REVIEW</small><strong id="flagged">—</strong><span>potentially bad bets</span></div><div class="metric panel"><small>BASELINE</small><strong>DK</strong><span>DraftKings first</span></div></section>
     <section class="monitor-list" id="monitorList"><div class="empty panel"><div>◌</div><h3>Loading the monitoring feed</h3><p>The latest recorded comparison notes will appear here.</p></div></section>
     <div class="pagination" id="pagination"><button class="secondary" id="previous">← Previous</button><span id="pageLabel">Page 1</span><button class="secondary" id="next">Next →</button></div>
     <p class="fine-print">Audit flags are signals for review, not proof that a wager is incorrect. Verify prices and terms at the sportsbook.</p>
   </main>
-  <script src="{% static 'chatbot/js/admin-monitor.js' %}?v=2" defer></script>
+  <script src="{% static 'chatbot/js/admin-monitor.js' %}?v=3" defer></script>
 </body>
 </html>

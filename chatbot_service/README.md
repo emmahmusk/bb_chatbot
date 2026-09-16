@@ -142,6 +142,12 @@ server's admin OpticOdds API:
 - `/sportsbook/monitor/` — review timestamped comparison notes and potentially
   bad-bet flags. The feed refreshes automatically every 30 seconds.
 
+The Flutter sportsbook uses `POST /api/admin-sportsbook/betslips/` for placement.
+That bridge reads the comparison books saved on the monitor settings panel,
+keeps DraftKings as the only betting-screen price, and forwards the authenticated
+betslip to the EC2 sportsbook API. The EC2 service then stores the betslip and
+the full comparison snapshot used by this monitoring page.
+
 Configure these Render environment variables (the JWT remains server-side and
 is never placed in browser JavaScript):
 
@@ -151,6 +157,10 @@ ADMIN_SERVER_API_KEY=<same-long-random-secret-as-EC2>
 ADMIN_SERVER_JWT=<long-lived admin JWT>
 ADMIN_SERVER_TIMEOUT_SECONDS=15
 ```
+
+For the Flutter app, set its environment config `chatbotBaseUrl` to this
+service's Render URL. If it is left empty, the app falls back to the direct EC2
+route and uses the EC2 environment's comparison-book list instead.
 
 On the EC2 server, configure `OPTIC_ODDS_API_KEY` (the production entrypoint
 reads `/bullbear/production/optic_odds/api_key` from SSM), then run the admin

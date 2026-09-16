@@ -11,6 +11,7 @@ from .views import (
     ResolveExpiredMarketsAPIView,
     CreditWinningBetsAPIView
 )
+from .sportsbook_api import SportsbookCatalogView, SportsbookFixturesView, SportsbookLeaguesView, SportsbookOddsView, SportsbookRecordBetSlipView
 
 urlpatterns = [
     path("stocks/load-tags/", LoadStockTagsView.as_view(), name="load-stock-tags"),
@@ -32,6 +33,11 @@ urlpatterns = [
         "parlay/resolve/", ParlayBetResolutionAPIView.as_view(), name="parlay-resolve"                             
     ),  # New
     path("parlay/list/", ParlayBetListAPIView.as_view(), name="parlay-list"),  # New
+    path("sportsbook/catalog/", SportsbookCatalogView.as_view(), name="sportsbook-catalog"),
+    path("sportsbook/leagues/", SportsbookLeaguesView.as_view(), name="sportsbook-leagues"),
+    path("sportsbook/fixtures/", SportsbookFixturesView.as_view(), name="sportsbook-fixtures"),
+    path("sportsbook/fixtures/<str:fixture_id>/odds/", SportsbookOddsView.as_view(), name="sportsbook-odds"),
+    path("sportsbook/betslips/", SportsbookRecordBetSlipView.as_view(), name="sportsbook-betslip-record"),
     path("wallets/bulk-cr/", CreditWinningBetsAPIView.as_view(), name="credit-wallets"),
     path("competitions/", CompetitionListCreateAPIView.as_view(), name="competition-list-create"),
     path("competitions/<int:pk>/", CompetitionDetailAPIView.as_view(), name="competition-detail"),
