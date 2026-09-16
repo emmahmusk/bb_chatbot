@@ -8,6 +8,7 @@ for every leg and returns the server-calculated parlay maths.
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, timezone
+import re
 
 from django.conf import settings
 from rest_framework import status
@@ -250,6 +251,12 @@ class SportsbookRecordBetSlipView(APIView):
             if len(leg_records) > 1:
                 parlay_text = f" | Parlay EV_ODDS net: {combined_ev_odds:+.6f} · Parlay EV_AMT net: ${combined_ev_amount:,.2f}" if combined_ev_odds is not None and combined_ev_amount is not None else " | Parlay EV unavailable (one or more legs have no peer price)"
                 for leg in leg_records:
+                    # The combined parlay EV is the value shown in the main
+                    # monitoring note. Per-leg EV values remain persisted in
+                    # their dedicated fields for detailed audit work, but are
+                    # removed from this human-facing parlay note to avoid
+                    # presenting two competing totals.
+                    leg["note"] = re.sub(r"\s*\|\s*EV_ODDS:[^|]+(?=\s*\|)", "", leg["note"])
                     leg["note"] += parlay_text
                 comparison_notes = [leg["note"] for leg in leg_records]
             slip = SportsbookBetSlip.objects.create(user=request.user, stake=stake, combined_decimal_odds=combined, potential_payout=payout, ev_odds=combined_ev_odds, ev_amount=combined_ev_amount, leg_aggregate_comp_odds=leg_aggregate_comp_odds, leg_count=len(leg_records), legs=leg_records, comparison_notes=comparison_notes)

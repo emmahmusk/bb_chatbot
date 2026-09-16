@@ -52,7 +52,13 @@
     try { await settingsApi('/api/admin-sportsbook/settings/', { method: 'POST', body: JSON.stringify({ selected_books: settingsState.selected }) }); settingsState.saved = [...settingsState.selected]; $('settingsStatus').textContent = 'Saved. New sportsbook prices will use these books.'; updateSettingsButton(); } catch (error) { $('settingsStatus').textContent = error.message; updateSettingsButton(); }
   }
   const cleanNote = (bet) => {
-    if (bet.note) return bet.note;
+    const isParlay = Number(bet.slip_leg_count || 1) > 1;
+    if (bet.note) {
+      // A parlay is evaluated as one combined position in the primary feed.
+      // Keep the per-leg values in the API/database, but avoid showing them
+      // beside the combined parlay EV where they can be mistaken for totals.
+      return isParlay ? bet.note.replace(/\s*\|\s*EV_ODDS:[^|]+(?=\s*\|)/, '') : bet.note;
+    }
     const providerLines = Object.entries(bet.provider_odds || {}).map(([book, line]) => `${bookName(book)}: ${money(line.decimal)}`).join(', ');
     const probability = bet.weighted_implied_probability == null ? '' : ` | Weighted implied probability: ${(Number(bet.weighted_implied_probability) * 100).toFixed(2)}%`;
     const audit = bet.is_potentially_bad ? ` | Audit: POTENTIALLY BAD — ${bet.audit_reason}` : ' | Audit: within selected market range';
@@ -72,8 +78,10 @@
     if (!bets.length) { $('monitorList').innerHTML = '<div class="empty panel"><div>✓</div><h3>No matching records</h3><p>Try another search or status filter.</p></div>'; return; }
     $('monitorList').innerHTML = bets.map((bet) => {
       const odds = Object.entries(bet.provider_odds || {}).map(([book, line]) => `<span><b>${bookName(book)}</b> ${money(line.decimal)}</span>`).join('');
-      const parlay = Number(bet.slip_leg_count || 1) > 1 ? `<span>parlay ${bet.slip_leg_count} legs · odds <b>${money(bet.slip_combined_decimal_odds)}</b></span><span>parlay EV_ODDS <b>${evOdds(bet.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(bet.slip_ev_amount)}</b></span>` : '';
-      return `<article class="monitor-card panel ${bet.is_potentially_bad ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(bet.created_at)} · ${bet.sport || 'sport'}${bet.league ? ` · ${bet.league}` : ''}</div><h3>${bet.event || bet.selection}</h3><div class="meta">${bet.market} · ${bet.selection}</div></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(bet))}</div><div class="monitor-foot">${odds}<span>DK baseline <b>${money(bet.primary_decimal)}</b></span>${bet.aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(bet.aggregate_comp_odds).toFixed(6)}</b></span>` : ''}<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>${parlay}${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div></article>`;
+      const isParlay = Number(bet.slip_leg_count || 1) > 1;
+      const parlay = isParlay ? `<span>parlay ${bet.slip_leg_count} legs · odds <b>${money(bet.slip_combined_decimal_odds)}</b></span><span>parlay EV_ODDS <b>${evOdds(bet.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(bet.slip_ev_amount)}</b></span>` : '';
+      const singleEv = isParlay ? '' : `<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>`;
+      return `<article class="monitor-card panel ${bet.is_potentially_bad ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(bet.created_at)} · ${bet.sport || 'sport'}${bet.league ? ` · ${bet.league}` : ''}</div><h3>${bet.event || bet.selection}</h3><div class="meta">${bet.market} · ${bet.selection}</div></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(bet))}</div><div class="monitor-foot">${odds}${bet.aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(bet.aggregate_comp_odds).toFixed(6)}</b></span>` : ''}${singleEv}${parlay}${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div></article>`;
     }).join('');
   }
   async function refresh() { $('refresh').disabled = true; try { render(await api()); } catch (error) { $('monitorList').innerHTML = `<div class="empty panel"><div>!</div><h3>Monitoring unavailable</h3><p>${error.message}</p></div>`; } finally { $('refresh').disabled = false; } }
