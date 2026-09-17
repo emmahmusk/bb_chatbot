@@ -76,13 +76,26 @@
     $('previous').disabled = !pagination.has_previous;
     $('next').disabled = !pagination.has_next;
     if (!bets.length) { $('monitorList').innerHTML = '<div class="empty panel"><div>✓</div><h3>No matching records</h3><p>Try another search or status filter.</p></div>'; return; }
-    $('monitorList').innerHTML = bets.map((bet) => {
-      const odds = Object.entries(bet.provider_odds || {}).map(([book, line]) => `<span><b>${bookName(book)}</b> ${money(line.decimal)}</span>`).join('');
-      const isParlay = Number(bet.slip_leg_count || 1) > 1;
-      const parlay = isParlay ? `<span>parlay ${bet.slip_leg_count} legs · odds <b>${money(bet.slip_combined_decimal_odds)}</b></span><span>parlay EV_ODDS <b>${evOdds(bet.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(bet.slip_ev_amount)}</b></span>` : '';
-      const singleEv = isParlay ? '' : `<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>`;
-      return `<article class="monitor-card panel ${bet.is_potentially_bad ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(bet.created_at)} · ${bet.sport || 'sport'}${bet.league ? ` · ${bet.league}` : ''}</div><h3>${bet.event || bet.selection}</h3><div class="meta">${bet.market} · ${bet.selection}</div></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(bet))}</div><div class="monitor-foot">${odds}${bet.aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(bet.aggregate_comp_odds).toFixed(6)}</b></span>` : ''}${singleEv}${parlay}${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div></article>`;
-    }).join('');
+    const providerLines = (bet) => Object.entries(bet.provider_odds || {}).map(([book, line]) => `<span><b>${bookName(book)}</b> ${money(line.decimal)}</span>`).join('');
+    const singleFooter = (bet) => `<div class="monitor-foot">${providerLines(bet)}${bet.aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(bet.aggregate_comp_odds).toFixed(6)}</b></span>` : ''}<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div>`;
+    const parlayLeg = (bet, index) => `<div class="parlay-leg"><div class="parlay-leg-head"><div><span class="parlay-leg-index">LEG ${index + 1}</span><b>${escapeHtml(bet.event || bet.selection)}</b><small>${escapeHtml(`${bet.market || 'Market'} · ${bet.selection || ''}`)}</small></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="parlay-leg-foot">${providerLines(bet)}${bet.aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(bet.aggregate_comp_odds).toFixed(6)}</b></span>` : ''}<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div><p class="parlay-leg-audit">${escapeHtml(bet.audit_reason || 'Comparison captured for this leg.')}</p></div>`;
+    const singleCard = (bet) => `<article class="monitor-card panel ${bet.is_potentially_bad ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(bet.created_at)} · ${bet.sport || 'sport'}${bet.league ? ` · ${bet.league}` : ''}</div><h3>${escapeHtml(bet.event || bet.selection)}</h3><div class="meta">${escapeHtml(`${bet.market || ''} · ${bet.selection || ''}`)}</div></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(bet))}</div>${singleFooter(bet)}</article>`;
+    const parlayCard = (legs) => {
+      const first = legs[0];
+      const legCount = Number(first.slip_leg_count || legs.length);
+      const flagged = legs.some((leg) => leg.is_potentially_bad);
+      const detailsLabel = `View individual legs · ${legCount} leg${legCount === 1 ? '' : 's'}`;
+      return `<article class="monitor-card panel parlay-card ${flagged ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(first.created_at)} · ${first.sport || 'sport'}${first.league ? ` · ${first.league}` : ''}</div><h3>Parlay · ${legCount} legs</h3><div class="meta">Sportsbook comparison · Slip #${escapeHtml(first.slip_id || '—')}</div></div><span class="${flagged ? 'flag' : 'clear'}">${flagged ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(first))}</div><div class="monitor-foot"><span>DraftKings parlay</span><span>combined odds <b>${money(first.slip_combined_decimal_odds)}</b></span><span>stake <b>${evAmount(first.slip_stake)}</b></span><span>parlay EV_ODDS <b>${evOdds(first.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(first.slip_ev_amount)}</b></span></div><details class="parlay-details"><summary>${detailsLabel}<span>⌄</span></summary><div class="parlay-leg-list">${legs.map(parlayLeg).join('')}</div></details></article>`;
+    };
+    const grouped = [];
+    const parlays = new Map();
+    bets.forEach((bet) => {
+      if (Number(bet.slip_leg_count || 1) > 1 && bet.slip_id) {
+        if (!parlays.has(bet.slip_id)) { const group = { legs: [] }; parlays.set(bet.slip_id, group); grouped.push(group); }
+        parlays.get(bet.slip_id).legs.push(bet);
+      } else grouped.push({ bet });
+    });
+    $('monitorList').innerHTML = grouped.map((group) => group.legs ? parlayCard(group.legs) : singleCard(group.bet)).join('');
   }
   async function refresh() { $('refresh').disabled = true; try { render(await api()); } catch (error) { $('monitorList').innerHTML = `<div class="empty panel"><div>!</div><h3>Monitoring unavailable</h3><p>${error.message}</p></div>`; } finally { $('refresh').disabled = false; } }
   let searchTimer;
