@@ -8,7 +8,6 @@ for every leg and returns the server-calculated parlay maths.
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, timezone
-import re
 
 from django.conf import settings
 from rest_framework import status
@@ -96,7 +95,9 @@ def _comparison(matching, primary="draftkings"):
         "weighted_implied_probability": round(probability, 6) if probability is not None else None,
         "fair_decimal": round(1 / probability, 4) if probability else None,
         "aggregate_comp_odds": round(aggregate_comp_odds, 6) if aggregate_comp_odds is not None else None,
+        "aggregate_comp_odds_raw": aggregate_comp_odds,
         "ev_odds": round(ev_odds, 6) if ev_odds is not None else None,
+        "ev_odds_raw": ev_odds,
         "edge_decimal": edge,
         "is_potentially_bad": flagged,
         "audit_reason": reason,
@@ -108,7 +109,11 @@ def _leg_payload(leg, result, event="", wager_amount=Decimal("0")):
     comparison = f" vs. {peers}" if peers else " (no peer quote available)"
     audit = f"Review: {result['audit_reason']}" if result["is_potentially_bad"] else "Within range"
     ev_odds = result.get("ev_odds")
-    ev_amount = (-Decimal("0.00534") * wager_amount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if ev_odds is not None else None
+    ev_odds_raw = result.get("ev_odds_raw", ev_odds)
+    # Cash EV follows the readout: stake multiplied by the leg's EV_ODDS.
+    # The displayed EV_ODDS is rounded, so use the raw value for the cents
+    # calculation and avoid compounding display-rounding error.
+    ev_amount = (wager_amount * Decimal(str(ev_odds_raw))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if ev_odds_raw is not None else None
     ev_text = f" | EV_ODDS: {ev_odds:+.6f} · EV_AMT: ${ev_amount:,.2f}" if ev_odds is not None and ev_amount is not None else " | EV unavailable (no peer price)"
     note = f"{event or leg.get('event') or leg.get('selection')} | DraftKings {result['primary']['decimal']:.2f}{comparison} | Aggregate comp odds: {result.get('aggregate_comp_odds') if result.get('aggregate_comp_odds') is not None else '—'}{ev_text} | {audit}"
     return {
@@ -130,6 +135,41 @@ def _leg_payload(leg, result, event="", wager_amount=Decimal("0")):
         "is_potentially_bad": result["is_potentially_bad"],
         "audit_reason": result["audit_reason"],
         "note": note,
+    }
+
+
+def _parlay_comparison(leg_records, baseline="draftkings"):
+    """Calculate parlay EV from each peer's combined price.
+
+    A peer is eligible only when it has a valid decimal quote for every leg.
+    Each eligible peer receives equal weight, exactly as in the supplied
+    calculation readout.
+    """
+    if not leg_records:
+        return None
+    peer_sets = [set(leg.get("provider_odds", {})) - {baseline} for leg in leg_records]
+    common_peers = set.intersection(*peer_sets) if peer_sets else set()
+    if not common_peers:
+        return None
+    baseline_combined = Decimal("1")
+    for leg in leg_records:
+        baseline_combined *= Decimal(str(leg["primary_decimal"]))
+    peer_combined = {}
+    for provider in sorted(common_peers):
+        combined = Decimal("1")
+        for leg in leg_records:
+            combined *= Decimal(str(leg["provider_odds"][provider]["decimal"]))
+        peer_combined[provider] = combined
+    aggregate_raw = sum((Decimal("1") / combined for combined in peer_combined.values()), Decimal("0")) / len(peer_combined)
+    baseline_probability = Decimal("1") / baseline_combined
+    ev_raw = baseline_probability - aggregate_raw
+    return {
+        "baseline_combined": baseline_combined,
+        "peer_combined": peer_combined,
+        "aggregate_comp_odds_raw": aggregate_raw,
+        "aggregate_comp_odds": round(float(aggregate_raw), 6),
+        "ev_odds_raw": ev_raw,
+        "ev_odds": round(float(ev_raw), 6),
     }
 
 
@@ -244,22 +284,33 @@ class SportsbookRecordBetSlipView(APIView):
                 leg_ev_amounts.append(payload["ev_amount"])
                 leg_aggregate_comp_odds.append(payload["aggregate_comp_odds"])
                 combined *= Decimal(str(result["primary"]["decimal"]))
-            combined = combined.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+            # Keep enough precision for the reciprocal calculations. The UI
+            # can round this for display, but EV must use the full combined
+            # DraftKings price.
+            combined = combined.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
             payout = (stake * combined).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            combined_ev_odds = round(sum(leg_ev_odds), 6) if all(value is not None for value in leg_ev_odds) else None
-            combined_ev_amount = (-Decimal("0.00534") * stake * len(leg_records)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if all(value is not None for value in leg_ev_amounts) else None
+            parlay_comparison = _parlay_comparison(leg_records) if len(leg_records) > 1 else None
             if len(leg_records) > 1:
-                parlay_text = f" | Parlay EV_ODDS net: {combined_ev_odds:+.6f} · Parlay EV_AMT net: ${combined_ev_amount:,.2f}" if combined_ev_odds is not None and combined_ev_amount is not None else " | Parlay EV unavailable (one or more legs have no peer price)"
+                combined_ev_odds = parlay_comparison["ev_odds"] if parlay_comparison else None
+                combined_ev_amount = (stake * parlay_comparison["ev_odds_raw"]).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if parlay_comparison else None
+            else:
+                combined_ev_odds = leg_ev_odds[0] if leg_ev_odds and leg_ev_odds[0] is not None else None
+                combined_ev_amount = Decimal(str(leg_ev_amounts[0])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if leg_ev_amounts and leg_ev_amounts[0] is not None else None
+            if len(leg_records) > 1:
+                parlay_text = (
+                    f"Parlay comparison ({len(leg_records)} legs) | DraftKings combined odds: {combined:.8f}"
+                    f" | Aggregate comp odds: {parlay_comparison['aggregate_comp_odds']:.6f}"
+                    f" | Parlay EV_ODDS: {combined_ev_odds:+.6f} · Parlay EV_AMT: ${combined_ev_amount:,.2f}"
+                    if parlay_comparison and combined_ev_amount is not None
+                    else f"Parlay comparison ({len(leg_records)} legs) | DraftKings combined odds: {combined:.8f} | EV unavailable (one or more providers lack a complete parlay quote)"
+                )
                 for leg in leg_records:
-                    # The combined parlay EV is the value shown in the main
-                    # monitoring note. Per-leg EV values remain persisted in
-                    # their dedicated fields for detailed audit work, but are
-                    # removed from this human-facing parlay note to avoid
-                    # presenting two competing totals.
-                    leg["note"] = re.sub(r"\s*\|\s*EV_ODDS:[^|]+(?=\s*\|)", "", leg["note"])
-                    leg["note"] += parlay_text
+                    # Keep individual EV fields on each monitor row for the
+                    # expandable leg details, while using one combined note
+                    # for the collapsed parlay card.
+                    leg["note"] = parlay_text
                 comparison_notes = [leg["note"] for leg in leg_records]
-            slip = SportsbookBetSlip.objects.create(user=request.user, stake=stake, combined_decimal_odds=combined, potential_payout=payout, ev_odds=combined_ev_odds, ev_amount=combined_ev_amount, leg_aggregate_comp_odds=leg_aggregate_comp_odds, leg_count=len(leg_records), legs=leg_records, comparison_notes=comparison_notes)
+            slip = SportsbookBetSlip.objects.create(user=request.user, stake=stake, combined_decimal_odds=combined, aggregate_comp_odds=parlay_comparison["aggregate_comp_odds"] if parlay_comparison else None, potential_payout=payout, ev_odds=combined_ev_odds, ev_amount=combined_ev_amount, leg_aggregate_comp_odds=leg_aggregate_comp_odds, leg_count=len(leg_records), legs=leg_records, comparison_notes=comparison_notes)
             for leg in leg_records:
                 OpticOddsBetMonitor.objects.create(
                     admin_user=request.user,
@@ -270,6 +321,6 @@ class SportsbookRecordBetSlipView(APIView):
                     aggregate_comp_odds=leg["aggregate_comp_odds"], ev_odds=leg["ev_odds"], ev_amount=leg["ev_amount"],
                     is_potentially_bad=leg["is_potentially_bad"], audit_reason=leg["audit_reason"], edge_decimal=leg["edge_decimal"], note=leg["note"], odds_snapshot=leg["odds_snapshot"],
                 )
-            return Response({"status": "recorded", "slip_id": slip.id, "stake": str(stake), "combined_decimal_odds": str(combined), "potential_payout": str(payout), "ev_odds": combined_ev_odds, "ev_amount": str(combined_ev_amount) if combined_ev_amount is not None else None, "leg_ev_odds": leg_ev_odds, "leg_aggregate_comp_odds": leg_aggregate_comp_odds, "leg_count": len(leg_records), "legs": leg_records, "comparison_notes": comparison_notes, "simulation": True}, status=status.HTTP_201_CREATED)
+            return Response({"status": "recorded", "slip_id": slip.id, "stake": str(stake), "combined_decimal_odds": str(combined), "aggregate_comp_odds": slip.aggregate_comp_odds, "potential_payout": str(payout), "ev_odds": combined_ev_odds, "ev_amount": str(combined_ev_amount) if combined_ev_amount is not None else None, "leg_ev_odds": leg_ev_odds, "leg_aggregate_comp_odds": leg_aggregate_comp_odds, "leg_count": len(leg_records), "legs": leg_records, "comparison_notes": comparison_notes, "simulation": True}, status=status.HTTP_201_CREATED)
         except OpticOddsError as exc:
             return _error(exc)

@@ -14,7 +14,7 @@ class OpticOddsBetMonitorAdmin(admin.ModelAdmin):
 
 @admin.register(SportsbookBetSlip)
 class SportsbookBetSlipAdmin(admin.ModelAdmin):
-    list_display = ("created_at", "user", "leg_count", "stake", "combined_decimal_odds", "potential_payout", "ev_odds", "ev_amount", "status")
+    list_display = ("created_at", "user", "leg_count", "stake", "combined_decimal_odds", "aggregate_comp_odds", "potential_payout", "ev_odds", "ev_amount", "status")
     list_filter = ("status",)
     search_fields = ("user__username",)
 class Admin(models.Model):

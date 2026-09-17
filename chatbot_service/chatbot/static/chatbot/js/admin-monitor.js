@@ -1,6 +1,6 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { page: 1, pageSize: 20, query: '', status: 'all', pages: 1 };
+  const state = { page: 1, pageSize: 20, query: '', status: 'all', pages: 1, openParlays: new Set() };
   const settingsState = { providers: [], selected: [], saved: [], loaded: false };
   const api = () => {
     const params = new URLSearchParams({ page: state.page, page_size: state.pageSize, status: state.status });
@@ -66,6 +66,9 @@
   };
   function render(body) {
     const bets = body.bets || [];
+    // The feed refreshes in the background. Capture expanded slip IDs before
+    // replacing the cards so an admin does not lose their place every cycle.
+    state.openParlays = new Set([...document.querySelectorAll('#monitorList details.parlay-details[open]')].map((detail) => detail.dataset.slipId).filter(Boolean));
     const pagination = body.pagination || {};
     state.pages = pagination.pages || 1;
     $('total').textContent = pagination.total ?? bets.length;
@@ -85,7 +88,7 @@
       const legCount = Number(first.slip_leg_count || legs.length);
       const flagged = legs.some((leg) => leg.is_potentially_bad);
       const detailsLabel = `View individual legs · ${legCount} leg${legCount === 1 ? '' : 's'}`;
-      return `<article class="monitor-card panel parlay-card ${flagged ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(first.created_at)} · ${first.sport || 'sport'}${first.league ? ` · ${first.league}` : ''}</div><h3>Parlay · ${legCount} legs</h3><div class="meta">Sportsbook comparison · Slip #${escapeHtml(first.slip_id || '—')}</div></div><span class="${flagged ? 'flag' : 'clear'}">${flagged ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(first))}</div><div class="monitor-foot"><span>DraftKings parlay</span><span>combined odds <b>${money(first.slip_combined_decimal_odds)}</b></span><span>stake <b>${evAmount(first.slip_stake)}</b></span><span>parlay EV_ODDS <b>${evOdds(first.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(first.slip_ev_amount)}</b></span></div><details class="parlay-details"><summary>${detailsLabel}<span>⌄</span></summary><div class="parlay-leg-list">${legs.map(parlayLeg).join('')}</div></details></article>`;
+      return `<article class="monitor-card panel parlay-card ${flagged ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(first.created_at)} · ${first.sport || 'sport'}${first.league ? ` · ${first.league}` : ''}</div><h3>Parlay · ${legCount} legs</h3><div class="meta">Sportsbook comparison · Slip #${escapeHtml(first.slip_id || '—')}</div></div><span class="${flagged ? 'flag' : 'clear'}">${flagged ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(first))}</div><div class="monitor-foot"><span>DraftKings parlay</span><span>combined odds <b>${money(first.slip_combined_decimal_odds)}</b></span>${first.slip_aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(first.slip_aggregate_comp_odds).toFixed(6)}</b></span>` : ''}<span>stake <b>${evAmount(first.slip_stake)}</b></span><span>parlay EV_ODDS <b>${evOdds(first.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(first.slip_ev_amount)}</b></span></div><details class="parlay-details" data-slip-id="${escapeHtml(first.slip_id)}"><summary>${detailsLabel}<span>⌄</span></summary><div class="parlay-leg-list">${legs.map(parlayLeg).join('')}</div></details></article>`;
     };
     const grouped = [];
     const parlays = new Map();
@@ -96,6 +99,10 @@
       } else grouped.push({ bet });
     });
     $('monitorList').innerHTML = grouped.map((group) => group.legs ? parlayCard(group.legs) : singleCard(group.bet)).join('');
+    state.openParlays.forEach((slipId) => {
+      const detail = [...$('monitorList').querySelectorAll('details.parlay-details')].find((item) => item.dataset.slipId === String(slipId));
+      if (detail) detail.open = true;
+    });
   }
   async function refresh() { $('refresh').disabled = true; try { render(await api()); } catch (error) { $('monitorList').innerHTML = `<div class="empty panel"><div>!</div><h3>Monitoring unavailable</h3><p>${error.message}</p></div>`; } finally { $('refresh').disabled = false; } }
   let searchTimer;

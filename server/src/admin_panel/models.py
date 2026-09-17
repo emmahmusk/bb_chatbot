@@ -324,6 +324,7 @@ class SportsbookBetSlip(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sportsbook_betslips")
     stake = models.DecimalField(max_digits=14, decimal_places=2)
     combined_decimal_odds = models.DecimalField(max_digits=18, decimal_places=8)
+    aggregate_comp_odds = models.FloatField(null=True, blank=True, help_text="Average reciprocal of each comparison provider's combined parlay odds.")
     potential_payout = models.DecimalField(max_digits=18, decimal_places=2)
     ev_odds = models.FloatField(null=True, blank=True)
     ev_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
