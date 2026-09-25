@@ -39,17 +39,21 @@ class SportsbookLeague {
 class SportsbookFixture {
   final String id;
   final String event;
+  final String homeTeam;
+  final String awayTeam;
   final String sport;
   final String league;
   final DateTime? startDate;
   final bool isLive;
 
-  const SportsbookFixture({required this.id, required this.event, required this.sport, required this.league, required this.startDate, required this.isLive});
+  const SportsbookFixture({required this.id, required this.event, required this.homeTeam, required this.awayTeam, required this.sport, required this.league, required this.startDate, required this.isLive});
 
   factory SportsbookFixture.fromJson(Map<String, dynamic> json) {
     return SportsbookFixture(
       id: (json['fixture_id'] ?? json['id'] ?? '').toString(),
       event: (json['event'] ?? json['name'] ?? '').toString(),
+      homeTeam: (json['home_team'] ?? json['home_team_display'] ?? '').toString(),
+      awayTeam: (json['away_team'] ?? json['away_team_display'] ?? '').toString(),
       sport: (json['sport'] ?? '').toString(),
       league: (json['league'] ?? '').toString(),
       startDate: DateTime.tryParse((json['start_date'] ?? '').toString()),

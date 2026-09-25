@@ -7,6 +7,7 @@ needed by the admin UI and bet monitor.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 from typing import Any
 
 import requests
@@ -41,6 +42,26 @@ def _first(obj: dict, *keys: str, default=None):
         if value not in (None, ""):
             return value
     return default
+
+
+def _canonical_sportsbook(value: Any) -> str:
+    """Normalize OpticOdds display names and ids to stable provider keys."""
+    if isinstance(value, dict):
+        value = value.get("id") or value.get("name") or value.get("key") or ""
+    raw = str(value or "").strip().casefold()
+    compact = re.sub(r"[^a-z0-9]", "", raw)
+    aliases = {
+        "hardrock": "hardrockbet",
+        "hardrockbet": "hardrockbet",
+        "hardrockbetsportsbook": "hardrockbet",
+        "draftkings": "draftkings",
+        "fanduel": "fanduel",
+        "pinnacle": "pinnacle",
+        "bet365": "bet365",
+    }
+    if compact in aliases:
+        return aliases[compact]
+    return re.sub(r"[^a-z0-9]+", "_", raw).strip("_")
 
 
 def american_to_decimal(value: Any) -> float | None:
@@ -186,7 +207,7 @@ class OpticOddsClient:
                     walk(item, context)
             elif isinstance(value, dict):
                 current = {**(context or {}), **value}
-                provider = _first(current, "sportsbook", "book", "provider", "sportsbook_name")
+                provider = _canonical_sportsbook(_first(current, "sportsbook", "book", "provider", "sportsbook_name"))
                 market = _first(current, "market", "market_name", "market_type", "key")
                 selection = _first(current, "selection", "outcome", "participant", "name")
                 price = _first(current, "price", "odds", "american", "american_odds")
@@ -199,7 +220,7 @@ class OpticOddsClient:
                         "sport": _first(current, "sport", "sport_name"),
                         "league": _first(current, "league", "league_name"),
                         "odd_id": _first(current, "id"),
-                        "sportsbook": str(provider).lower(),
+                        "sportsbook": provider,
                         "market": market,
                         "selection": selection,
                         "normalized_selection": _first(current, "normalized_selection"),

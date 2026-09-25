@@ -7,6 +7,17 @@
   const bookName = (id) => names[String(id).toLowerCase()] || String(id).replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const american = (value) => { if (value === null || value === undefined || value === '') return '—'; const number = Number(value); return Number.isFinite(number) ? `${number > 0 ? '+' : ''}${number}` : String(value); };
   const money = (value) => value == null ? '—' : Number(value).toFixed(2);
+  const compact = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const outcomeRank = (selection) => {
+    const key = compact(selection);
+    const fixture = state.selectedFixture || {};
+    const home = compact(fixture.home_team || '');
+    const away = compact(fixture.away_team || '');
+    if (key === 'draw' || key === 'tie' || key === 'x') return 1;
+    if (key === '1' || key === 'home' || (home && (key === home || key.includes(home) || home.includes(key)))) return 0;
+    if (key === '2' || key === 'away' || (away && (key === away || key.includes(away) || away.includes(key)))) return 2;
+    return 3;
+  };
 
   const setOptions = (select, items, placeholder) => { select.innerHTML = `<option value="">${placeholder}</option>` + items.map((item) => `<option value="${item.id || item.fixture_id}">${item.label || item.name || item.event || item.id || item.fixture_id}</option>`).join(''); };
 
@@ -91,7 +102,7 @@
     const groups = {};
     rows.forEach((row) => { const key = `${row.market}|${row.selection}|${row.points ?? ''}`; (groups[key] ||= []).push(row); });
     const providers = state.books;
-    const cards = Object.values(groups).map((group) => {
+    const cards = Object.values(groups).sort((a, b) => outcomeRank(a[0]?.selection) - outcomeRank(b[0]?.selection)).map((group) => {
       const baseline = group.find((row) => ['hardrockbet', 'hardrock'].includes(String(row.sportsbook).toLowerCase()));
       if (!baseline) return '';
       const byBook = Object.fromEntries(group.map((row) => [String(row.sportsbook).toLowerCase(), row]));

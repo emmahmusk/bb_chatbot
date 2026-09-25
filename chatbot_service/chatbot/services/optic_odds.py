@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timezone
 
 import requests
@@ -49,6 +50,24 @@ def _base_url():
 def _headers():
     api_key = getattr(settings, "OPTIC_ODDS_API_KEY", "")
     return {"X-Api-Key": api_key, "Accept": "application/json"} if api_key else {"Accept": "application/json"}
+
+
+def _canonical_sportsbook(value):
+    """Use one provider key whether OpticOdds returns an id or display name."""
+    if isinstance(value, dict):
+        value = value.get("id") or value.get("name") or value.get("key") or ""
+    raw = str(value or "").strip().casefold()
+    compact = re.sub(r"[^a-z0-9]", "", raw)
+    aliases = {
+        "hardrock": "hardrockbet",
+        "hardrockbet": "hardrockbet",
+        "hardrockbetsportsbook": "hardrockbet",
+        "draftkings": "draftkings",
+        "fanduel": "fanduel",
+        "pinnacle": "pinnacle",
+        "bet365": "bet365",
+    }
+    return aliases.get(compact, re.sub(r"[^a-z0-9]+", "_", raw).strip("_"))
 
 
 def _request(path, params=None):
@@ -102,7 +121,7 @@ def catalog(*, sport=None, league=None, bootstrap=False):
     if bootstrap:
         return {"sports": _list_data(_request("sports"), "sports"), "leagues": [], "markets": [], "fixtures": []}, False
 
-    cache_key = f"opticodds-catalog:v2:{sport or 'all'}:{league or 'all'}"
+    cache_key = f"opticodds-catalog:v3:{sport or 'all'}:{league or 'all'}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached, False
@@ -153,6 +172,8 @@ def catalog(*, sport=None, league=None, bootstrap=False):
         fixtures.append({
             "id": fixture_id,
             "label": f"{'LIVE · ' if is_live else ''}{away} @ {home}",
+            "home_team": home,
+            "away_team": away,
             "start_date": fixture.get("start_date"),
             "status": fixture.get("status"),
             "is_live": is_live,
@@ -181,9 +202,7 @@ def _normalise_snapshot(items, selected_books):
         home = (fixture.get("home_competitors") or [{}])[0].get("name", "Home")
         away = (fixture.get("away_competitors") or [{}])[0].get("name", "Away")
         for odd in fixture.get("odds", []):
-            book = odd.get("sportsbook") or odd.get("bookmaker") or "Unknown"
-            if isinstance(book, dict):
-                book = book.get("name") or book.get("id") or "Unknown"
+            book = _canonical_sportsbook(odd.get("sportsbook") or odd.get("bookmaker") or "Unknown")
             price = odd.get("price")
             rows.append({
                 "fixture_id": fixture_id,
