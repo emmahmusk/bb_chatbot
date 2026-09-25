@@ -202,7 +202,10 @@ class AdminOpticOddsBetMonitorListView(OpticOddsBaseView):
             page_size = min(max(int(request.query_params.get("page_size", 20)), 1), 100)
         except (TypeError, ValueError):
             page, page_size = 1, 20
-        queryset = OpticOddsBetMonitor.objects.select_related("admin_user", "sportsbook_slip").all()
+        # Do not rely on database/default-manager ordering here. New records
+        # must always appear first in the monitoring feed, even when several
+        # bets share the same timestamp precision.
+        queryset = OpticOddsBetMonitor.objects.select_related("admin_user", "sportsbook_slip").order_by("-created_at", "-id")
         query = str(request.query_params.get("q", "")).strip()
         status_filter = str(request.query_params.get("status", "all")).lower()
         sport = str(request.query_params.get("sport", "")).strip()

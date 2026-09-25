@@ -1,6 +1,6 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { page: 1, pageSize: 20, query: '', status: 'all', pages: 1, openParlays: new Set() };
+  const state = { page: 1, pageSize: 20, query: '', status: 'all', pages: 1, total: null, openParlays: new Set() };
   const settingsState = { providers: [], selected: [], saved: [], loaded: false };
   const api = () => {
     const params = new URLSearchParams({ page: state.page, page_size: state.pageSize, status: state.status });
@@ -71,6 +71,7 @@
     state.openParlays = new Set([...document.querySelectorAll('#monitorList details.parlay-details[open]')].map((detail) => detail.dataset.slipId).filter(Boolean));
     const pagination = body.pagination || {};
     state.pages = pagination.pages || 1;
+    state.total = pagination.total ?? bets.length;
     $('total').textContent = pagination.total ?? bets.length;
     $('flagged').textContent = pagination.flagged_total ?? bets.filter((bet) => bet.is_potentially_bad).length;
     $('alertCount').textContent = bets.some((bet) => bet.is_potentially_bad) ? '!' : '';
@@ -104,7 +105,7 @@
       if (detail) detail.open = true;
     });
   }
-  async function refresh() { $('refresh').disabled = true; try { render(await api()); } catch (error) { $('monitorList').innerHTML = `<div class="empty panel"><div>!</div><h3>Monitoring unavailable</h3><p>${error.message}</p></div>`; } finally { $('refresh').disabled = false; } }
+  async function refresh() { $('refresh').disabled = true; try { let body = await api(); const incomingTotal = body.pagination?.total ?? body.bets?.length ?? 0; if (state.total !== null && incomingTotal > state.total && state.page !== 1) { state.page = 1; body = await api(); } render(body); } catch (error) { $('monitorList').innerHTML = `<div class="empty panel"><div>!</div><h3>Monitoring unavailable</h3><p>${error.message}</p></div>`; } finally { $('refresh').disabled = false; } }
   let searchTimer;
   $('search').addEventListener('input', (event) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { state.query = event.target.value.trim(); state.page = 1; refresh(); }, 250); });
   $('statusFilter').addEventListener('change', (event) => { state.status = event.target.value; state.page = 1; refresh(); });
