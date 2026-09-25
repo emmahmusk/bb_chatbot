@@ -292,7 +292,7 @@ class OpticOddsBetMonitor(models.Model):
     league = models.CharField(max_length=120, blank=True)
     market = models.CharField(max_length=120)
     selection = models.CharField(max_length=255)
-    primary_sportsbook = models.CharField(max_length=80, default="draftkings")
+    primary_sportsbook = models.CharField(max_length=80, default="hardrockbet")
     primary_price = models.CharField(max_length=40, blank=True)
     primary_decimal = models.FloatField(null=True, blank=True)
     stake = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)

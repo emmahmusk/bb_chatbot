@@ -26,7 +26,7 @@ def _error(exc: OpticOddsError) -> Response:
 
 def _configured_books() -> list[str]:
     configured = getattr(settings, "OPTIC_ODDS_COMPARISON_SPORTSBOOKS", []) or default_sportsbooks()
-    primary = getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")
+    primary = getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "hardrockbet")
     return list(dict.fromkeys([str(primary).lower(), *[str(book).lower() for book in configured]]))[:5]
 
 
@@ -42,7 +42,7 @@ def _books(request, body=None) -> list[str]:
     # retain the configured list as the safe default when no list is supplied.
     allowed = list(dict.fromkeys([*_configured_books(), *requested]))
     selected = [book for book in dict.fromkeys(requested or allowed) if book in allowed]
-    primary = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")).lower()
+    primary = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "hardrockbet")).lower()
     return list(dict.fromkeys([primary, *selected]))[:5]
 
 
@@ -64,39 +64,41 @@ def _matching(rows, market, selection):
     ]
 
 
-def _comparison(matching, primary="draftkings"):
+def _comparison(matching, primary=None):
+    primary = str(primary or getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "hardrockbet")).strip().lower()
     provider_odds = {}
     raw_by_provider = {}
     for row in matching:
         provider = str(row.get("sportsbook", "")).lower()
         decimal = _decimal(row.get("decimal"))
         if provider and decimal is not None:
-            provider_odds[provider] = {"price": row.get("price"), "decimal": float(decimal)}
+            provider_odds[provider] = {"price": row.get("price"), "decimal": float(decimal), "decimal_raw": str(decimal)}
             raw_by_provider[provider] = row
     primary_line = provider_odds.get(primary)
     if not primary_line:
         return None
-    peers = [line["decimal"] for book, line in provider_odds.items() if book != primary]
-    aggregate_comp_odds = sum(1 / decimal for decimal in peers) / len(peers) if peers else None
-    ev_odds = (1 / primary_line["decimal"] - aggregate_comp_odds) if aggregate_comp_odds is not None else None
+    peers = [Decimal(str(line.get("decimal_raw", line["decimal"]))) for book, line in provider_odds.items() if book != primary]
+    primary_decimal = Decimal(str(primary_line.get("decimal_raw", primary_line["decimal"])))
+    aggregate_comp_odds = sum((Decimal("1") / decimal for decimal in peers), Decimal("0")) / len(peers) if peers else None
+    ev_odds = (Decimal("1") / primary_decimal - aggregate_comp_odds) if aggregate_comp_odds is not None else None
     lowest = min(peers) if peers else None
     highest = max(peers) if peers else None
-    edge = round(primary_line["decimal"] - lowest, 4) if lowest is not None else None
-    relative = edge / lowest if edge is not None and lowest else 0
-    above_all = highest is not None and primary_line["decimal"] > highest
-    significant = edge is not None and edge >= getattr(settings, "OPTIC_ODDS_AUDIT_MIN_DECIMAL_GAP", 0.20) and relative >= getattr(settings, "OPTIC_ODDS_AUDIT_MIN_RELATIVE_GAP", 0.10)
+    edge = round(float(primary_decimal - lowest), 4) if lowest is not None else None
+    relative = (Decimal(str(edge)) / lowest) if edge is not None and lowest else Decimal("0")
+    above_all = highest is not None and primary_decimal > highest
+    significant = edge is not None and Decimal(str(edge)) >= Decimal(str(getattr(settings, "OPTIC_ODDS_AUDIT_MIN_DECIMAL_GAP", 0.20))) and relative >= Decimal(str(getattr(settings, "OPTIC_ODDS_AUDIT_MIN_RELATIVE_GAP", 0.10)))
     flagged = bool(above_all or significant)
     reason = "Higher than every selected provider" if above_all else ("Significantly above the lowest selected price" if significant else "Within the selected market range")
-    probability = sum(1 / line["decimal"] for line in provider_odds.values()) / len(provider_odds) if provider_odds else None
+    probability = sum((Decimal("1") / Decimal(str(line.get("decimal_raw", line["decimal"]))) for line in provider_odds.values()), Decimal("0")) / len(provider_odds) if provider_odds else None
     return {
         "provider_odds": provider_odds,
         "raw_by_provider": raw_by_provider,
         "primary": primary_line,
-        "weighted_implied_probability": round(probability, 6) if probability is not None else None,
-        "fair_decimal": round(1 / probability, 4) if probability else None,
-        "aggregate_comp_odds": round(aggregate_comp_odds, 6) if aggregate_comp_odds is not None else None,
+        "weighted_implied_probability": round(float(probability), 6) if probability is not None else None,
+        "fair_decimal": round(float(Decimal("1") / probability), 4) if probability else None,
+        "aggregate_comp_odds": round(float(aggregate_comp_odds), 6) if aggregate_comp_odds is not None else None,
         "aggregate_comp_odds_raw": aggregate_comp_odds,
-        "ev_odds": round(ev_odds, 6) if ev_odds is not None else None,
+        "ev_odds": round(float(ev_odds), 6) if ev_odds is not None else None,
         "ev_odds_raw": ev_odds,
         "edge_decimal": edge,
         "is_potentially_bad": flagged,
@@ -104,8 +106,9 @@ def _comparison(matching, primary="draftkings"):
     }
 
 
-def _leg_payload(leg, result, event="", wager_amount=Decimal("0")):
-    peers = ", ".join(f"{book.title()}: {line['decimal']:.2f}" for book, line in result["provider_odds"].items() if book != "draftkings")
+def _leg_payload(leg, result, event="", wager_amount=Decimal("0"), primary=None):
+    primary = str(primary or getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "hardrockbet")).strip().lower()
+    peers = ", ".join(f"{book.title()}: {line['decimal']:.2f}" for book, line in result["provider_odds"].items() if book != primary)
     comparison = f" vs. {peers}" if peers else " (no peer quote available)"
     audit = f"Review: {result['audit_reason']}" if result["is_potentially_bad"] else "Within range"
     ev_odds = result.get("ev_odds")
@@ -115,7 +118,8 @@ def _leg_payload(leg, result, event="", wager_amount=Decimal("0")):
     # calculation and avoid compounding display-rounding error.
     ev_amount = (wager_amount * Decimal(str(ev_odds_raw))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if ev_odds_raw is not None else None
     ev_text = f" | EV_ODDS: {ev_odds:+.6f} · EV_AMT: ${ev_amount:,.2f}" if ev_odds is not None and ev_amount is not None else " | EV unavailable (no peer price)"
-    note = f"{event or leg.get('event') or leg.get('selection')} | DraftKings {result['primary']['decimal']:.2f}{comparison} | Aggregate comp odds: {result.get('aggregate_comp_odds') if result.get('aggregate_comp_odds') is not None else '—'}{ev_text} | {audit}"
+    primary_name = "Hard Rock" if primary in {"hardrockbet", "hardrock"} else primary.replace("_", " ").title()
+    note = f"{event or leg.get('event') or leg.get('selection')} | {primary_name} {result['primary']['decimal']:.2f}{comparison} | Aggregate comp odds: {result.get('aggregate_comp_odds') if result.get('aggregate_comp_odds') is not None else '—'}{ev_text} | {audit}"
     return {
         "fixture_id": str(leg.get("fixture_id", "")),
         "event": event or leg.get("event") or "",
@@ -123,7 +127,7 @@ def _leg_payload(leg, result, event="", wager_amount=Decimal("0")):
         "league": leg.get("league") or "",
         "market": leg.get("market") or "",
         "selection": leg.get("selection") or "",
-        "primary_sportsbook": "draftkings",
+        "primary_sportsbook": primary,
         "primary_decimal": result["primary"]["decimal"],
         "provider_odds": result["provider_odds"],
         "weighted_implied_probability": result["weighted_implied_probability"],
@@ -138,13 +142,14 @@ def _leg_payload(leg, result, event="", wager_amount=Decimal("0")):
     }
 
 
-def _parlay_comparison(leg_records, baseline="draftkings"):
+def _parlay_comparison(leg_records, baseline=None):
     """Calculate parlay EV from each peer's combined price.
 
     A peer is eligible only when it has a valid decimal quote for every leg.
     Each eligible peer receives equal weight, exactly as in the supplied
     calculation readout.
     """
+    baseline = str(baseline or getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "hardrockbet")).strip().lower()
     if not leg_records:
         return None
     peer_sets = [set(leg.get("provider_odds", {})) - {baseline} for leg in leg_records]
@@ -153,12 +158,13 @@ def _parlay_comparison(leg_records, baseline="draftkings"):
         return None
     baseline_combined = Decimal("1")
     for leg in leg_records:
-        baseline_combined *= Decimal(str(leg["primary_decimal"]))
+        baseline_line = leg.get("provider_odds", {}).get(baseline, {})
+        baseline_combined *= Decimal(str(baseline_line.get("decimal_raw", leg["primary_decimal"])))
     peer_combined = {}
     for provider in sorted(common_peers):
         combined = Decimal("1")
         for leg in leg_records:
-            combined *= Decimal(str(leg["provider_odds"][provider]["decimal"]))
+            combined *= Decimal(str(leg["provider_odds"][provider].get("decimal_raw", leg["provider_odds"][provider]["decimal"])))
         peer_combined[provider] = combined
     aggregate_raw = sum((Decimal("1") / combined for combined in peer_combined.values()), Decimal("0")) / len(peer_combined)
     baseline_probability = Decimal("1") / baseline_combined
@@ -252,6 +258,7 @@ class SportsbookRecordBetSlipView(APIView):
             return Response({"detail": "Stake must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
 
         books = _books(request, data)
+        primary = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "hardrockbet")).strip().lower()
         client = OpticOddsClient()
         leg_records = []
         comparison_notes = []
@@ -268,25 +275,25 @@ class SportsbookRecordBetSlipView(APIView):
                     return Response({"detail": "Each leg needs a fixture_id, market and selection."}, status=status.HTTP_400_BAD_REQUEST)
                 rows = leg.get("odds_snapshot") if isinstance(leg.get("odds_snapshot"), list) else []
                 snapshot_books = {str(row.get("sportsbook", "")).strip().lower() for row in rows if isinstance(row, dict)}
-                # The betting UI intentionally sends only DraftKings. Fetch a
+                # The betting UI intentionally sends only Hard Rock. Fetch a
                 # fresh comparison snapshot here using the books selected in
                 # the chatbot monitor settings before writing the audit record.
                 if not rows or any(book not in snapshot_books for book in books):
                     rows = client.odds(fixture_id, books, market=market)
-                result = _comparison(_matching(rows, market, selection))
+                result = _comparison(_matching(rows, market, selection), primary=primary)
                 if not result:
-                    return Response({"detail": f"DraftKings odds are unavailable for {selection}."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+                    return Response({"detail": f"Hard Rock odds are unavailable for {selection}."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
                 event = str(leg.get("event") or "")
-                payload = _leg_payload({**leg, "fixture_id": fixture_id, "market": market, "selection": selection}, result, event, stake)
+                payload = _leg_payload({**leg, "fixture_id": fixture_id, "market": market, "selection": selection}, result, event, stake, primary=primary)
                 leg_records.append({**payload, "odds_snapshot": _matching(rows, market, selection)})
                 comparison_notes.append(payload["note"])
                 leg_ev_odds.append(payload["ev_odds"])
                 leg_ev_amounts.append(payload["ev_amount"])
                 leg_aggregate_comp_odds.append(payload["aggregate_comp_odds"])
-                combined *= Decimal(str(result["primary"]["decimal"]))
+                combined *= Decimal(str(result["primary"].get("decimal_raw", result["primary"]["decimal"])))
             # Keep enough precision for the reciprocal calculations. The UI
             # can round this for display, but EV must use the full combined
-            # DraftKings price.
+            # Hard Rock price.
             combined = combined.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
             payout = (stake * combined).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             parlay_comparison = _parlay_comparison(leg_records) if len(leg_records) > 1 else None
@@ -298,11 +305,11 @@ class SportsbookRecordBetSlipView(APIView):
                 combined_ev_amount = Decimal(str(leg_ev_amounts[0])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if leg_ev_amounts and leg_ev_amounts[0] is not None else None
             if len(leg_records) > 1:
                 parlay_text = (
-                    f"Parlay comparison ({len(leg_records)} legs) | DraftKings combined odds: {combined:.8f}"
+                    f"Parlay comparison ({len(leg_records)} legs) | Hard Rock combined odds: {combined:.8f}"
                     f" | Aggregate comp odds: {parlay_comparison['aggregate_comp_odds']:.6f}"
                     f" | Parlay EV_ODDS: {combined_ev_odds:+.6f} · Parlay EV_AMT: ${combined_ev_amount:,.2f}"
                     if parlay_comparison and combined_ev_amount is not None
-                    else f"Parlay comparison ({len(leg_records)} legs) | DraftKings combined odds: {combined:.8f} | EV unavailable (one or more providers lack a complete parlay quote)"
+                    else f"Parlay comparison ({len(leg_records)} legs) | Hard Rock combined odds: {combined:.8f} | EV unavailable (one or more providers lack a complete parlay quote)"
                 )
                 for leg in leg_records:
                     # Keep individual EV fields on each monitor row for the
@@ -316,7 +323,7 @@ class SportsbookRecordBetSlipView(APIView):
                     admin_user=request.user,
                     sportsbook_slip=slip,
                     fixture_id=leg["fixture_id"], event=leg["event"], sport=leg["sport"], league=leg["league"], market=leg["market"], selection=leg["selection"],
-                    primary_sportsbook="draftkings", primary_price=str(leg["provider_odds"]["draftkings"].get("price", "")), primary_decimal=leg["primary_decimal"], stake=stake,
+                    primary_sportsbook=primary, primary_price=str(leg["provider_odds"][primary].get("price", "")), primary_decimal=leg["primary_decimal"], stake=stake,
                     provider_odds=leg["provider_odds"], provider_weights={book: 1 / len(leg["provider_odds"]) for book in leg["provider_odds"]}, weighted_implied_probability=leg["weighted_implied_probability"], fair_decimal=leg["fair_decimal"],
                     aggregate_comp_odds=leg["aggregate_comp_odds"], ev_odds=leg["ev_odds"], ev_amount=leg["ev_amount"],
                     is_potentially_bad=leg["is_potentially_bad"], audit_reason=leg["audit_reason"], edge_decimal=leg["edge_decimal"], note=leg["note"], odds_snapshot=leg["odds_snapshot"],

@@ -15,7 +15,7 @@
   const evOdds = (value) => value == null ? '—' : `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(6)}`;
   const evAmount = (value) => value == null ? '—' : `$${Number(value).toFixed(2)}`;
   const date = (value) => value ? new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Unknown time';
-  const bookName = (book) => ({ draftkings: 'DraftKings', fanduel: 'FanDuel', pinnacle: 'Pinnacle', betmgm: 'BetMGM', caesars: 'Caesars' }[String(book).toLowerCase()] || book);
+  const bookName = (book) => ({ hardrockbet: 'Hard Rock', hardrock: 'Hard Rock', draftkings: 'DraftKings', fanduel: 'FanDuel', pinnacle: 'Pinnacle', betmgm: 'BetMGM', caesars: 'Caesars', bet365: 'bet365' }[String(book).toLowerCase()] || book);
   const settingsApi = (path, options = {}) => fetch(path, { cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }).then(async (response) => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.detail || body.error || `Request failed (HTTP ${response.status})`); return body; });
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
   function updateSettingsSummary() {
@@ -29,7 +29,7 @@
   }
   function renderProviderSettings() {
     const list = $('providerOptions');
-    const peers = settingsState.providers.filter((provider) => String(provider.id || provider.key || '').toLowerCase() !== 'draftkings');
+    const peers = settingsState.providers.filter((provider) => !['hardrockbet', 'hardrock'].includes(String(provider.id || provider.key || '').toLowerCase()));
     if (!peers.length) { list.innerHTML = '<div class="settings-loading">No comparison books are available right now.</div>'; return; }
     list.innerHTML = peers.map((provider) => { const id = String(provider.id || provider.key).toLowerCase(); const label = provider.name || bookName(id); const checked = settingsState.selected.includes(id) ? ' checked' : ''; return `<label class="provider-option"><input type="checkbox" value="${escapeHtml(id)}"${checked}><span class="provider-mark">${escapeHtml(label.slice(0, 2).toUpperCase())}</span><span><b>${escapeHtml(label)}</b><small>OpticOdds provider</small></span><i></i></label>`; }).join('');
     list.querySelectorAll('input').forEach((input) => input.addEventListener('change', () => { settingsState.selected = [...list.querySelectorAll('input:checked')].map((item) => item.value); updateSettingsButton(); }));
@@ -42,7 +42,7 @@
     try {
       const [catalog, preference] = await Promise.all([settingsApi('/api/odds/providers/'), settingsApi('/api/admin-sportsbook/settings/')]);
       settingsState.providers = catalog.providers || [];
-      settingsState.selected = Array.isArray(preference.selected_books) ? preference.selected_books : ['fanduel', 'pinnacle'];
+      settingsState.selected = Array.isArray(preference.selected_books) ? preference.selected_books : ['fanduel', 'pinnacle', 'bet365'];
       settingsState.saved = [...settingsState.selected];
       renderProviderSettings();
     } catch (error) { $('providerOptions').innerHTML = `<div class="settings-loading error-text">${escapeHtml(error.message)}</div>`; $('settingsStatus').textContent = 'Unable to load comparison books'; }
@@ -88,7 +88,7 @@
       const legCount = Number(first.slip_leg_count || legs.length);
       const flagged = legs.some((leg) => leg.is_potentially_bad);
       const detailsLabel = `View individual legs · ${legCount} leg${legCount === 1 ? '' : 's'}`;
-      return `<article class="monitor-card panel parlay-card ${flagged ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(first.created_at)} · ${first.sport || 'sport'}${first.league ? ` · ${first.league}` : ''}</div><h3>Parlay · ${legCount} legs</h3><div class="meta">Sportsbook comparison · Slip #${escapeHtml(first.slip_id || '—')}</div></div><span class="${flagged ? 'flag' : 'clear'}">${flagged ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(first))}</div><div class="monitor-foot"><span>DraftKings parlay</span><span>combined odds <b>${money(first.slip_combined_decimal_odds)}</b></span>${first.slip_aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(first.slip_aggregate_comp_odds).toFixed(6)}</b></span>` : ''}<span>stake <b>${evAmount(first.slip_stake)}</b></span><span>parlay EV_ODDS <b>${evOdds(first.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(first.slip_ev_amount)}</b></span></div><details class="parlay-details" data-slip-id="${escapeHtml(first.slip_id)}"><summary>${detailsLabel}<span>⌄</span></summary><div class="parlay-leg-list">${legs.map(parlayLeg).join('')}</div></details></article>`;
+      return `<article class="monitor-card panel parlay-card ${flagged ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(first.created_at)} · ${first.sport || 'sport'}${first.league ? ` · ${first.league}` : ''}</div><h3>Parlay · ${legCount} legs</h3><div class="meta">Sportsbook comparison · Slip #${escapeHtml(first.slip_id || '—')}</div></div><span class="${flagged ? 'flag' : 'clear'}">${flagged ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(first))}</div><div class="monitor-foot"><span>Hard Rock parlay</span><span>combined odds <b>${money(first.slip_combined_decimal_odds)}</b></span>${first.slip_aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(first.slip_aggregate_comp_odds).toFixed(6)}</b></span>` : ''}<span>stake <b>${evAmount(first.slip_stake)}</b></span><span>parlay EV_ODDS <b>${evOdds(first.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(first.slip_ev_amount)}</b></span></div><details class="parlay-details" data-slip-id="${escapeHtml(first.slip_id)}"><summary>${detailsLabel}<span>⌄</span></summary><div class="parlay-leg-list">${legs.map(parlayLeg).join('')}</div></details></article>`;
     };
     const grouped = [];
     const parlays = new Map();

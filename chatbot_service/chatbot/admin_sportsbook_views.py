@@ -8,7 +8,8 @@ from rest_framework.views import APIView
 from .models import SportsbookPreference
 
 
-DEFAULT_COMPARISON_BOOKS = ["fanduel", "pinnacle"]
+BASELINE_SPORTSBOOK = "hardrockbet"
+DEFAULT_COMPARISON_BOOKS = ["fanduel", "pinnacle", "bet365"]
 
 
 def _server_request(request, path, method="get", payload=None):
@@ -65,7 +66,7 @@ class AdminSportsbookProxyView(APIView):
 class AdminSportsbookBetSlipView(APIView):
     """Forward a user betslip using the books saved in the monitor settings.
 
-    The Flutter sportsbook only sends DraftKings prices to the user interface.
+    The Flutter sportsbook only sends Hard Rock prices to the user interface.
     This server-side bridge adds the monitor's saved comparison books before
     forwarding the authenticated betslip to the EC2 API, so peer prices never
     need to be exposed in the betting UI.
@@ -76,7 +77,7 @@ class AdminSportsbookBetSlipView(APIView):
             return Response({"detail": "Log in before placing a sportsbook bet."}, status=status.HTTP_401_UNAUTHORIZED)
         preference = SportsbookPreference.objects.filter(pk=1).first()
         selected = preference.selected_books if preference else DEFAULT_COMPARISON_BOOKS
-        books = list(dict.fromkeys(["draftkings", *[str(book).strip().lower() for book in selected if str(book).strip()]]))[:5]
+        books = list(dict.fromkeys([BASELINE_SPORTSBOOK, *[str(book).strip().lower() for book in selected if str(book).strip()]]))[:5]
         payload = dict(request.data)
         payload["sportsbooks"] = books
         return _server_request(request, "bet/sportsbook/betslips/", method="post", payload=payload)
@@ -93,18 +94,18 @@ class AdminSportsbookSettingsView(APIView):
     def get(self, request):
         preference = SportsbookPreference.objects.filter(pk=1).first()
         selected = preference.selected_books if preference else DEFAULT_COMPARISON_BOOKS
-        return Response({"baseline": "draftkings", "selected_books": selected})
+        return Response({"baseline": BASELINE_SPORTSBOOK, "selected_books": selected})
 
     def post(self, request):
         selected = request.data.get("selected_books")
         if not isinstance(selected, list):
             return Response({"detail": "selected_books must be a list."}, status=status.HTTP_400_BAD_REQUEST)
         selected = list(dict.fromkeys(str(book).strip().lower() for book in selected if str(book).strip()))
-        selected = [book for book in selected if book != "draftkings"][:4]
+        selected = [book for book in selected if book != BASELINE_SPORTSBOOK][:4]
         if not selected:
             return Response({"detail": "Select at least one comparison book."}, status=status.HTTP_400_BAD_REQUEST)
         preference, _ = SportsbookPreference.objects.update_or_create(
             pk=1,
             defaults={"selected_books": selected},
         )
-        return Response({"baseline": "draftkings", "selected_books": preference.selected_books, "saved": True})
+        return Response({"baseline": BASELINE_SPORTSBOOK, "selected_books": preference.selected_books, "saved": True})
