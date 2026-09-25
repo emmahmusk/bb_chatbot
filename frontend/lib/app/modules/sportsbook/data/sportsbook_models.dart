@@ -93,18 +93,18 @@ class SportsbookOdd {
 }
 
 class SportsbookSelection {
-  final SportsbookOdd hardRock;
+  final SportsbookOdd draftKings;
   final List<SportsbookOdd> snapshot;
 
-  const SportsbookSelection({required this.hardRock, required this.snapshot});
+  const SportsbookSelection({required this.draftKings, required this.snapshot});
 
   Map<String, dynamic> toJson() => {
-        'fixture_id': hardRock.fixtureId,
-        'event': hardRock.event,
-        'sport': hardRock.sport,
-        'league': hardRock.league,
-        'market': hardRock.market,
-        'selection': hardRock.selection,
+        'fixture_id': draftKings.fixtureId,
+        'event': draftKings.event,
+        'sport': draftKings.sport,
+        'league': draftKings.league,
+        'market': draftKings.market,
+        'selection': draftKings.selection,
         'odds_snapshot': snapshot.map((odd) => {
               'fixture_id': odd.fixtureId,
               'event': odd.event,

@@ -195,12 +195,12 @@ try:
 except ValueError:
     OPTIC_ODDS_TIMEOUT_SECONDS = 12.0
 OPTIC_ODDS_PRIMARY_SPORTSBOOK = environ.get(
-    "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "hardrockbet"
+    "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings"
 ).strip().lower()
 OPTIC_ODDS_COMPARISON_SPORTSBOOKS = [
     book.strip().lower()
     for book in environ.get(
-        "OPTIC_ODDS_COMPARISON_SPORTSBOOKS", "fanduel,pinnacle,bet365"
+        "OPTIC_ODDS_COMPARISON_SPORTSBOOKS", "draftkings,fanduel,pinnacle"
     ).split(",")
     if book.strip()
 ]

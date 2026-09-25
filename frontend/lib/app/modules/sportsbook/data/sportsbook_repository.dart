@@ -33,7 +33,7 @@ class SportsbookRepository {
     // Peer books are intentionally hidden from the betting experience. The
     // chatbot monitor adds its saved comparison books server-side when the
     // betslip is recorded.
-    return (sports, const [SportsbookProvider(id: 'hardrockbet', name: 'Hard Rock')]);
+    return (sports, const [SportsbookProvider(id: 'draftkings', name: 'DraftKings')]);
   }
 
   Future<List<SportsbookLeague>> leagues(String sport) async {

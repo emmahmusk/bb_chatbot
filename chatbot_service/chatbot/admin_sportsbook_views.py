@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from .models import SportsbookPreference
 
 
-BASELINE_SPORTSBOOK = "hardrockbet"
+BASELINE_SPORTSBOOK = "draftkings"
 DEFAULT_COMPARISON_BOOKS = ["fanduel", "pinnacle", "bet365"]
 
 
@@ -66,7 +66,7 @@ class AdminSportsbookProxyView(APIView):
 class AdminSportsbookBetSlipView(APIView):
     """Forward a user betslip using the books saved in the monitor settings.
 
-    The Flutter sportsbook only sends Hard Rock prices to the user interface.
+    The Flutter sportsbook only sends DraftKings prices to the user interface.
     This server-side bridge adds the monitor's saved comparison books before
     forwarding the authenticated betslip to the EC2 API, so peer prices never
     need to be exposed in the betting UI.

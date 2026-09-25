@@ -15,7 +15,6 @@ class OpticOddsError(RuntimeError):
 
 
 PREVIEW_BOOKS = [
-    {"id": "hardrockbet", "name": "Hard Rock", "logo": "", "is_active": True},
     {"id": "draftkings", "name": "DraftKings", "logo": "", "is_active": True},
     {"id": "betmgm", "name": "BetMGM", "logo": "", "is_active": True},
     {"id": "fanduel", "name": "FanDuel", "logo": "", "is_active": True},

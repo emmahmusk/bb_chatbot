@@ -266,5 +266,5 @@ class OpticOddsClient:
 
 def default_sportsbooks() -> list[str]:
     configured = getattr(settings, "OPTIC_ODDS_COMPARISON_SPORTSBOOKS", [])
-    primary = getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "hardrockbet")
+    primary = getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")
     return list(dict.fromkeys([primary, *configured]))[:5]

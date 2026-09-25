@@ -28,7 +28,7 @@ GET /admin_panel/optic-odds/sports/
 GET /admin_panel/optic-odds/leagues/?sport=baseball
 GET /admin_panel/optic-odds/fixtures/?sport=baseball&league=mlb
 GET /admin_panel/optic-odds/fixtures/?sport=baseball&live_only=true
-GET /admin_panel/optic-odds/fixtures/<fixture_id>/odds/?sportsbooks=hardrockbet,fanduel,pinnacle,bet365&market=moneyline
+GET /admin_panel/optic-odds/fixtures/<fixture_id>/odds/?sportsbooks=draftkings,fanduel,pinnacle&market=moneyline
 ```
 
 Pass at least `sport` or `league`. The fixture endpoint merges OpticOdds' live feed with scheduled fixtures and
@@ -50,16 +50,16 @@ Content-Type: application/json
   "league": "mlb",
   "market": "Moneyline",
   "selection": "Los Angeles Dodgers",
-  "sportsbook": "hardrockbet",
+  "sportsbook": "draftkings",
   "stake": "25.00",
-  "sportsbooks": ["hardrockbet", "fanduel", "pinnacle", "bet365"]
+  "sportsbooks": ["draftkings", "fanduel", "pinnacle"]
 }
 ```
 
 The endpoint fetches a fresh snapshot, records the bet and returns a monitor
-note such as `Dodgers ML | Hard Rock 1.91 vs. fanduel: 1.95,
+note such as `Dodgers ML | DraftKings 1.91 vs. fanduel: 1.95,
 pinnacle: 1.99, bet365: 1.97 | Aggregate comp: 0.5136`. It also sets
-`is_potentially_bad` when the Hard Rock price is higher than every selected
+`is_potentially_bad` when the DraftKings price is higher than every selected
 peer, or is at least 0.20 decimal points and 10% above the lowest peer. The
 thresholds are configurable with `OPTIC_ODDS_AUDIT_MIN_DECIMAL_GAP` and
 `OPTIC_ODDS_AUDIT_MIN_RELATIVE_GAP`. Comparison providers are equally weighted.
@@ -74,4 +74,4 @@ GET /admin_panel/optic-odds/bets/monitor/?limit=50
 
 This returns the timestamped snapshots for an admin monitoring screen. These
 endpoints record an internal POC only; they do not place or settle a wager with
-Hard Rock or another sportsbook.
+DraftKings or another sportsbook.

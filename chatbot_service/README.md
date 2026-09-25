@@ -138,13 +138,13 @@ The standalone Render service includes two separate routes backed by the EC2
 server's admin OpticOdds API:
 
 - `/sportsbook/` — browse live/upcoming fixtures, select comparison books, view
-  Hard Rock as the baseline, and record a simulated selection.
+  DraftKings as the baseline, and record a simulated selection.
 - `/sportsbook/monitor/` — review timestamped comparison notes and potentially
   bad-bet flags. The feed refreshes automatically every 30 seconds.
 
 The Flutter sportsbook uses `POST /api/admin-sportsbook/betslips/` for placement.
 That bridge reads the comparison books saved on the monitor settings panel,
-keeps Hard Rock as the only betting-screen price, and forwards the authenticated
+keeps DraftKings as the only betting-screen price, and forwards the authenticated
 betslip to the EC2 sportsbook API. The EC2 service then stores the betslip and
 the full comparison snapshot used by this monitoring page.
 
