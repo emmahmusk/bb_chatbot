@@ -1,0 +1,8 @@
+.DS_Store
+
+/frontend/build/*
+__pycache__/
+*.py[cod]
+.env
+chatbot_service/db.sqlite3
+chatbot_service/staticfiles/

@@ -1,7 +1,6 @@
 .DS_Store
 
 /frontend/build/*
-.history/
 __pycache__/
 *.py[cod]
 .env
