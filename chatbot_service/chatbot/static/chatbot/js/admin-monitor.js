@@ -109,7 +109,21 @@
       if (detail) detail.open = true;
     });
   }
-  async function refresh() { $('refresh').disabled = true; try { let body = await api(); const incomingTotal = body.pagination?.total ?? body.bets?.length ?? 0; if (state.total !== null && incomingTotal > state.total && state.page !== 1) { state.page = 1; body = await api(); } render(body); } catch (error) { $('monitorList').innerHTML = `<div class="empty panel"><div>!</div><h3>Monitoring unavailable</h3><p>${error.message}</p></div>`; } finally { $('refresh').disabled = false; } }
+  let refreshInFlight = false;
+  async function refresh({ resetToFirst = false } = {}) {
+    if (refreshInFlight) return;
+    refreshInFlight = true;
+    if (resetToFirst) state.page = 1;
+    $('refresh').disabled = true;
+    try {
+      let body = await api();
+      const incomingTotal = body.pagination?.total ?? body.bets?.length ?? 0;
+      if (state.total !== null && incomingTotal > state.total && state.page !== 1) { state.page = 1; body = await api(); }
+      render(body);
+    } catch (error) {
+      $('monitorList').innerHTML = '<div class="empty panel"><div>!</div><h3>Monitoring unavailable</h3><p>We could not refresh the monitoring feed. Please try again.</p></div>';
+    } finally { refreshInFlight = false; $('refresh').disabled = false; }
+  }
   let searchTimer;
   $('search').addEventListener('input', (event) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { state.query = event.target.value.trim(); state.page = 1; refresh(); }, 250); });
   $('statusFilter').addEventListener('change', (event) => { state.status = event.target.value; state.page = 1; refresh(); });
@@ -117,6 +131,8 @@
   $('previous').addEventListener('click', () => { if (state.page > 1) { state.page -= 1; refresh(); } });
   $('next').addEventListener('click', () => { if (state.page < state.pages) { state.page += 1; refresh(); } });
   $('refresh').addEventListener('click', refresh);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh({ resetToFirst: true }); });
+  window.addEventListener('focus', () => refresh({ resetToFirst: true }));
   $('saveSettings').addEventListener('click', saveProviderSettings);
   $('settingsToggle').addEventListener('click', () => {
     const expanded = $('settingsToggle').getAttribute('aria-expanded') === 'true';
@@ -128,5 +144,5 @@
   if (window.location.hash === '#comparison-settings') $('settingsToggle').click();
   loadProviderSettings();
   refresh();
-  setInterval(refresh, 15000);
+  setInterval(() => refresh(), 15000);
 })();
