@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from admin_panel.models import OpticOddsBetMonitor, SportsbookBetSlip
-from admin_panel.optic_odds import OpticOddsClient, OpticOddsError, default_sportsbooks
+from admin_panel.optic_odds import OpticOddsClient, OpticOddsError, default_sportsbooks, DEMO_SPORTS, DEMO_LEAGUES, demo_fixtures, demo_odds
 
 
 def _error(exc: OpticOddsError) -> Response:
@@ -64,7 +64,37 @@ def _matching(rows, market, selection):
     ]
 
 
-def _comparison(matching, primary=None):
+def _normalise_weights(providers, supplied=None):
+    """Return normalized weights for available peer providers only.
+
+    The UI accepts percentages (40) while the API also accepts fractions
+    (0.4). Missing/invalid providers are excluded and the remaining values are
+    renormalized so the aggregate always sums to one.
+    """
+    names = list(dict.fromkeys(str(provider).strip().lower() for provider in providers if str(provider).strip()))
+    if not names:
+        return {}
+    supplied = supplied if isinstance(supplied, dict) else {}
+    values = {}
+    for name in names:
+        try:
+            value = Decimal(str(supplied.get(name, "")))
+            if not value.is_finite() or value < 0:
+                value = Decimal("0")
+        except (InvalidOperation, TypeError, ValueError):
+            value = Decimal("0")
+        values[name] = value
+    # A sum above one is treated as percentage points, e.g. 40 + 40 + 20.
+    if sum(values.values(), Decimal("0")) > Decimal("1.000001"):
+        values = {name: value / Decimal("100") for name, value in values.items()}
+    total = sum(values.values(), Decimal("0"))
+    if total <= 0:
+        equal = Decimal("1") / Decimal(len(names))
+        return {name: equal for name in names}
+    return {name: value / total for name, value in values.items() if value > 0}
+
+
+def _comparison(matching, primary=None, weights=None):
     primary = str(primary or getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")).strip().lower()
     provider_odds = {}
     raw_by_provider = {}
@@ -77,9 +107,11 @@ def _comparison(matching, primary=None):
     primary_line = provider_odds.get(primary)
     if not primary_line:
         return None
-    peers = [Decimal(str(line.get("decimal_raw", line["decimal"]))) for book, line in provider_odds.items() if book != primary]
+    peer_lines = {book: Decimal(str(line.get("decimal_raw", line["decimal"]))) for book, line in provider_odds.items() if book != primary}
+    provider_weights = _normalise_weights(peer_lines, weights)
+    peers = [peer_lines[book] for book in provider_weights]
     primary_decimal = Decimal(str(primary_line.get("decimal_raw", primary_line["decimal"])))
-    aggregate_comp_odds = sum((Decimal("1") / decimal for decimal in peers), Decimal("0")) / len(peers) if peers else None
+    aggregate_comp_odds = sum((provider_weights[book] * (Decimal("1") / peer_lines[book]) for book in provider_weights), Decimal("0")) if peers else None
     ev_odds = (Decimal("1") / primary_decimal - aggregate_comp_odds) if aggregate_comp_odds is not None else None
     lowest = min(peers) if peers else None
     highest = max(peers) if peers else None
@@ -89,7 +121,7 @@ def _comparison(matching, primary=None):
     significant = edge is not None and Decimal(str(edge)) >= Decimal(str(getattr(settings, "OPTIC_ODDS_AUDIT_MIN_DECIMAL_GAP", 0.20))) and relative >= Decimal(str(getattr(settings, "OPTIC_ODDS_AUDIT_MIN_RELATIVE_GAP", 0.10)))
     flagged = bool(above_all or significant)
     reason = "Higher than every selected provider" if above_all else ("Significantly above the lowest selected price" if significant else "Within the selected market range")
-    probability = sum((Decimal("1") / Decimal(str(line.get("decimal_raw", line["decimal"]))) for line in provider_odds.values()), Decimal("0")) / len(provider_odds) if provider_odds else None
+    probability = aggregate_comp_odds
     return {
         "provider_odds": provider_odds,
         "raw_by_provider": raw_by_provider,
@@ -98,6 +130,7 @@ def _comparison(matching, primary=None):
         "fair_decimal": round(float(Decimal("1") / probability), 4) if probability else None,
         "aggregate_comp_odds": round(float(aggregate_comp_odds), 6) if aggregate_comp_odds is not None else None,
         "aggregate_comp_odds_raw": aggregate_comp_odds,
+        "provider_weights": {book: round(float(weight), 8) for book, weight in provider_weights.items()},
         "ev_odds": round(float(ev_odds), 6) if ev_odds is not None else None,
         "ev_odds_raw": ev_odds,
         "edge_decimal": edge,
@@ -130,6 +163,7 @@ def _leg_payload(leg, result, event="", wager_amount=Decimal("0"), primary=None)
         "primary_sportsbook": primary,
         "primary_decimal": result["primary"]["decimal"],
         "provider_odds": result["provider_odds"],
+        "provider_weights": result.get("provider_weights", {}),
         "weighted_implied_probability": result["weighted_implied_probability"],
         "fair_decimal": result["fair_decimal"],
         "aggregate_comp_odds": result["aggregate_comp_odds"],
@@ -142,7 +176,7 @@ def _leg_payload(leg, result, event="", wager_amount=Decimal("0"), primary=None)
     }
 
 
-def _parlay_comparison(leg_records, baseline=None):
+def _parlay_comparison(leg_records, baseline=None, weights=None):
     """Calculate parlay EV from each peer's combined price.
 
     A peer is eligible only when it has a valid decimal quote for every leg.
@@ -166,12 +200,14 @@ def _parlay_comparison(leg_records, baseline=None):
         for leg in leg_records:
             combined *= Decimal(str(leg["provider_odds"][provider].get("decimal_raw", leg["provider_odds"][provider]["decimal"])))
         peer_combined[provider] = combined
-    aggregate_raw = sum((Decimal("1") / combined for combined in peer_combined.values()), Decimal("0")) / len(peer_combined)
+    provider_weights = _normalise_weights(peer_combined, weights)
+    aggregate_raw = sum((provider_weights[provider] * (Decimal("1") / peer_combined[provider]) for provider in provider_weights), Decimal("0"))
     baseline_probability = Decimal("1") / baseline_combined
     ev_raw = baseline_probability - aggregate_raw
     return {
         "baseline_combined": baseline_combined,
         "peer_combined": peer_combined,
+        "provider_weights": {provider: round(float(weight), 8) for provider, weight in provider_weights.items()},
         "aggregate_comp_odds_raw": aggregate_raw,
         "aggregate_comp_odds": round(float(aggregate_raw), 6),
         "ev_odds_raw": ev_raw,
@@ -185,9 +221,9 @@ class SportsbookCatalogView(APIView):
     def get(self, request):
         try:
             client = OpticOddsClient()
-            return Response({"sports": client.sports(), "providers": _configured_books()})
+            return Response({"sports": client.sports(), "providers": _configured_books(), "demo": False})
         except OpticOddsError as exc:
-            return _error(exc)
+            return Response({"sports": DEMO_SPORTS, "providers": _configured_books(), "demo": True, "preview": True, "detail": str(exc)})
 
 
 class SportsbookLeaguesView(APIView):
@@ -197,7 +233,8 @@ class SportsbookLeaguesView(APIView):
         try:
             return Response({"leagues": OpticOddsClient().leagues(request.query_params.get("sport"))})
         except OpticOddsError as exc:
-            return _error(exc)
+            sport = request.query_params.get("sport")
+            return Response({"leagues": DEMO_LEAGUES.get(str(sport or "").lower(), []), "demo": True, "preview": True, "detail": str(exc)})
 
 
 class SportsbookFixturesView(APIView):
@@ -224,9 +261,12 @@ class SportsbookFixturesView(APIView):
                 start_date_after=start_after,
                 start_date_before=request.query_params.get("start_date_before"),
             )
-            return Response({"fixtures": fixtures, "count": len(fixtures)})
+            return Response({"fixtures": fixtures, "count": len(fixtures), "demo": False})
         except OpticOddsError as exc:
-            return _error(exc)
+            fixtures = demo_fixtures(sport, league)
+            if live_only:
+                fixtures = []
+            return Response({"fixtures": fixtures, "count": len(fixtures), "demo": True, "preview": True, "detail": str(exc)})
 
 
 class SportsbookOddsView(APIView):
@@ -236,9 +276,10 @@ class SportsbookOddsView(APIView):
         books = _books(request)
         try:
             rows = OpticOddsClient().odds(fixture_id, books, market=request.query_params.get("market", "moneyline"))
-            return Response({"fixture_id": fixture_id, "sportsbooks": books, "odds": rows})
+            return Response({"fixture_id": fixture_id, "sportsbooks": books, "odds": rows, "demo": False})
         except OpticOddsError as exc:
-            return _error(exc)
+            rows = demo_odds(fixture_id, books, request.query_params.get("market", "moneyline"))
+            return Response({"fixture_id": fixture_id, "sportsbooks": books, "odds": rows, "demo": True, "preview": True, "detail": str(exc)})
 
 
 class SportsbookRecordBetSlipView(APIView):
@@ -258,6 +299,7 @@ class SportsbookRecordBetSlipView(APIView):
             return Response({"detail": "Stake must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
 
         books = _books(request, data)
+        provider_weights = data.get("provider_weights") if isinstance(data.get("provider_weights"), dict) else {}
         primary = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")).strip().lower()
         client = OpticOddsClient()
         leg_records = []
@@ -279,8 +321,14 @@ class SportsbookRecordBetSlipView(APIView):
                 # fresh comparison snapshot here using the books selected in
                 # the chatbot monitor settings before writing the audit record.
                 if not rows or any(book not in snapshot_books for book in books):
-                    rows = client.odds(fixture_id, books, market=market)
-                result = _comparison(_matching(rows, market, selection), primary=primary)
+                    try:
+                        rows = client.odds(fixture_id, books, market=market)
+                    except OpticOddsError:
+                        # Keep the submitted baseline snapshot and fill any
+                        # missing peers with deterministic demo prices.
+                        demo_rows = demo_odds(fixture_id, books, market)
+                        rows = rows + [row for row in demo_rows if str(row.get("sportsbook", "")).lower() not in snapshot_books]
+                result = _comparison(_matching(rows, market, selection), primary=primary, weights=provider_weights)
                 if not result:
                     return Response({"detail": f"DraftKings odds are unavailable for {selection}."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
                 event = str(leg.get("event") or "")
@@ -296,7 +344,7 @@ class SportsbookRecordBetSlipView(APIView):
             # DraftKings price.
             combined = combined.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
             payout = (stake * combined).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            parlay_comparison = _parlay_comparison(leg_records) if len(leg_records) > 1 else None
+            parlay_comparison = _parlay_comparison(leg_records, weights=provider_weights) if len(leg_records) > 1 else None
             if len(leg_records) > 1:
                 combined_ev_odds = parlay_comparison["ev_odds"] if parlay_comparison else None
                 combined_ev_amount = (stake * parlay_comparison["ev_odds_raw"]).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if parlay_comparison else None
@@ -324,7 +372,7 @@ class SportsbookRecordBetSlipView(APIView):
                     sportsbook_slip=slip,
                     fixture_id=leg["fixture_id"], event=leg["event"], sport=leg["sport"], league=leg["league"], market=leg["market"], selection=leg["selection"],
                     primary_sportsbook=primary, primary_price=str(leg["provider_odds"][primary].get("price", "")), primary_decimal=leg["primary_decimal"], stake=stake,
-                    provider_odds=leg["provider_odds"], provider_weights={book: 1 / len(leg["provider_odds"]) for book in leg["provider_odds"]}, weighted_implied_probability=leg["weighted_implied_probability"], fair_decimal=leg["fair_decimal"],
+                    provider_odds=leg["provider_odds"], provider_weights=leg.get("provider_weights", {}), weighted_implied_probability=leg["weighted_implied_probability"], fair_decimal=leg["fair_decimal"],
                     aggregate_comp_odds=leg["aggregate_comp_odds"], ev_odds=leg["ev_odds"], ev_amount=leg["ev_amount"],
                     is_potentially_bad=leg["is_potentially_bad"], audit_reason=leg["audit_reason"], edge_decimal=leg["edge_decimal"], note=leg["note"], odds_snapshot=leg["odds_snapshot"],
                 )

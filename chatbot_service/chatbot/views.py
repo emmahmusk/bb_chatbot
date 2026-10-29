@@ -125,6 +125,10 @@ class AdminMonitorPageView(TemplateView):
     template_name = "chatbot/admin_monitor.html"
 
 
+class DemoOddsLabPageView(TemplateView):
+    template_name = "chatbot/demo_odds_lab.html"
+
+
 class HealthView(APIView):
     def get(self, request):
         with connection.cursor() as cursor:

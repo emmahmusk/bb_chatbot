@@ -115,6 +115,7 @@ class SportsbookPreference(models.Model):
     """
 
     selected_books = models.JSONField(default=list, blank=True)
+    provider_weights = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

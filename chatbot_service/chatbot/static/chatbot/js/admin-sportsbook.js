@@ -1,9 +1,10 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { sports: [], leagues: [], fixtures: [], rows: [], books: ['draftkings', 'fanduel', 'pinnacle'], selectedFixture: null };
+  const state = { sports: [], leagues: [], fixtures: [], rows: [], books: ['draftkings', 'fanduel', 'pinnacle'], selectedFixture: null, demo: false };
   const names = { hardrockbet: 'Hard Rock', hardrock: 'Hard Rock', draftkings: 'DraftKings', fanduel: 'FanDuel', pinnacle: 'Pinnacle', betmgm: 'BetMGM', caesars: 'Caesars', bet365: 'bet365', fanatics: 'Fanatics' };
   const api = (path, options = {}) => fetch(`/api/admin-sportsbook/${path}`, { cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }).then(async (response) => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(`${body.detail || body.error || 'The admin server returned an error.'} (HTTP ${response.status})`); return body; });
   const setError = (message = '') => { $('error').textContent = message; };
+  const setDemoNotice = (demo) => { $('boardNoticeTitle').textContent = demo ? 'Demo sportsbook mode' : 'DraftKings baseline'; $('boardNoticeText').textContent = demo ? 'OpticOdds is unavailable, so these deterministic sample prices are for testing only and are not live betting odds.' : 'Prices are shown like a sportsbook. Selecting a DraftKings line records its comparison snapshot.'; };
   const bookName = (id) => names[String(id).toLowerCase()] || String(id).replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const american = (value) => { if (value === null || value === undefined || value === '') return '—'; const number = Number(value); return Number.isFinite(number) ? `${number > 0 ? '+' : ''}${number}` : String(value); };
   const money = (value) => value == null ? '—' : Number(value).toFixed(2);
@@ -33,6 +34,8 @@
 
   async function loadSports() {
     const body = await api('sports/');
+    state.demo = !!body.demo;
+    setDemoNotice(state.demo);
     state.sports = body.sports || [];
     setOptions($('sport'), state.sports, 'Choose a sport');
     const first = state.sports[0];
@@ -47,7 +50,8 @@
     $('fixtureMeta').textContent = '';
     $('oddsGrid').innerHTML = '<div class="empty"><div>↗</div><h3>Choose a league</h3><p>The first five upcoming fixtures will appear here.</p></div>';
     $('boardTitle').textContent = 'Choose a league';
-    $('boardStatus').textContent = 'Waiting for selection';
+    $('boardStatus').textContent = state.demo ? 'DEMO MODE' : 'Waiting for selection';
+    $('boardStatus').classList.toggle('demo', state.demo);
     if (!sport) return;
     const body = await api(`leagues/?sport=${encodeURIComponent(sport)}`);
     state.leagues = body.leagues || [];
@@ -76,6 +80,8 @@
     const params = new URLSearchParams({ sport, league, ...(live ? { live_only: 'true' } : {}) });
     try {
       const body = await api(`fixtures/?${params}`);
+      state.demo = !!body.demo;
+      setDemoNotice(state.demo);
       state.fixtures = (body.fixtures || []).sort((a, b) => { if (Boolean(a.is_live) !== Boolean(b.is_live)) return a.is_live ? -1 : 1; const aTime = a.start_date ? new Date(a.start_date).getTime() : Number.MAX_SAFE_INTEGER; const bTime = b.start_date ? new Date(b.start_date).getTime() : Number.MAX_SAFE_INTEGER; return aTime - bTime; });
       setOptions($('fixture'), state.fixtures.map((fixture) => ({ ...fixture, id: fixture.fixture_id, label: fixtureLabel(fixture) })), 'Choose a fixture');
       $('fixtureMeta').textContent = `${state.fixtures.length} available · first 5 shown`;
@@ -129,8 +135,11 @@
       state.rows = body.odds || [];
       state.selectedFixture = state.fixtures.find((fixture) => fixture.fixture_id === fixtureId) || state.selectedFixture;
       $('boardTitle').textContent = state.selectedFixture?.event || 'Selected fixture';
-      $('boardStatus').textContent = state.selectedFixture?.is_live ? 'LIVE NOW' : 'UPCOMING';
+      state.demo = !!body.demo;
+      setDemoNotice(state.demo);
+      $('boardStatus').textContent = body.demo || state.demo ? 'DEMO PRICES' : (state.selectedFixture?.is_live ? 'LIVE NOW' : 'UPCOMING');
       $('boardStatus').classList.toggle('live', !!state.selectedFixture?.is_live);
+      $('boardStatus').classList.toggle('demo', body.demo || state.demo);
       renderFixtureRail();
       renderRows(state.rows);
     } catch (error) {

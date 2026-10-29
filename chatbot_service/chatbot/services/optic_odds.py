@@ -18,6 +18,7 @@ PREVIEW_BOOKS = [
     {"id": "draftkings", "name": "DraftKings", "logo": "", "is_active": True},
     {"id": "betmgm", "name": "BetMGM", "logo": "", "is_active": True},
     {"id": "fanduel", "name": "FanDuel", "logo": "", "is_active": True},
+    {"id": "pinnacle", "name": "Pinnacle", "logo": "", "is_active": True},
     {"id": "caesars", "name": "Caesars", "logo": "", "is_active": True},
     {"id": "bet365", "name": "bet365", "logo": "", "is_active": True},
     {"id": "fanatics", "name": "Fanatics Sportsbook", "logo": "", "is_active": True},
@@ -221,8 +222,7 @@ def _normalise_snapshot(items, selected_books):
 
 
 def _preview_snapshot(selected_books):
-    names = {book["id"]: book["name"] for book in PREVIEW_BOOKS}
-    books = [names.get(book, book) for book in (selected_books or [book["id"] for book in PREVIEW_BOOKS[:3]])]
+    books = [_canonical_sportsbook(book) for book in (selected_books or [book["id"] for book in PREVIEW_BOOKS[:3]])]
     selections = [("Lakers", -115), ("Celtics", 105)]
     now = datetime.now(timezone.utc).isoformat()
     return [

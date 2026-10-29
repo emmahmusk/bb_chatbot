@@ -5,11 +5,11 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#090e17"><title>Sportsbook · BullBear</title>
   <link rel="icon" href="{% static 'chatbot/images/bullbear_logo.png' %}">
-  <link rel="stylesheet" href="{% static 'chatbot/css/admin-sportsbook.css' %}">
+  <link rel="stylesheet" href="{% static 'chatbot/css/admin-sportsbook.css' %}?v=4">
 </head>
 <body>
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
-  <header class="topbar"><a class="brand" href="/"><img src="{% static 'chatbot/images/bullbear_logo.png' %}" alt="BullBear"><span></span><b>ODDS LAB</b></a><nav><a class="active" href="/sportsbook/">Sportsbook</a><a href="/sportsbook/monitor/">Monitor <em id="alertCount"></em></a><a href="/">Market assistant</a></nav><div class="feed"><i></i> Admin odds feed</div></header>
+  <header class="topbar"><a class="brand" href="/"><img src="{% static 'chatbot/images/bullbear_logo.png' %}" alt="BullBear"><span></span><b>ODDS LAB</b></a><nav><a class="active" href="/sportsbook/">Sportsbook</a><a href="/sportsbook/monitor/">Monitor <em id="alertCount"></em></a><a href="/sportsbook/demo-lab/">Demo lab</a><a href="/">Market assistant</a></nav><div class="feed"><i></i> Admin odds feed</div></header>
   <main>
     <section class="intro"><div class="kicker"><i></i> ADMIN SPORTSBOOK</div><h1>Shop the line.<br><strong>Bet with context.</strong></h1><p>Browse live and upcoming fixtures, take the DraftKings baseline, and compare every available price before recording a bet.</p><div class="trust"><span>DraftKings baseline</span><span>Live + upcoming</span><span>Provider audit</span></div></section>
     <section class="shell">
@@ -23,11 +23,11 @@
         <div class="settings-callout"><span>✦</span><div><b>Comparison books</b><small>DraftKings is the baseline. Admins choose peer books in Monitor settings.</small></div><a href="/sportsbook/monitor/#comparison-settings" aria-label="Open comparison settings">→</a></div>
         <div class="error" id="error" role="alert"></div>
       </aside>
-      <section class="board panel"><div class="board-head"><div><div class="eyebrow"><i></i> LIVE SNAPSHOT</div><h2 id="boardTitle">Choose a league</h2></div><span class="status-pill" id="boardStatus">Waiting for selection</span></div><div class="notice"><span>✦</span><div><b>DraftKings baseline</b><small>Prices are shown like a sportsbook. Selecting a DraftKings line records its comparison snapshot.</small></div></div><div class="fixture-rail hidden" id="fixtureRail" aria-label="Upcoming fixtures"></div><div class="odds-grid" id="oddsGrid"><div class="empty"><div>↗</div><h3>Your odds board is ready</h3><p>Choose a sport and league to see the first five upcoming fixtures.</p></div></div></section>
+      <section class="board panel"><div class="board-head"><div><div class="eyebrow"><i></i> LIVE SNAPSHOT</div><h2 id="boardTitle">Choose a league</h2></div><span class="status-pill" id="boardStatus">Waiting for selection</span></div><div class="notice"><span>✦</span><div><b id="boardNoticeTitle">DraftKings baseline</b><small id="boardNoticeText">Prices are shown like a sportsbook. Selecting a DraftKings line records its comparison snapshot.</small></div></div><div class="fixture-rail hidden" id="fixtureRail" aria-label="Upcoming fixtures"></div><div class="odds-grid" id="oddsGrid"><div class="empty"><div>↗</div><h3>Your odds board is ready</h3><p>Choose a sport and league to see the first five upcoming fixtures.</p></div></div></section>
     </section>
     <section class="ticket panel hidden" id="ticket"><div><div class="eyebrow"><i></i> BET RECORDED</div><h2>Comparison note created</h2><p id="ticketNote"></p></div><a href="/sportsbook/monitor/" class="secondary">Open monitoring <span>→</span></a></section>
     <p class="fine-print">Prices are informational and can move at any time. This admin POC records a selection and its comparison snapshot; it does not place a real sportsbook wager.</p>
   </main>
-  <script src="{% static 'chatbot/js/admin-sportsbook.js' %}?v=4" defer></script>
+  <script src="{% static 'chatbot/js/admin-sportsbook.js' %}?v=5" defer></script>
 </body>
 </html>

@@ -55,12 +55,37 @@ def _proxy(request, path, method="get", payload=None):
     return _server_request(request, f"admin_panel/optic-odds/{path.lstrip('/')}", method=method, payload=payload)
 
 
+def _normalise_weights(selected, supplied=None):
+    selected = list(dict.fromkeys(str(book).strip().lower() for book in selected if str(book).strip()))
+    supplied = supplied if isinstance(supplied, dict) else {}
+    values = {}
+    for book in selected:
+        try:
+            value = float(supplied.get(book, 0))
+            values[book] = max(0.0, value) if value == value and value != float("inf") else 0.0
+        except (TypeError, ValueError):
+            values[book] = 0.0
+    total = sum(values.values())
+    if total > 1.000001:
+        values = {book: value / 100 for book, value in values.items()}
+        total = sum(values.values())
+    if total <= 0:
+        return {book: round(1 / len(selected), 8) for book in selected} if selected else {}
+    return {book: round(value / total, 8) for book, value in values.items() if value > 0}
+
+
 class AdminSportsbookProxyView(APIView):
     def get(self, request, resource="sports"):
         return _proxy(request, resource)
 
     def post(self, request):
-        return _proxy(request, "bets/", method="post", payload=request.data)
+        preference = SportsbookPreference.objects.filter(pk=1).first()
+        selected = preference.selected_books if preference else DEFAULT_COMPARISON_BOOKS
+        books = list(dict.fromkeys([BASELINE_SPORTSBOOK, *[str(book).strip().lower() for book in selected if str(book).strip()]]))[:5]
+        payload = dict(request.data)
+        payload["sportsbooks"] = books
+        payload["provider_weights"] = _normalise_weights(selected, preference.provider_weights if preference else None)
+        return _proxy(request, "bets/", method="post", payload=payload)
 
 
 class AdminSportsbookBetSlipView(APIView):
@@ -80,6 +105,7 @@ class AdminSportsbookBetSlipView(APIView):
         books = list(dict.fromkeys([BASELINE_SPORTSBOOK, *[str(book).strip().lower() for book in selected if str(book).strip()]]))[:5]
         payload = dict(request.data)
         payload["sportsbooks"] = books
+        payload["provider_weights"] = _normalise_weights(selected, preference.provider_weights if preference else None)
         return _server_request(request, "bet/sportsbook/betslips/", method="post", payload=payload)
 
 
@@ -88,13 +114,27 @@ class AdminMonitorProxyView(APIView):
         return _proxy(request, "bets/monitor/")
 
 
+class AdminDemoOddsProxyView(APIView):
+    """Bridge the Demo Odds Lab to the protected EC2 admin endpoint."""
+
+    def get(self, request):
+        return _proxy(request, "demo-odds/")
+
+    def post(self, request):
+        return _proxy(request, "demo-odds/", method="post", payload=request.data)
+
+    def delete(self, request):
+        return _proxy(request, "demo-odds/", method="delete", payload=request.data)
+
+
 class AdminSportsbookSettingsView(APIView):
     """Persist the shared comparison-book selection for the admin POC."""
 
     def get(self, request):
         preference = SportsbookPreference.objects.filter(pk=1).first()
         selected = preference.selected_books if preference else DEFAULT_COMPARISON_BOOKS
-        return Response({"baseline": BASELINE_SPORTSBOOK, "selected_books": selected})
+        weights = preference.provider_weights if preference and preference.provider_weights else _normalise_weights(selected)
+        return Response({"baseline": BASELINE_SPORTSBOOK, "selected_books": selected, "provider_weights": weights})
 
     def post(self, request):
         selected = request.data.get("selected_books")
@@ -104,8 +144,9 @@ class AdminSportsbookSettingsView(APIView):
         selected = [book for book in selected if book != BASELINE_SPORTSBOOK][:4]
         if not selected:
             return Response({"detail": "Select at least one comparison book."}, status=status.HTTP_400_BAD_REQUEST)
+        weights = _normalise_weights(selected, request.data.get("provider_weights"))
         preference, _ = SportsbookPreference.objects.update_or_create(
             pk=1,
-            defaults={"selected_books": selected},
+            defaults={"selected_books": selected, "provider_weights": weights},
         )
-        return Response({"baseline": BASELINE_SPORTSBOOK, "selected_books": preference.selected_books, "saved": True})
+        return Response({"baseline": BASELINE_SPORTSBOOK, "selected_books": preference.selected_books, "provider_weights": preference.provider_weights, "saved": True})

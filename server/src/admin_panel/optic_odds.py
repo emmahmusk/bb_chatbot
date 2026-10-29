@@ -268,3 +268,107 @@ def default_sportsbooks() -> list[str]:
     configured = getattr(settings, "OPTIC_ODDS_COMPARISON_SPORTSBOOKS", [])
     primary = getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")
     return list(dict.fromkeys([primary, *configured]))[:5]
+
+
+# Deterministic fallback data keeps the sportsbook usable while an OpticOdds
+# key is missing, expired, or temporarily unavailable.  It is deliberately
+# small and clearly marked by the API responses as demo data; it must never be
+# mistaken for a live price feed.
+DEMO_SPORTS = [
+    {"id": "soccer", "name": "Soccer"},
+    {"id": "basketball", "name": "Basketball"},
+    {"id": "baseball", "name": "Baseball"},
+    {"id": "football", "name": "Football"},
+    {"id": "hockey", "name": "Hockey"},
+    {"id": "tennis", "name": "Tennis"},
+]
+DEMO_LEAGUES = {
+    "soccer": [{"id": "england_-_premier_league", "name": "England - Premier League"}],
+    "basketball": [{"id": "nba", "name": "NBA"}],
+    "baseball": [{"id": "mlb", "name": "MLB"}],
+    "football": [{"id": "nfl", "name": "NFL"}],
+    "hockey": [{"id": "nhl", "name": "NHL"}],
+    "tennis": [{"id": "atp", "name": "ATP"}],
+}
+_DEMO_TEAMS = {
+    "soccer": [("Arsenal FC", "Chelsea FC"), ("Liverpool FC", "Everton FC"), ("Leeds United FC", "Aston Villa FC"), ("Brighton & Hove Albion FC", "Sunderland AFC"), ("Newcastle United FC", "Tottenham Hotspur FC")],
+    "basketball": [("Boston Celtics", "Los Angeles Lakers"), ("Denver Nuggets", "Phoenix Suns"), ("New York Knicks", "Milwaukee Bucks"), ("Golden State Warriors", "Dallas Mavericks"), ("Miami Heat", "Chicago Bulls")],
+    "baseball": [("New York Yankees", "Boston Red Sox"), ("Los Angeles Dodgers", "San Diego Padres"), ("Atlanta Braves", "New York Mets"), ("Chicago Cubs", "St. Louis Cardinals"), ("Philadelphia Phillies", "Washington Nationals")],
+    "football": [("Kansas City Chiefs", "Buffalo Bills"), ("Dallas Cowboys", "Philadelphia Eagles"), ("San Francisco 49ers", "Seattle Seahawks"), ("Baltimore Ravens", "Cincinnati Bengals"), ("Green Bay Packers", "Chicago Bears")],
+    "hockey": [("Toronto Maple Leafs", "Montreal Canadiens"), ("Boston Bruins", "New York Rangers"), ("Edmonton Oilers", "Vancouver Canucks"), ("Colorado Avalanche", "Dallas Stars"), ("Florida Panthers", "Tampa Bay Lightning")],
+    "tennis": [("Carlos Alcaraz", "Jannik Sinner"), ("Aryna Sabalenka", "Iga Swiatek"), ("Novak Djokovic", "Alexander Zverev"), ("Coco Gauff", "Elena Rybakina"), ("Daniil Medvedev", "Taylor Fritz")],
+}
+
+
+def demo_fixtures(sport: str | None = None, league: str | None = None) -> list[dict]:
+    sport = str(sport or "soccer").lower()
+    league = league or (DEMO_LEAGUES.get(sport) or [{"id": "demo", "name": "Demo League"}])[0]["id"]
+    teams = _DEMO_TEAMS.get(sport, _DEMO_TEAMS["soccer"])
+    return [{
+        "fixture_id": f"demo-{sport}-{index + 1:03d}",
+        "event": f"{away} @ {home}",
+        "home_team": home,
+        "away_team": away,
+        "sport": sport,
+        "league": league,
+        "start_date": (datetime.now(timezone.utc).replace(microsecond=0)).isoformat().replace("+00:00", "Z"),
+        "status": "scheduled",
+        "is_live": False,
+        "has_odds": True,
+        "demo": True,
+    } for index, (home, away) in enumerate(teams)]
+
+
+def demo_odds(fixture_id: str, sportsbooks: list[str], market: str = "moneyline") -> list[dict]:
+    fixture_id = str(fixture_id)
+    match = re.search(r"demo-([a-z]+)-(\d+)", fixture_id)
+    sport = match.group(1) if match else "soccer"
+    index = int(match.group(2)) - 1 if match else 0
+    fixtures = demo_fixtures(sport)
+    fixture = fixtures[index % len(fixtures)]
+    selections = [fixture["home_team"], "Draw", fixture["away_team"]] if sport == "soccer" else [fixture["home_team"], fixture["away_team"]]
+    base = [1.75, 3.60, 2.15] if sport == "soccer" else [1.78, 2.08]
+    books = [str(book).strip().lower() for book in sportsbooks if str(book).strip()]
+    rows = []
+    for book_index, book in enumerate(dict.fromkeys(books)):
+        for selection_index, selection in enumerate(selections):
+            decimal = base[selection_index] + (book_index * 0.04) + (((index + selection_index) % 3) * 0.01)
+            american = round((decimal - 1) * 100) if decimal >= 2 else round(-100 / (decimal - 1))
+            rows.append({
+                "fixture_id": fixture_id,
+                "event": fixture["event"],
+                "start_date": fixture["start_date"],
+                "status": "scheduled",
+                "sportsbook": book,
+                "market": market,
+                "selection": selection,
+                "price": american,
+                "decimal": round(decimal, 4),
+                "updated_at": fixture["start_date"],
+                "demo": True,
+            })
+    # Apply admin-entered demo movements after generating the deterministic
+    # baseline. Overrides are keyed by fixture/provider/market/selection, so
+    # every subsequent comparison and EV calculation sees the new price.
+    try:
+        from admin_panel.models import DemoOddsOverride
+        overrides = DemoOddsOverride.objects.filter(
+            fixture_id=fixture_id,
+            sportsbook__in=books,
+            market=market,
+            active=True,
+        )
+        override_map = {(item.sportsbook.lower(), item.selection.lower()): item for item in overrides}
+        for row in rows:
+            item = override_map.get((row["sportsbook"].lower(), row["selection"].lower()))
+            if not item:
+                continue
+            decimal = float(item.decimal_odds)
+            row["decimal"] = round(decimal, 4)
+            row["price"] = item.american_price if item.american_price is not None else (round((decimal - 1) * 100) if decimal >= 2 else round(-100 / (decimal - 1)))
+            row["demo_override"] = True
+    except Exception:
+        # Demo mode must remain usable during a first boot before migrations
+        # have run; the deterministic prices are still safe in that case.
+        pass
+    return rows

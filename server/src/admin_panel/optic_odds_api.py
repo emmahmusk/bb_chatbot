@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.core.paginator import Paginator
@@ -10,8 +11,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from admin_panel.models import OpticOddsBetMonitor
-from admin_panel.optic_odds import OpticOddsClient, OpticOddsError, default_sportsbooks
+from admin_panel.models import DemoOddsOverride, OpticOddsBetMonitor
+from admin_panel.optic_odds import OpticOddsClient, OpticOddsError, default_sportsbooks, DEMO_SPORTS, DEMO_LEAGUES, demo_fixtures, demo_odds
 from admin_panel.permissions import IsAdminOrServiceKey
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,25 @@ def _weighted(rows: list[dict], weights: dict) -> tuple[dict, float | None, floa
     return provider_odds, round(probability, 6), round(1 / probability, 4) if probability else None
 
 
+def _normalise_peer_weights(providers, supplied=None):
+    providers = list(dict.fromkeys(str(provider).strip().lower() for provider in providers if str(provider).strip()))
+    supplied = supplied if isinstance(supplied, dict) else {}
+    values = {}
+    for provider in providers:
+        try:
+            value = float(supplied.get(provider, 0))
+            values[provider] = max(0.0, value) if value == value and value != float("inf") else 0.0
+        except (TypeError, ValueError):
+            values[provider] = 0.0
+    total = sum(values.values())
+    if total > 1.000001:
+        values = {provider: value / 100 for provider, value in values.items()}
+        total = sum(values.values())
+    if total <= 0:
+        return {provider: 1 / len(providers) for provider in providers} if providers else {}
+    return {provider: value / total for provider, value in values.items() if value > 0}
+
+
 class OpticOddsBaseView(APIView):
     permission_classes = [IsAdminOrServiceKey]
 
@@ -80,17 +100,17 @@ class OpticOddsBaseView(APIView):
 class AdminOpticOddsSportsView(OpticOddsBaseView):
     def get(self, request):
         try:
-            return Response({"sports": OpticOddsClient().sports()})
+            return Response({"sports": OpticOddsClient().sports(), "demo": False})
         except OpticOddsError as exc:
-            return _error(exc)
+            return Response({"sports": DEMO_SPORTS, "demo": True, "preview": True, "detail": str(exc)})
 
 
 class AdminOpticOddsLeaguesView(OpticOddsBaseView):
     def get(self, request):
         try:
-            return Response({"leagues": OpticOddsClient().leagues(request.query_params.get("sport"))})
+            return Response({"leagues": OpticOddsClient().leagues(request.query_params.get("sport")), "demo": False})
         except OpticOddsError as exc:
-            return _error(exc)
+            return Response({"leagues": DEMO_LEAGUES.get(str(request.query_params.get("sport") or "").lower(), []), "demo": True, "preview": True, "detail": str(exc)})
 
 
 class AdminOpticOddsFixturesView(OpticOddsBaseView):
@@ -109,9 +129,10 @@ class AdminOpticOddsFixturesView(OpticOddsBaseView):
                 start_date_after=start_after,
                 start_date_before=request.query_params.get("start_date_before"),
             )
-            return Response({"fixtures": fixtures, "filters": {"live_only": live_only, "start_date_after": start_after}})
+            return Response({"fixtures": fixtures, "filters": {"live_only": live_only, "start_date_after": start_after}, "demo": False})
         except OpticOddsError as exc:
-            return _error(exc)
+            fixtures = [] if live_only else demo_fixtures(request.query_params.get("sport"), request.query_params.get("league"))
+            return Response({"fixtures": fixtures, "filters": {"live_only": live_only, "start_date_after": start_after}, "demo": True, "preview": True, "detail": str(exc)})
 
 
 class AdminOpticOddsFixtureOddsView(OpticOddsBaseView):
@@ -120,9 +141,77 @@ class AdminOpticOddsFixtureOddsView(OpticOddsBaseView):
         try:
             market = request.query_params.get("market")
             rows = OpticOddsClient().odds(fixture_id, books, market=market)
-            return Response({"fixture_id": fixture_id, "sportsbooks": books, "market": market, "odds": rows})
+            return Response({"fixture_id": fixture_id, "sportsbooks": books, "market": market, "odds": rows, "demo": False})
         except OpticOddsError as exc:
-            return _error(exc)
+            market = request.query_params.get("market") or "moneyline"
+            return Response({"fixture_id": fixture_id, "sportsbooks": books, "market": market, "odds": demo_odds(fixture_id, books, market), "demo": True, "preview": True, "detail": str(exc)})
+
+
+def _demo_override_payload(item):
+    return {
+        "id": item.id,
+        "fixture_id": item.fixture_id,
+        "sportsbook": item.sportsbook,
+        "market": item.market,
+        "selection": item.selection,
+        "decimal_odds": float(item.decimal_odds),
+        "american_price": item.american_price,
+        "active": item.active,
+        "updated_at": item.updated_at,
+    }
+
+
+class AdminDemoOddsOverrideView(OpticOddsBaseView):
+    """CRUD for admin demo price movements; live OpticOdds is never changed."""
+
+    def get(self, request):
+        queryset = DemoOddsOverride.objects.all()
+        fixture_id = request.query_params.get("fixture_id")
+        if fixture_id:
+            queryset = queryset.filter(fixture_id=fixture_id)
+        return Response({"overrides": [_demo_override_payload(item) for item in queryset], "demo_only": True})
+
+    def post(self, request):
+        data = request.data
+        fixture_id = str(data.get("fixture_id") or "").strip()
+        sportsbook = str(data.get("sportsbook") or "").strip().lower()
+        market = str(data.get("market") or "moneyline").strip().lower()
+        selection = str(data.get("selection") or "").strip()
+        if not fixture_id or not sportsbook or not selection:
+            return Response({"detail": "fixture_id, sportsbook and selection are required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            decimal_value = Decimal(str(data.get("decimal_odds"))) if data.get("decimal_odds") not in (None, "") else None
+        except (InvalidOperation, TypeError, ValueError):
+            decimal_value = None
+        try:
+            american_value = int(float(data.get("american_price"))) if data.get("american_price") not in (None, "") else None
+        except (TypeError, ValueError):
+            american_value = None
+        if decimal_value is None and american_value:
+            decimal_value = Decimal(str(1 + american_value / 100 if american_value > 0 else 1 + 100 / abs(american_value)))
+        if decimal_value is None or not decimal_value.is_finite() or decimal_value <= 1:
+            return Response({"detail": "Enter valid decimal odds greater than 1.00 (or a non-zero American price)."}, status=status.HTTP_400_BAD_REQUEST)
+        if american_value is None:
+            american_value = round((float(decimal_value) - 1) * 100) if decimal_value >= 2 else round(-100 / (float(decimal_value) - 1))
+        user = request.user if getattr(request.user, "is_authenticated", False) else None
+        item, _ = DemoOddsOverride.objects.update_or_create(
+            fixture_id=fixture_id,
+            sportsbook=sportsbook,
+            market=market,
+            selection=selection,
+            defaults={"decimal_odds": decimal_value, "american_price": american_value, "active": True, "updated_by": user},
+        )
+        return Response({"override": _demo_override_payload(item), "saved": True, "demo_only": True}, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        data = request.data or {}
+        filters = {key: str(data.get(key) or "").strip() for key in ("fixture_id", "sportsbook", "market", "selection")}
+        filters["sportsbook"] = filters["sportsbook"].lower()
+        filters["market"] = filters["market"].lower()
+        if not filters["fixture_id"] or not filters["sportsbook"] or not filters["selection"]:
+            return Response({"detail": "fixture_id, sportsbook and selection are required."}, status=status.HTTP_400_BAD_REQUEST)
+        deleted, _ = DemoOddsOverride.objects.filter(**filters).delete()
+        return Response({"deleted": deleted > 0, "demo_only": True})
 
 
 class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
@@ -138,10 +227,13 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
         books = _books(request, data)
         if primary not in books:
             books.insert(0, primary)
-        try:
-            rows = data.get("odds_snapshot") or OpticOddsClient().odds(str(data["fixture_id"]), books, market=str(data["market"]))
-        except OpticOddsError as exc:
-            return _error(exc)
+        rows = list(data.get("odds_snapshot") or [])
+        snapshot_books = {str(row.get("sportsbook", "")).lower() for row in rows if isinstance(row, dict)}
+        if not rows or any(book not in snapshot_books for book in books):
+            try:
+                rows = OpticOddsClient().odds(str(data["fixture_id"]), books, market=str(data["market"]))
+            except OpticOddsError:
+                rows.extend(row for row in demo_odds(str(data["fixture_id"]), books, str(data["market"])) if row["sportsbook"] not in snapshot_books)
         wanted_market = str(data["market"]).lower()
         wanted_selection = str(data["selection"]).lower()
         matching = [row for row in rows if str(row.get("market", "")).lower() == wanted_market and str(row.get("selection", "")).lower() == wanted_selection]
@@ -152,8 +244,15 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
         primary_line = provider_odds.get(primary)
         if not primary_line:
             return Response({"detail": f"No {primary} price is available for this selection."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        peer_decimals = [line["decimal"] for book, line in provider_odds.items() if book != primary]
-        aggregate_comp_odds = sum(1 / decimal for decimal in peer_decimals) / len(peer_decimals) if peer_decimals else None
+        peer_lines = {book: line["decimal"] for book, line in provider_odds.items() if book != primary}
+        normalised_weights = _normalise_peer_weights(peer_lines, weights)
+        peer_decimals = list(peer_lines.values())
+        aggregate_comp_odds = sum(normalised_weights[book] * (1 / decimal) for book, decimal in peer_lines.items()) if peer_lines else None
+        # The comparison probability is the weighted reciprocal of peer
+        # prices. The baseline is used only for EV, never included in this
+        # peer aggregate.
+        probability = round(aggregate_comp_odds, 6) if aggregate_comp_odds is not None else None
+        fair_decimal = round(1 / aggregate_comp_odds, 4) if aggregate_comp_odds else None
         ev_odds = (1 / primary_line["decimal"] - aggregate_comp_odds) if aggregate_comp_odds is not None else None
         try:
             ev_amount = round(float(data.get("stake")) * ev_odds, 2) if ev_odds is not None and data.get("stake") is not None else None
@@ -169,12 +268,13 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
         audit_reason = "Higher than every selected provider" if above_all else ("Significantly above the lowest selected price" if significant else "Within the selected market range")
         event = data.get("event") or matching[0].get("event") or ""
         label = event or f"{data.get('selection')} {data.get('market')}"
-        comparison = ", ".join(f"{book}: {values['decimal']:.2f}" for book, values in provider_odds.items())
-        weight_text = ", ".join(f"{book} {float(weights.get(book, 1 / len(provider_odds))):.2g}" for book in provider_odds)
-        formula = " + ".join(f"{book} {float(weights.get(book, 1 / len(provider_odds))):.2g} × 1/{values['decimal']:.2f}" for book, values in provider_odds.items())
+        comparison = ", ".join(f"{book}: {values['decimal']:.2f}" for book, values in provider_odds.items() if book != primary) or "no peer quote available"
+        weight_text = ", ".join(f"{book} {normalised_weights.get(book, 0):.2%}" for book in normalised_weights)
+        formula = " + ".join(f"{book} {normalised_weights.get(book, 0):.2%} × 1/{values['decimal']:.2f}" for book, values in provider_odds.items() if book != primary)
         audit_note = f" | Audit: POTENTIALLY BAD — {audit_reason}" if is_potentially_bad else " | Audit: within selected market range"
         ev_note = f" | EV_ODDS: {ev_odds:+.6f} · EV_AMT: ${ev_amount:,.2f}" if ev_odds is not None and ev_amount is not None else " | EV unavailable (no peer price)"
-        note = f"{label} | {primary_line['decimal']:.2f} vs. {comparison} | Aggregate comp odds: {aggregate_comp_odds if aggregate_comp_odds is not None else '—'}{ev_note} | Weighted implied probability: {probability:.2%}{audit_note}"
+        probability_text = f"{probability:.2%}" if probability is not None else "—"
+        note = f"{label} | {primary_line['decimal']:.2f} vs. {comparison} | Aggregate comp odds: {aggregate_comp_odds if aggregate_comp_odds is not None else '—'}{ev_note} | Weighted implied probability: {probability_text}{audit_note}"
         # Service-key calls authenticate the application, not an individual
         # Django user. AnonymousUser cannot be assigned to a User FK, so keep
         # admin_user NULL for those records; JWT-authenticated admin calls keep
@@ -187,12 +287,12 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
             market=str(data["market"]), selection=str(data["selection"]),
             primary_sportsbook=primary, primary_price=str(primary_line.get("price", "")),
             primary_decimal=primary_line.get("decimal"), stake=data.get("stake"),
-            provider_odds=provider_odds, provider_weights=weights, aggregate_comp_odds=aggregate_comp_odds, ev_odds=ev_odds, ev_amount=ev_amount,
+            provider_odds=provider_odds, provider_weights=normalised_weights, aggregate_comp_odds=aggregate_comp_odds, ev_odds=ev_odds, ev_amount=ev_amount,
             weighted_implied_probability=probability, fair_decimal=fair_decimal,
             is_potentially_bad=is_potentially_bad, audit_reason=audit_reason, edge_decimal=edge_decimal,
             note=note, odds_snapshot=matching,
         )
-        return Response({"id": record.id, "created_at": record.created_at, "note": note, "primary": primary_line, "provider_odds": provider_odds, "provider_weights": weights, "weighted_implied_probability": probability, "fair_decimal": fair_decimal, "aggregate_comp_odds": aggregate_comp_odds, "ev_odds": ev_odds, "ev_amount": ev_amount, "formula": formula, "is_potentially_bad": is_potentially_bad, "audit_reason": audit_reason, "edge_decimal": edge_decimal}, status=status.HTTP_201_CREATED)
+        return Response({"id": record.id, "created_at": record.created_at, "note": note, "primary": primary_line, "provider_odds": provider_odds, "provider_weights": normalised_weights, "weighted_implied_probability": probability, "fair_decimal": fair_decimal, "aggregate_comp_odds": aggregate_comp_odds, "ev_odds": ev_odds, "ev_amount": ev_amount, "formula": formula, "is_potentially_bad": is_potentially_bad, "audit_reason": audit_reason, "edge_decimal": edge_decimal}, status=status.HTTP_201_CREATED)
 
 
 class AdminOpticOddsBetMonitorListView(OpticOddsBaseView):

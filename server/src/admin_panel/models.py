@@ -340,3 +340,25 @@ class SportsbookBetSlip(models.Model):
 
     def __str__(self):
         return f"Sportsbook slip #{self.pk} · {self.leg_count} leg(s)"
+
+
+class DemoOddsOverride(models.Model):
+    """Admin-controlled price override used by the deterministic demo feed."""
+
+    fixture_id = models.CharField(max_length=128)
+    sportsbook = models.CharField(max_length=80)
+    market = models.CharField(max_length=120, default="moneyline")
+    selection = models.CharField(max_length=255)
+    decimal_odds = models.DecimalField(max_digits=10, decimal_places=4)
+    american_price = models.IntegerField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="demo_odds_overrides")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sportsbook", "selection"]
+        constraints = [models.UniqueConstraint(fields=["fixture_id", "sportsbook", "market", "selection"], name="unique_demo_odds_override")]
+
+    def __str__(self):
+        return f"{self.fixture_id} · {self.sportsbook} · {self.selection} = {self.decimal_odds}"

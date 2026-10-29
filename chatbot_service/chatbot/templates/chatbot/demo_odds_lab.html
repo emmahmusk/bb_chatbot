@@ -1,0 +1,28 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090e17"><title>Demo Odds Lab · BullBear</title>
+  <link rel="icon" href="{% static 'chatbot/images/bullbear_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'chatbot/css/admin-sportsbook.css' %}?v=5">
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <header class="topbar"><a class="brand" href="/"><img src="{% static 'chatbot/images/bullbear_logo.png' %}" alt="BullBear"><span></span><b>ODDS LAB</b></a><nav><a href="/sportsbook/">Sportsbook</a><a href="/sportsbook/monitor/">Monitor</a><a class="active" href="/sportsbook/demo-lab/">Demo Odds Lab</a><a href="/">Market assistant</a></nav><div class="feed"><i></i> Demo controls</div></header>
+  <main class="demo-lab-page">
+    <section class="intro compact"><div class="kicker"><i></i> DEMO ODDS LAB</div><h1>Model the line.<br><strong>See EV move.</strong></h1><p>Change one demo price and the sportsbook comparison, audit status and EV calculations will use it immediately. This never changes live OpticOdds data.</p></section>
+    <section class="demo-lab-grid">
+      <aside class="panel demo-controls"><div class="panel-title"><span class="index">01</span><div><h2>Choose a market</h2><p>Load a demo fixture and its provider prices.</p></div></div>
+        <label>Sport<select id="demoSport"><option value="">Loading sports…</option></select></label>
+        <label>League<select id="demoLeague"><option value="">Choose a sport first</option></select></label>
+        <label>Fixture<select id="demoFixture"><option value="">Choose a league first</option></select></label>
+        <label>Market<select id="demoMarket"><option value="moneyline">Moneyline</option><option value="point_spread">Point spread</option><option value="total_points">Total points</option><option value="run_line">Run line</option><option value="total_runs">Total runs</option></select></label>
+        <p class="demo-help">Overrides are saved by fixture, provider, market and selection. Clear an override to return to the generated demo price.</p><div class="error" id="demoError" role="alert"></div>
+      </aside>
+      <section class="panel demo-board"><div class="board-head"><div><div class="eyebrow"><i></i> PRICE MOVEMENT</div><h2 id="demoTitle">Choose a fixture</h2></div><span class="status-pill demo">DEMO ONLY</span></div><div class="notice demo-notice"><span>✦</span><div><b>Safe simulation</b><small>These edits affect only demo fallback prices and are recalculated on the next comparison.</small></div></div><div id="demoStatus" class="demo-status">Select a sport and league to begin.</div><div id="demoRows" class="demo-rows"><div class="empty"><div>↗</div><h3>Your demo market is ready</h3><p>Choose a fixture to edit its provider prices.</p></div></div></section>
+    </section>
+  </main>
+  <script src="{% static 'chatbot/js/demo-odds-lab.js' %}?v=1" defer></script>
+</body>
+</html>

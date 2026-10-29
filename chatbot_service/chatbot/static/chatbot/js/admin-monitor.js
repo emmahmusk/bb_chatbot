@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const state = { page: 1, pageSize: 20, query: '', status: 'all', pages: 1, total: null, openParlays: new Set() };
-  const settingsState = { providers: [], selected: [], saved: [], loaded: false };
+  const settingsState = { providers: [], selected: [], saved: [], weights: {}, savedWeights: {}, loaded: false };
   const api = () => {
     const params = new URLSearchParams({ page: state.page, page_size: state.pageSize, status: state.status });
     if (state.query) params.set('q', state.query);
@@ -21,9 +21,10 @@
   function updateSettingsSummary() {
     const labels = settingsState.selected.map((id) => {
       const provider = settingsState.providers.find((item) => String(item.id || item.key).toLowerCase() === id);
-      return provider?.name || bookName(id);
+      const weight = settingsState.weights[id];
+      return `${provider?.name || bookName(id)}${weight != null ? ` (${(Number(weight) * 100).toFixed(0)}%)` : ''}`;
     });
-    const dirty = settingsState.selected.slice().sort().join(',') !== settingsState.saved.slice().sort().join(',');
+    const dirty = settingsState.selected.slice().sort().join(',') !== settingsState.saved.slice().sort().join(',') || JSON.stringify(settingsState.weights) !== JSON.stringify(settingsState.savedWeights);
     $('savedBooksSummary').textContent = labels.length ? `${dirty ? 'Unsaved selection' : 'Configured'} · ${labels.join(', ')}` : 'No peer books selected';
     $('providerTrigger').querySelector('span').textContent = labels.length ? `${labels.length} selected · ${labels.join(', ')}` : 'Select comparison books';
   }
@@ -31,25 +32,28 @@
     const list = $('providerOptions');
     const peers = settingsState.providers.filter((provider) => !['draftkings', 'hardrockbet', 'hardrock'].includes(String(provider.id || provider.key || '').toLowerCase()));
     if (!peers.length) { list.innerHTML = '<div class="settings-loading">No comparison books are available right now.</div>'; return; }
-    list.innerHTML = peers.map((provider) => { const id = String(provider.id || provider.key).toLowerCase(); const label = provider.name || bookName(id); const checked = settingsState.selected.includes(id) ? ' checked' : ''; return `<label class="provider-option"><input type="checkbox" value="${escapeHtml(id)}"${checked}><span class="provider-mark">${escapeHtml(label.slice(0, 2).toUpperCase())}</span><span><b>${escapeHtml(label)}</b><small>OpticOdds provider</small></span><i></i></label>`; }).join('');
-    list.querySelectorAll('input').forEach((input) => input.addEventListener('change', () => { settingsState.selected = [...list.querySelectorAll('input:checked')].map((item) => item.value); updateSettingsButton(); }));
+    list.innerHTML = peers.map((provider) => { const id = String(provider.id || provider.key).toLowerCase(); const label = provider.name || bookName(id); const checked = settingsState.selected.includes(id) ? ' checked' : ''; const weight = settingsState.weights[id] == null ? '' : Number(settingsState.weights[id] * 100).toFixed(2); return `<label class="provider-option"><input class="provider-check" type="checkbox" value="${escapeHtml(id)}"${checked}><span class="provider-mark">${escapeHtml(label.slice(0, 2).toUpperCase())}</span><span class="provider-option-copy"><b>${escapeHtml(label)}</b><small>OpticOdds provider</small></span><span class="provider-weight-wrap"><input class="provider-weight-input" data-provider-weight="${escapeHtml(id)}" type="number" min="0" max="100" step="1" value="${weight}" aria-label="${escapeHtml(label)} weight percentage"><small>%</small></span><i></i></label>`; }).join('');
+    list.querySelectorAll('.provider-check').forEach((input) => input.addEventListener('change', () => { settingsState.selected = [...list.querySelectorAll('.provider-check:checked')].map((item) => item.value); if (input.checked && settingsState.weights[input.value] == null) { settingsState.weights[input.value] = 1 / settingsState.selected.length; const field = list.querySelector(`[data-provider-weight="${input.value}"]`); if (field) field.value = (settingsState.weights[input.value] * 100).toFixed(2); } updateSettingsButton(); }));
+    list.querySelectorAll('.provider-weight-input').forEach((input) => { input.addEventListener('click', (event) => event.stopPropagation()); input.addEventListener('input', () => { const value = Number(input.value); settingsState.weights[input.dataset.providerWeight] = Number.isFinite(value) ? value / 100 : 0; updateSettingsButton(); }); });
     settingsState.loaded = true;
     updateSettingsSummary();
     updateSettingsButton();
   }
-  function updateSettingsButton() { const button = $('saveSettings'); if (!button) return; button.disabled = !settingsState.loaded || settingsState.selected.length < 1 || settingsState.selected.length > 4; updateSettingsSummary(); if (!settingsState.loaded) $('settingsStatus').textContent = 'Loading comparison settings…'; else $('settingsStatus').textContent = settingsState.selected.length ? `${settingsState.selected.length} comparison ${settingsState.selected.length === 1 ? 'book' : 'books'} selected` : 'Select at least one comparison book'; }
+  function updateSettingsButton() { const button = $('saveSettings'); if (!button) return; button.disabled = !settingsState.loaded || settingsState.selected.length < 1 || settingsState.selected.length > 4; updateSettingsSummary(); const total = settingsState.selected.reduce((sum, id) => sum + Number(settingsState.weights[id] || 0) * 100, 0); if (!settingsState.loaded) $('settingsStatus').textContent = 'Loading comparison settings…'; else $('settingsStatus').textContent = settingsState.selected.length ? `${settingsState.selected.length} comparison ${settingsState.selected.length === 1 ? 'book' : 'books'} selected · ${total.toFixed(0)}% entered (normalized on save)` : 'Select at least one comparison book'; }
   async function loadProviderSettings() {
     try {
       const [catalog, preference] = await Promise.all([settingsApi('/api/odds/providers/'), settingsApi('/api/admin-sportsbook/settings/')]);
       settingsState.providers = catalog.providers || [];
       settingsState.selected = Array.isArray(preference.selected_books) ? preference.selected_books : ['fanduel', 'pinnacle', 'bet365'];
       settingsState.saved = [...settingsState.selected];
+      settingsState.weights = preference.provider_weights && typeof preference.provider_weights === 'object' ? { ...preference.provider_weights } : Object.fromEntries(settingsState.selected.map((id) => [id, 1 / settingsState.selected.length]));
+      settingsState.savedWeights = { ...settingsState.weights };
       renderProviderSettings();
     } catch (error) { $('providerOptions').innerHTML = `<div class="settings-loading error-text">${escapeHtml(error.message)}</div>`; $('settingsStatus').textContent = 'Unable to load comparison books'; }
   }
   async function saveProviderSettings() {
     const button = $('saveSettings'); button.disabled = true; $('settingsStatus').textContent = 'Saving comparison books…';
-    try { await settingsApi('/api/admin-sportsbook/settings/', { method: 'POST', body: JSON.stringify({ selected_books: settingsState.selected }) }); settingsState.saved = [...settingsState.selected]; $('settingsStatus').textContent = 'Saved. New sportsbook prices will use these books.'; updateSettingsButton(); } catch (error) { $('settingsStatus').textContent = error.message; updateSettingsButton(); }
+    try { const weights = Object.fromEntries(settingsState.selected.map((id) => [id, Number(settingsState.weights[id] || 0)])); const total = Object.values(weights).reduce((sum, value) => sum + value, 0); if (total <= 0) throw new Error('Enter a weight for at least one selected book.'); const body = await settingsApi('/api/admin-sportsbook/settings/', { method: 'POST', body: JSON.stringify({ selected_books: settingsState.selected, provider_weights: weights }) }); settingsState.selected = body.selected_books || settingsState.selected; settingsState.weights = body.provider_weights || settingsState.weights; settingsState.saved = [...settingsState.selected]; settingsState.savedWeights = { ...settingsState.weights }; $('settingsStatus').textContent = 'Saved. New sportsbook prices will use these books.'; renderProviderSettings(); } catch (error) { $('settingsStatus').textContent = error.message; updateSettingsButton(); }
   }
   const cleanNote = (bet) => {
     const isParlay = Number(bet.slip_leg_count || 1) > 1;
