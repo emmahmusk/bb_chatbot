@@ -112,7 +112,20 @@ class _SportsbookPageState extends ConsumerState<SportsbookPage> {
     }
     setState(() { _placing = true; _error = ''; });
     try {
-      final body = await _repository.recordBetSlip(stake: _stake, selections: _slip.values.toList());
+      // Freeze the submitted slip while the request is in flight. Selection
+      // controls remain usable during the request, so validating against the
+      // live map after await could compare the response with a different
+      // number of legs than the payload that was actually sent.
+      final selections = _slip.values.toList();
+      final expectedLegs = selections.length;
+      final body = await _repository.recordBetSlip(stake: _stake, selections: selections);
+      // A successful HTTP response is not enough to clear the slip. The
+      // server acknowledges a placement only after the betslip and every
+      // corresponding monitor row have been committed in one transaction.
+      final recordedLegs = int.tryParse('${body['monitor_recorded_count'] ?? body['leg_count'] ?? ''}') ?? 0;
+      if (body['status'] != 'recorded' || body['slip_id'] == null || recordedLegs != expectedLegs) {
+        throw Exception('The bet could not be confirmed by the monitoring service. Your betslip was kept; check the monitor before retrying.');
+      }
       if (!mounted) return;
       setState(() { _slip.clear(); _placing = false; });
       _showMessage('Bet recorded · ${body['leg_count']} leg(s) · potential payout ${body['potential_payout']}');

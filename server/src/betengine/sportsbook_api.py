@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, timezone
 
 from django.conf import settings
+from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -365,17 +366,24 @@ class SportsbookRecordBetSlipView(APIView):
                     # for the collapsed parlay card.
                     leg["note"] = parlay_text
                 comparison_notes = [leg["note"] for leg in leg_records]
-            slip = SportsbookBetSlip.objects.create(user=request.user, stake=stake, combined_decimal_odds=combined, aggregate_comp_odds=parlay_comparison["aggregate_comp_odds"] if parlay_comparison else None, potential_payout=payout, ev_odds=combined_ev_odds, ev_amount=combined_ev_amount, leg_aggregate_comp_odds=leg_aggregate_comp_odds, leg_count=len(leg_records), legs=leg_records, comparison_notes=comparison_notes)
-            for leg in leg_records:
-                OpticOddsBetMonitor.objects.create(
-                    admin_user=request.user,
-                    sportsbook_slip=slip,
-                    fixture_id=leg["fixture_id"], event=leg["event"], sport=leg["sport"], league=leg["league"], market=leg["market"], selection=leg["selection"],
-                    primary_sportsbook=primary, primary_price=str(leg["provider_odds"][primary].get("price", "")), primary_decimal=leg["primary_decimal"], stake=stake,
-                    provider_odds=leg["provider_odds"], provider_weights=leg.get("provider_weights", {}), weighted_implied_probability=leg["weighted_implied_probability"], fair_decimal=leg["fair_decimal"],
-                    aggregate_comp_odds=leg["aggregate_comp_odds"], ev_odds=leg["ev_odds"], ev_amount=leg["ev_amount"],
-                    is_potentially_bad=leg["is_potentially_bad"], audit_reason=leg["audit_reason"], edge_decimal=leg["edge_decimal"], note=leg["note"], odds_snapshot=leg["odds_snapshot"],
-                )
-            return Response({"status": "recorded", "slip_id": slip.id, "stake": str(stake), "combined_decimal_odds": str(combined), "aggregate_comp_odds": slip.aggregate_comp_odds, "potential_payout": str(payout), "ev_odds": combined_ev_odds, "ev_amount": str(combined_ev_amount) if combined_ev_amount is not None else None, "leg_ev_odds": leg_ev_odds, "leg_aggregate_comp_odds": leg_aggregate_comp_odds, "leg_count": len(leg_records), "legs": leg_records, "comparison_notes": comparison_notes, "simulation": True}, status=status.HTTP_201_CREATED)
+            # The betslip and every monitor leg are one logical recording. If
+            # any monitor row fails, roll the whole placement back so the
+            # client cannot receive a successful response for a bet that the
+            # monitor can only partially see.
+            with transaction.atomic():
+                slip = SportsbookBetSlip.objects.create(user=request.user, stake=stake, combined_decimal_odds=combined, aggregate_comp_odds=parlay_comparison["aggregate_comp_odds"] if parlay_comparison else None, potential_payout=payout, ev_odds=combined_ev_odds, ev_amount=combined_ev_amount, leg_aggregate_comp_odds=leg_aggregate_comp_odds, leg_count=len(leg_records), legs=leg_records, comparison_notes=comparison_notes)
+                monitor_ids = []
+                for leg in leg_records:
+                    monitor = OpticOddsBetMonitor.objects.create(
+                        admin_user=request.user,
+                        sportsbook_slip=slip,
+                        fixture_id=leg["fixture_id"], event=leg["event"], sport=leg["sport"], league=leg["league"], market=leg["market"], selection=leg["selection"],
+                        primary_sportsbook=primary, primary_price=str(leg["provider_odds"][primary].get("price", "")), primary_decimal=leg["primary_decimal"], stake=stake,
+                        provider_odds=leg["provider_odds"], provider_weights=leg.get("provider_weights", {}), weighted_implied_probability=leg["weighted_implied_probability"], fair_decimal=leg["fair_decimal"],
+                        aggregate_comp_odds=leg["aggregate_comp_odds"], ev_odds=leg["ev_odds"], ev_amount=leg["ev_amount"],
+                        is_potentially_bad=leg["is_potentially_bad"], audit_reason=leg["audit_reason"], edge_decimal=leg["edge_decimal"], note=leg["note"], odds_snapshot=leg["odds_snapshot"],
+                    )
+                    monitor_ids.append(monitor.id)
+            return Response({"status": "recorded", "slip_id": slip.id, "monitor_ids": monitor_ids, "monitor_recorded_count": len(monitor_ids), "recorded_at": slip.created_at, "stake": str(stake), "combined_decimal_odds": str(combined), "aggregate_comp_odds": slip.aggregate_comp_odds, "potential_payout": str(payout), "ev_odds": combined_ev_odds, "ev_amount": str(combined_ev_amount) if combined_ev_amount is not None else None, "leg_ev_odds": leg_ev_odds, "leg_aggregate_comp_odds": leg_aggregate_comp_odds, "leg_count": len(leg_records), "legs": leg_records, "comparison_notes": comparison_notes, "simulation": True}, status=status.HTTP_201_CREATED)
         except OpticOddsError as exc:
             return _error(exc)

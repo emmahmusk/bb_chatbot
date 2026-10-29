@@ -107,7 +107,24 @@ class AdminSportsbookBetSlipView(APIView):
         payload = dict(request.data)
         payload["sportsbooks"] = books
         payload["provider_weights"] = _normalise_weights(selected, preference.provider_weights if preference else None)
-        return _server_request(request, "bet/sportsbook/betslips/", method="post", payload=payload)
+        response = _server_request(request, "bet/sportsbook/betslips/", method="post", payload=payload)
+        # Do not let a malformed upstream 2xx response look like a successful
+        # placement to the betting UI. The EC2 endpoint returns these fields
+        # only after it has created the slip and all monitor leg rows.
+        if 200 <= response.status_code < 300:
+            body = response.data if isinstance(response.data, dict) else {}
+            expected_legs = len(payload.get("legs") or [])
+            acknowledged_legs = body.get("monitor_recorded_count", body.get("leg_count"))
+            try:
+                acknowledged_legs = int(acknowledged_legs)
+            except (TypeError, ValueError):
+                acknowledged_legs = 0
+            if body.get("status") != "recorded" or not body.get("slip_id") or acknowledged_legs != expected_legs:
+                return Response(
+                    {"detail": "The monitoring service could not confirm this bet placement."},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+        return response
 
 
 class AdminMonitorProxyView(APIView):
