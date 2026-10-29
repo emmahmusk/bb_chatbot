@@ -2,7 +2,9 @@
   const $ = (id) => document.getElementById(id);
   const state = { sports: [], leagues: [], fixtures: [], rows: [], overrides: [], books: ['draftkings', 'fanduel', 'pinnacle', 'bet365'] };
   const names = { draftkings: 'DraftKings', fanduel: 'FanDuel', pinnacle: 'Pinnacle', bet365: 'bet365', caesars: 'Caesars', betmgm: 'BetMGM' };
-  const api = (path, options = {}) => fetch(`/api/admin-sportsbook/${path}`, { cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }).then(async (response) => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.detail || body.error || `Request failed (HTTP ${response.status})`); return body; });
+  // The Demo Odds Lab is deliberately local. It must remain usable when the
+  // OpticOdds key or the EC2 admin-service key is expired/unavailable.
+  const api = (path, options = {}) => fetch(`/api/demo-odds-lab/${path}`, { cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }).then(async (response) => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.detail || body.error || `Request failed (HTTP ${response.status})`); return body; });
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
   const bookName = (book) => names[String(book).toLowerCase()] || String(book).replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const american = (value) => { const number = Number(value); return Number.isFinite(number) ? `${number > 0 ? '+' : ''}${number}` : '—'; };

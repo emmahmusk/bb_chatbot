@@ -20,9 +20,9 @@
         <label>Market<select id="demoMarket"><option value="moneyline">Moneyline</option><option value="point_spread">Point spread</option><option value="total_points">Total points</option><option value="run_line">Run line</option><option value="total_runs">Total runs</option></select></label>
         <p class="demo-help">Overrides are saved by fixture, provider, market and selection. Clear an override to return to the generated demo price.</p><div class="error" id="demoError" role="alert"></div>
       </aside>
-      <section class="panel demo-board"><div class="board-head"><div><div class="eyebrow"><i></i> PRICE MOVEMENT</div><h2 id="demoTitle">Choose a fixture</h2></div><span class="status-pill demo">DEMO ONLY</span></div><div class="notice demo-notice"><span>✦</span><div><b>Safe simulation</b><small>These edits affect only demo fallback prices and are recalculated on the next comparison.</small></div></div><div id="demoStatus" class="demo-status">Select a sport and league to begin.</div><div id="demoRows" class="demo-rows"><div class="empty"><div>↗</div><h3>Your demo market is ready</h3><p>Choose a fixture to edit its provider prices.</p></div></div></section>
+      <section class="panel demo-board"><div class="board-head"><div><div class="eyebrow"><i></i> PRICE MOVEMENT</div><h2 id="demoTitle">Choose a fixture</h2></div><span class="status-pill demo">LOCAL DEMO</span></div><div class="notice demo-notice"><span>✦</span><div><b>Safe simulation</b><small>This lab uses local demo data only. It never calls OpticOdds, so an expired API key cannot block price modeling.</small></div></div><div id="demoStatus" class="demo-status">Select a sport and league to begin.</div><div id="demoRows" class="demo-rows"><div class="empty"><div>↗</div><h3>Your demo market is ready</h3><p>Choose a fixture to edit its provider prices.</p></div></div></section>
     </section>
   </main>
-  <script src="{% static 'chatbot/js/demo-odds-lab.js' %}?v=1" defer></script>
+  <script src="{% static 'chatbot/js/demo-odds-lab.js' %}?v=2" defer></script>
 </body>
 </html>

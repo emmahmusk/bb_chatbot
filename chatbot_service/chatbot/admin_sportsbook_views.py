@@ -5,7 +5,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import SportsbookPreference
+from .models import DemoOddsLabOverride, SportsbookPreference
+from .services.demo_odds import DEMO_BOOKS, DEMO_LEAGUES, DEMO_SPORTS, demo_fixtures, demo_odds, override_payload
 
 
 BASELINE_SPORTSBOOK = "draftkings"
@@ -125,6 +126,71 @@ class AdminDemoOddsProxyView(APIView):
 
     def delete(self, request):
         return _proxy(request, "demo-odds/", method="delete", payload=request.data)
+
+
+class DemoOddsLabDataView(APIView):
+    """Local Demo Odds Lab API.
+
+    This route intentionally never proxies to EC2 or OpticOdds. The lab is a
+    safe simulation, so an expired provider key must not block price modeling.
+    """
+
+    def _resource(self, resource):
+        return str(resource or "sports").strip("/")
+
+    def get(self, request, resource="sports"):
+        resource = self._resource(resource)
+        if resource == "sports":
+            return Response({"sports": DEMO_SPORTS, "demo": True, "provider": "Demo Odds Lab"})
+        if resource == "leagues":
+            sport = request.query_params.get("sport") or "soccer"
+            return Response({"leagues": DEMO_LEAGUES.get(str(sport).lower(), []), "demo": True, "provider": "Demo Odds Lab"})
+        if resource == "fixtures":
+            return Response({"fixtures": demo_fixtures(request.query_params.get("sport"), request.query_params.get("league")), "demo": True, "provider": "Demo Odds Lab"})
+        if resource.startswith("fixtures/") and resource.endswith("/odds"):
+            fixture_id = resource[len("fixtures/") : -len("/odds")].strip("/")
+            books = [book for book in (request.query_params.get("sportsbooks") or ",".join(DEMO_BOOKS)).split(",") if book.strip()]
+            market = request.query_params.get("market") or "moneyline"
+            return Response({"fixture_id": fixture_id, "sportsbooks": books, "market": market, "odds": demo_odds(fixture_id, books, market), "demo": True, "provider": "Demo Odds Lab"})
+        if resource == "demo-odds":
+            fixture_id = request.query_params.get("fixture_id")
+            rows = DemoOddsLabOverride.objects.filter(fixture_id=fixture_id, active=True) if fixture_id else DemoOddsLabOverride.objects.filter(active=True)
+            return Response({"overrides": [override_payload(item) for item in rows], "demo": True, "provider": "Demo Odds Lab"})
+        return Response({"detail": "Unknown Demo Odds Lab resource."}, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request, resource="demo-odds"):
+        if self._resource(resource) != "demo-odds":
+            return Response({"detail": "Only demo-odds overrides can be changed."}, status=status.HTTP_404_NOT_FOUND)
+        fixture_id = str(request.data.get("fixture_id") or "").strip()
+        sportsbook = str(request.data.get("sportsbook") or "").strip().lower()
+        market = str(request.data.get("market") or "moneyline").strip()
+        selection = str(request.data.get("selection") or "").strip()
+        try:
+            decimal = float(request.data.get("decimal_odds"))
+        except (TypeError, ValueError):
+            decimal = 0
+        if not fixture_id or not sportsbook or not selection or decimal <= 1:
+            return Response({"detail": "fixture_id, sportsbook, selection and decimal_odds > 1.00 are required."}, status=status.HTTP_400_BAD_REQUEST)
+        american = round((decimal - 1) * 100) if decimal >= 2 else round(-100 / (decimal - 1))
+        item, _ = DemoOddsLabOverride.objects.update_or_create(
+            fixture_id=fixture_id,
+            sportsbook=sportsbook,
+            market=market,
+            selection=selection,
+            defaults={"decimal_odds": decimal, "american_price": american, "active": True},
+        )
+        return Response({"override": override_payload(item), "saved": True, "demo": True})
+
+    def delete(self, request, resource="demo-odds"):
+        if self._resource(resource) != "demo-odds":
+            return Response({"detail": "Only demo-odds overrides can be changed."}, status=status.HTTP_404_NOT_FOUND)
+        deleted, _ = DemoOddsLabOverride.objects.filter(
+            fixture_id=str(request.data.get("fixture_id") or "").strip(),
+            sportsbook=str(request.data.get("sportsbook") or "").strip().lower(),
+            market=str(request.data.get("market") or "moneyline").strip(),
+            selection=str(request.data.get("selection") or "").strip(),
+        ).delete()
+        return Response({"deleted": bool(deleted), "demo": True})
 
 
 class AdminSportsbookSettingsView(APIView):

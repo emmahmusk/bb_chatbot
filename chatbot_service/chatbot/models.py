@@ -123,3 +123,33 @@ class SportsbookPreference(models.Model):
 
     def __str__(self):
         return ", ".join(self.selected_books or []) or "No comparison books"
+
+
+class DemoOddsLabOverride(models.Model):
+    """An operator-editable price used only by the local Demo Odds Lab.
+
+    Keeping these rows in the chatbot service means the lab never needs the
+    OpticOdds key or the EC2 admin service to model a price movement.
+    """
+
+    fixture_id = models.CharField(max_length=128)
+    sportsbook = models.CharField(max_length=128)
+    market = models.CharField(max_length=128, default="moneyline")
+    selection = models.CharField(max_length=255)
+    decimal_odds = models.FloatField()
+    american_price = models.IntegerField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["sportsbook", "selection"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fixture_id", "sportsbook", "market", "selection"],
+                name="chatbot_demo_odds_unique_line",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.sportsbook} demo price for {self.selection}"

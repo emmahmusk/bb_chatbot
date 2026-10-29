@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import ChatView, ConversationDetailView, HealthView, MarketSyncView
 from .optic_odds_views import BetAuditView, BetRecordView, OpticCatalogView, OpticOddsCompareView, OpticSportsbooksView
-from .admin_sportsbook_views import AdminSportsbookProxyView, AdminMonitorProxyView, AdminSportsbookBetSlipView, AdminSportsbookSettingsView, AdminDemoOddsProxyView
+from .admin_sportsbook_views import AdminSportsbookProxyView, AdminMonitorProxyView, AdminSportsbookBetSlipView, AdminSportsbookSettingsView, AdminDemoOddsProxyView, DemoOddsLabDataView
 
 urlpatterns = [
     path("health/", HealthView.as_view(), name="health"),
@@ -17,6 +17,7 @@ urlpatterns = [
     path("admin-sportsbook/betslips/", AdminSportsbookBetSlipView.as_view(), name="admin-sportsbook-betslip-proxy"),
     path("admin-sportsbook/settings/", AdminSportsbookSettingsView.as_view(), name="admin-sportsbook-settings"),
     path("admin-sportsbook/demo-odds/", AdminDemoOddsProxyView.as_view(), name="admin-sportsbook-demo-odds"),
+    path("demo-odds-lab/<path:resource>/", DemoOddsLabDataView.as_view(), name="demo-odds-lab-api"),
     path("admin-sportsbook/<path:resource>/", AdminSportsbookProxyView.as_view(), name="admin-sportsbook-proxy"),
     path("admin-monitor/", AdminMonitorProxyView.as_view(), name="admin-monitor-proxy"),
 ]
