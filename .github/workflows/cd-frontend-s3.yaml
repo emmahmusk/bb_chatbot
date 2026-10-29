@@ -1,6 +1,7 @@
 name: Deploy Flutter Web to S3 & CloudFront.
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -52,6 +53,11 @@ jobs:
           echo "🚀 Syncing Flutter web build to S3..."
           # The --delete flag removes files from S3 that are no longer in the build
           aws s3 sync frontend/build/web/ s3://bbbprediction.com --delete --exclude "*.map" --exclude "*.symbols"
+          # The app shell must never be served from a stale browser/CDN cache.
+          # Flutter's hashed assets remain cacheable; only index.html is mutable.
+          aws s3 cp frontend/build/web/index.html s3://bbbprediction.com/index.html \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html; charset=utf-8"
           echo "✅ S3 upload complete"
 
       - name: Invalidate CloudFront Distribution
