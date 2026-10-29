@@ -16,10 +16,10 @@
   };
   const money = (value) => value == null ? '—' : Number(value).toFixed(2);
   const compDecimal = (bet) => {
-    if (bet.aggregate_comp_decimal_odds != null) return Number(bet.aggregate_comp_decimal_odds);
-    if (bet.fair_decimal != null) return Number(bet.fair_decimal);
     const probability = Number(bet.aggregate_comp_odds);
-    return Number.isFinite(probability) && probability > 0 ? 1 / probability : null;
+    if (Number.isFinite(probability) && probability > 0) return 1 / probability;
+    if (bet.aggregate_comp_decimal_odds != null) return Number(bet.aggregate_comp_decimal_odds);
+    return bet.fair_decimal != null ? Number(bet.fair_decimal) : null;
   };
   const slipCompDecimal = (bet) => {
     if (bet.slip_aggregate_comp_decimal_odds != null) return Number(bet.slip_aggregate_comp_decimal_odds);
