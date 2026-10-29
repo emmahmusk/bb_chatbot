@@ -75,6 +75,35 @@ def _normalise_weights(selected, supplied=None):
     return {book: round(value / total, 8) for book, value in values.items() if value > 0}
 
 
+def _demo_snapshot(legs, books):
+    """Merge the chatbot Demo Odds Lab prices into submitted leg snapshots."""
+    output = []
+    for leg in legs if isinstance(legs, list) else []:
+        if not isinstance(leg, dict):
+            output.append(leg)
+            continue
+        item = dict(leg)
+        fixture_id = str(item.get("fixture_id") or "").strip()
+        market = str(item.get("market") or "moneyline").strip()
+        submitted = [dict(row) for row in item.get("odds_snapshot", []) if isinstance(row, dict)]
+        existing = {
+            (str(row.get("sportsbook") or "").strip().lower(), str(row.get("selection") or "").strip().lower())
+            for row in submitted
+        }
+        try:
+            demo_rows = demo_odds(fixture_id, books, market)
+        except Exception:
+            demo_rows = []
+        for row in demo_rows:
+            key = (str(row.get("sportsbook") or "").strip().lower(), str(row.get("selection") or "").strip().lower())
+            if key not in existing:
+                submitted.append(row)
+                existing.add(key)
+        item["odds_snapshot"] = submitted
+        output.append(item)
+    return output
+
+
 class AdminSportsbookProxyView(APIView):
     def get(self, request, resource="sports"):
         return _proxy(request, resource)
@@ -107,6 +136,10 @@ class AdminSportsbookBetSlipView(APIView):
         payload = dict(request.data)
         payload["sportsbooks"] = books
         payload["provider_weights"] = _normalise_weights(selected, preference.provider_weights if preference else None)
+        demo_mode = str(getattr(settings, "SPORTSBOOK_MODE", "auto")).lower() == "demo" or str(payload.get("demo", "")).lower() == "true"
+        if demo_mode:
+            payload["demo"] = True
+            payload["legs"] = _demo_snapshot(payload.get("legs"), books)
         response = _server_request(request, "bet/sportsbook/betslips/", method="post", payload=payload)
         # Do not let a malformed upstream 2xx response look like a successful
         # placement to the betting UI. The EC2 endpoint returns these fields

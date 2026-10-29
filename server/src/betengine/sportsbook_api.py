@@ -352,7 +352,7 @@ class SportsbookRecordBetSlipView(APIView):
         provider_weights = data.get("provider_weights") if isinstance(data.get("provider_weights"), dict) else {}
         primary = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")).strip().lower()
         client = OpticOddsClient()
-        demo_mode = str(getattr(settings, "SPORTSBOOK_MODE", "auto")).lower() == "demo"
+        demo_mode = str(getattr(settings, "SPORTSBOOK_MODE", "auto")).lower() == "demo" or str(data.get("demo", "")).lower() == "true"
         leg_records = []
         comparison_notes = []
         leg_ev_odds = []

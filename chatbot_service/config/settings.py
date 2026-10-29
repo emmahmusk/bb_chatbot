@@ -85,3 +85,6 @@ ADMIN_SERVER_BASE_URL = os.getenv("ADMIN_SERVER_BASE_URL", "http://localhost:800
 ADMIN_SERVER_API_KEY = os.getenv("ADMIN_SERVER_API_KEY", "")
 ADMIN_SERVER_JWT = os.getenv("ADMIN_SERVER_JWT", "")
 ADMIN_SERVER_TIMEOUT_SECONDS = int(os.getenv("ADMIN_SERVER_TIMEOUT_SECONDS", "15"))
+SPORTSBOOK_MODE = os.getenv("SPORTSBOOK_MODE", "auto").strip().lower()
+if SPORTSBOOK_MODE not in {"auto", "live", "demo"}:
+    SPORTSBOOK_MODE = "auto"

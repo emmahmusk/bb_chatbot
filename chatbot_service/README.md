@@ -156,6 +156,8 @@ ADMIN_SERVER_BASE_URL=https://api.bbbprediction.com
 ADMIN_SERVER_API_KEY=<same-long-random-secret-as-EC2>
 ADMIN_SERVER_JWT=<long-lived admin JWT>
 ADMIN_SERVER_TIMEOUT_SECONDS=15
+# Optional: demo makes sportsbook placement use the local Demo Odds Lab.
+SPORTSBOOK_MODE=demo
 ```
 
 For the Flutter app, set its environment config `chatbotBaseUrl` to this

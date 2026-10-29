@@ -169,7 +169,11 @@ class SportsbookRepository {
     // the comparison books saved in the monitor settings and forwards the
     // authenticated betslip to the EC2 API. The direct server route remains a
     // safe fallback for local development.
-    final payload = {'stake': stake, 'legs': selections.map((selection) => selection.toJson()).toList()};
+    final payload = {
+      'stake': stake,
+      'demo': _demoMode,
+      'legs': selections.map((selection) => selection.toJson()).toList(),
+    };
     final bridgeBase = http.chatbotBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
     if (bridgeBase.isNotEmpty) {
       return _post('api/admin-sportsbook/betslips', payload, overrideBaseUrl: bridgeBase);
