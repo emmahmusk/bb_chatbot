@@ -1,6 +1,6 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { sports: [], leagues: [], fixtures: [], rows: [], overrides: [], books: ['draftkings', 'fanduel', 'pinnacle', 'bet365'] };
+  const state = { sports: [], leagues: [], fixtures: [], rows: [], overrides: [], activeSelection: '', books: ['draftkings', 'fanduel', 'pinnacle', 'bet365'] };
   const names = { draftkings: 'DraftKings', fanduel: 'FanDuel', pinnacle: 'Pinnacle', bet365: 'bet365', caesars: 'Caesars', betmgm: 'BetMGM' };
   // The Demo Odds Lab is deliberately local. It must remain usable when the
   // OpticOdds key or the EC2 admin-service key is expired/unavailable.
@@ -18,7 +18,7 @@
     if (state.sports[0]) { $('demoSport').value = state.sports[0].id; await loadLeagues(); }
   }
   async function loadLeagues() {
-    const sport = $('demoSport').value; state.fixtures = []; $('demoFixture').innerHTML = '<option value="">Choose a league first</option>'; $('demoRows').innerHTML = '<div class="empty"><div>↗</div><h3>Choose a league</h3><p>Demo fixtures will appear here.</p></div>'; if (!sport) return;
+    const sport = $('demoSport').value; state.fixtures = []; state.activeSelection = ''; $('demoFixture').innerHTML = '<option value="">Choose a league first</option>'; $('demoSelectionTabs').innerHTML = ''; $('demoRows').innerHTML = '<div class="empty"><div>↗</div><h3>Choose a league</h3><p>Demo fixtures will appear here.</p></div>'; if (!sport) return;
     const body = await api(`leagues/?sport=${encodeURIComponent(sport)}`); state.leagues = body.leagues || []; setOptions($('demoLeague'), state.leagues, 'Choose a league');
   }
   async function loadFixtures() {
@@ -34,9 +34,24 @@
     state.rows = body.odds || []; state.overrides = overrideBody.overrides || []; $('demoTitle').textContent = state.fixtures.find((item) => item.fixture_id === fixture)?.event || fixture; $('demoStatus').textContent = `${state.rows.length} generated provider prices · edit a decimal price and save to model a movement.`; renderRows();
   }
   function renderRows() {
-    const byKey = new Map(state.rows.map((row) => [key(row), row])); const overrideMap = new Map(state.overrides.map((item) => [overrideKey(item.sportsbook, item.selection), item]));
+    const byKey = new Map(state.rows.map((row) => [key(row), row]));
+    const overrideMap = new Map(state.overrides.map((item) => [overrideKey(item.sportsbook, item.selection), item]));
     const selections = [...new Set(state.rows.map((row) => row.selection))];
-    const html = selections.flatMap((selection) => state.books.map((book) => { const row = byKey.get(overrideKey(book, selection)); if (!row) return ''; const override = overrideMap.get(overrideKey(book, selection)); const value = override ? override.decimal_odds : row.decimal; return `<div class="demo-row ${override ? 'overridden' : ''}" data-book="${escapeHtml(book)}" data-selection="${escapeHtml(selection)}"><div class="demo-row-head"><b>${escapeHtml(bookName(book))}${override ? '<span class="demo-badge">OVERRIDE</span>' : ''}</b><span class="demo-row-label">${escapeHtml(selection)} · ${escapeHtml(row.market || 'Moneyline')}</span></div><label><span class="demo-row-label">Decimal odds</span><input class="demo-odds-input" type="number" min="1.01" step="0.01" value="${Number(value).toFixed(2)}" aria-label="${escapeHtml(bookName(book))} ${escapeHtml(selection)} decimal odds"><small>American ${american(override ? override.american_price : row.price)}</small></label><div><span class="demo-row-label">Provider</span><small>${override ? 'Saved demo movement' : 'Generated demo price'}</small></div><div class="demo-row-actions"><button class="save-override" type="button">Save</button>${override ? '<button class="clear-override" type="button">Clear</button>' : ''}</div></div>`; })).join('');
+    if (!selections.includes(state.activeSelection)) state.activeSelection = selections[0] || '';
+
+    // Keep the normal home / draw / away order returned by the demo service,
+    // while presenting each outcome as a focused editing tab.
+    $('demoSelectionTabs').innerHTML = selections.map((selection, index) => `<button class="demo-selection-tab ${selection === state.activeSelection ? 'active' : ''}" type="button" role="tab" aria-selected="${selection === state.activeSelection}" data-selection="${escapeHtml(selection)}"><span>${String(index + 1).padStart(2, '0')}</span><b>${escapeHtml(selection)}</b><small>${state.books.filter((book) => byKey.has(overrideKey(book, selection))).length} providers</small></button>`).join('');
+    $('demoSelectionTabs').querySelectorAll('.demo-selection-tab').forEach((button) => button.addEventListener('click', () => { state.activeSelection = button.dataset.selection; renderRows(); }));
+
+    const selection = state.activeSelection;
+    const html = state.books.map((book) => {
+      const row = byKey.get(overrideKey(book, selection));
+      if (!row) return '';
+      const override = overrideMap.get(overrideKey(book, selection));
+      const value = override ? override.decimal_odds : row.decimal;
+      return `<div class="demo-row ${override ? 'overridden' : ''}" data-book="${escapeHtml(book)}" data-selection="${escapeHtml(selection)}"><div class="demo-row-head"><b>${escapeHtml(bookName(book))}${override ? '<span class="demo-badge">OVERRIDE</span>' : ''}</b><span class="demo-row-label">${escapeHtml(selection)} · ${escapeHtml(row.market || 'Moneyline')}</span></div><label><span class="demo-row-label">Decimal odds</span><input class="demo-odds-input" type="number" min="1.01" step="0.01" value="${Number(value).toFixed(2)}" aria-label="${escapeHtml(bookName(book))} ${escapeHtml(selection)} decimal odds"><small>American ${american(override ? override.american_price : row.price)}</small></label><div><span class="demo-row-label">Provider</span><small>${override ? 'Saved demo movement' : 'Generated demo price'}</small></div><div class="demo-row-actions"><button class="save-override" type="button">Save</button>${override ? '<button class="clear-override" type="button">Clear</button>' : ''}</div></div>`;
+    }).join('');
     $('demoRows').innerHTML = html || '<div class="empty"><div>—</div><h3>No demo prices found</h3><p>Try another fixture or market.</p></div>';
     $('demoRows').querySelectorAll('.save-override').forEach((button) => button.addEventListener('click', () => saveOverride(button.closest('.demo-row'))));
     $('demoRows').querySelectorAll('.clear-override').forEach((button) => button.addEventListener('click', () => clearOverride(button.closest('.demo-row'))));
