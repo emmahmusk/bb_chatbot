@@ -31,7 +31,28 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
     final message = error is FailureResponse
         ? error.message.trim()
         : error?.toString().trim() ?? '';
-    return message.isEmpty ? 'Unable to sign in. Please try again.' : message;
+    final normalized = message.toLowerCase();
+
+    // Never expose transport details, URLs, stack traces or browser network
+    // exceptions in the login dialog. They are useful in logs, but not to a
+    // customer and may reveal internal service topology.
+    if (error is InternetFailureResponse ||
+        normalized.contains('failed to fetch') ||
+        normalized.contains('clientexception') ||
+        normalized.contains('socketexception') ||
+        normalized.contains('xmlhttprequest') ||
+        normalized.contains('network request') ||
+        normalized.contains('uri=')) {
+      return 'We couldn’t reach the sign-in service. Check your connection and try again.';
+    }
+
+    if (normalized.contains('timeout') || normalized.contains('timed out')) {
+      return 'The sign-in service is taking too long to respond. Please try again.';
+    }
+
+    return message.isEmpty || message.length > 180
+        ? 'Unable to sign in right now. Please try again.'
+        : message;
   }
 
   @override
