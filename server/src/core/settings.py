@@ -190,6 +190,9 @@ OPTIC_ODDS_BASE_URL = environ.get(
 ).rstrip("/")
 OPTIC_ODDS_API_KEY = environ.get("OPTIC_ODDS_API_KEY", "").strip()
 ADMIN_SERVER_API_KEY = environ.get("ADMIN_SERVER_API_KEY", "").strip()
+SPORTSBOOK_MODE = environ.get("SPORTSBOOK_MODE", "auto").strip().lower()
+if SPORTSBOOK_MODE not in {"auto", "live", "demo"}:
+    SPORTSBOOK_MODE = "auto"
 try:
     OPTIC_ODDS_TIMEOUT_SECONDS = float(environ.get("OPTIC_ODDS_TIMEOUT_SECONDS", "12"))
 except ValueError:

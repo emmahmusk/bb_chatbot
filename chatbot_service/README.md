@@ -169,3 +169,10 @@ service at `/api/admin-sportsbook/` and `/api/admin-monitor/`, so neither the
 OpticOdds credential nor the private admin service key is exposed to the browser.
 `ADMIN_SERVER_JWT` is retained only as a fallback for deployments that have not
 yet switched to the service key.
+
+For a key outage or a fully local simulation, set `SPORTSBOOK_MODE=demo` on the
+EC2 server (or create `/bullbear/production/sportsbook/mode` in SSM with value
+`demo`). The bet-record endpoint then skips OpticOdds entirely and fills any
+missing peer quotes from deterministic demo prices. The default `auto` mode
+still tries OpticOdds first and falls back automatically when the key is absent,
+expired or temporarily unavailable.

@@ -95,6 +95,55 @@ def _normalise_weights(providers, supplied=None):
     return {name: value / total for name, value in values.items() if value > 0}
 
 
+def _demo_fallback_rows(rows, fixture_id, books, market, selection, primary):
+    """Fill a submitted snapshot with deterministic prices for this selection.
+
+    Demo fixtures have known team names, while a submitted live fixture can
+    have arbitrary names. When OpticOdds is unavailable, clone the submitted
+    baseline line for any missing peer and apply a small deterministic offset
+    rather than dropping the selection or surfacing the provider-key error.
+    """
+    output = [dict(row) for row in rows if isinstance(row, dict)]
+    matching = _matching(output, market, selection)
+    present = {str(row.get("sportsbook", "")).strip().lower() for row in matching}
+    try:
+        generated = _matching(demo_odds(fixture_id, books, market), market, selection)
+    except Exception:
+        # Demo fallback must remain usable even if an older deployment has not
+        # applied the optional demo-override migration yet.
+        generated = []
+    generated_by_book = {str(row.get("sportsbook", "")).strip().lower(): row for row in generated}
+    baseline = next((row for row in matching if str(row.get("sportsbook", "")).strip().lower() == primary), None)
+    try:
+        baseline_decimal = Decimal(str(baseline.get("decimal"))) if baseline else Decimal("2")
+    except (InvalidOperation, TypeError, ValueError):
+        baseline_decimal = Decimal("2")
+    for index, book in enumerate(books):
+        book = str(book).strip().lower()
+        if not book or book in present:
+            continue
+        row = generated_by_book.get(book)
+        if row is None:
+            # Keep the fallback deterministic per provider and above 1.00.
+            offset = Decimal("0.02") * Decimal((index % 3) - 1)
+            decimal = max(Decimal("1.01"), (baseline_decimal + offset).quantize(Decimal("0.0001")))
+            row = {
+                "fixture_id": fixture_id,
+                "event": (baseline or {}).get("event", ""),
+                "sport": (baseline or {}).get("sport", ""),
+                "league": (baseline or {}).get("league", ""),
+                "sportsbook": book,
+                "market": market,
+                "selection": selection,
+                "price": round((decimal - 1) * 100) if decimal >= 2 else round(-100 / (decimal - 1)),
+                "decimal": float(decimal),
+                "demo": True,
+            }
+        output.append(row)
+        present.add(book)
+    return output
+
+
 def _comparison(matching, primary=None, weights=None):
     primary = str(primary or getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")).strip().lower()
     provider_odds = {}
@@ -303,6 +352,7 @@ class SportsbookRecordBetSlipView(APIView):
         provider_weights = data.get("provider_weights") if isinstance(data.get("provider_weights"), dict) else {}
         primary = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")).strip().lower()
         client = OpticOddsClient()
+        demo_mode = str(getattr(settings, "SPORTSBOOK_MODE", "auto")).lower() == "demo"
         leg_records = []
         comparison_notes = []
         leg_ev_odds = []
@@ -321,14 +371,17 @@ class SportsbookRecordBetSlipView(APIView):
                 # The betting UI intentionally sends only DraftKings. Fetch a
                 # fresh comparison snapshot here using the books selected in
                 # the chatbot monitor settings before writing the audit record.
-                if not rows or any(book not in snapshot_books for book in books):
+                if not demo_mode and (not rows or any(book not in snapshot_books for book in books)):
                     try:
                         rows = client.odds(fixture_id, books, market=market)
                     except OpticOddsError:
-                        # Keep the submitted baseline snapshot and fill any
-                        # missing peers with deterministic demo prices.
-                        demo_rows = demo_odds(fixture_id, books, market)
-                        rows = rows + [row for row in demo_rows if str(row.get("sportsbook", "")).lower() not in snapshot_books]
+                        # Keep the submitted baseline snapshot and use the
+                        # deterministic fallback below for missing peers.
+                        pass
+                # In demo mode this is the only quote source. In auto mode it
+                # also handles an absent, expired or temporarily unavailable
+                # OpticOdds key without aborting the bet recording request.
+                rows = _demo_fallback_rows(rows, fixture_id, books, market, selection, primary)
                 result = _comparison(_matching(rows, market, selection), primary=primary, weights=provider_weights)
                 if not result:
                     return Response({"detail": f"DraftKings odds are unavailable for {selection}."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)

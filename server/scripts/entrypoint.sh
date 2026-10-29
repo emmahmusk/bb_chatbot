@@ -57,6 +57,8 @@ export OPTIC_ODDS_API_KEY=$(get_ssm_parameter "${SSM_BASE_PATH}/optic_odds/api_k
 export ADMIN_SERVER_API_KEY=$(get_ssm_parameter "${SSM_BASE_PATH}/admin_server/api_key")
 OPTIC_ODDS_SSM_BASE_URL=$(get_ssm_parameter "${SSM_BASE_PATH}/optic_odds/base_url")
 export OPTIC_ODDS_BASE_URL="${OPTIC_ODDS_SSM_BASE_URL:-${OPTIC_ODDS_BASE_URL:-https://api.opticodds.com/api/v3}}"
+SPORTSBOOK_MODE_SSM=$(get_ssm_parameter "${SSM_BASE_PATH}/sportsbook/mode")
+export SPORTSBOOK_MODE="${SPORTSBOOK_MODE_SSM:-${SPORTSBOOK_MODE:-auto}}"
 
 echo "✅ All environment variables fetched and set."
 

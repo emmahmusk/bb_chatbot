@@ -28,11 +28,26 @@ class SportsbookRepository {
     }
   }
 
+  String _serverMessage(dynamic body, String fallback) {
+    final detail = body is Map ? (body['detail'] ?? body['message']) : null;
+    final message = detail?.toString().trim();
+    if (message == null || message.isEmpty) return fallback;
+    final lower = message.toLowerCase();
+    // Provider credentials and upstream implementation details should never
+    // be shown in the betting UI. Demo mode and the server fallback handle
+    // this condition; this is the final safe message if an old deployment
+    // still returns the provider error.
+    if (lower.contains('opticodds') || lower.contains('api key') || lower.contains('inactive key')) {
+      return 'Sportsbook pricing is temporarily unavailable. Please try again shortly.';
+    }
+    return message;
+  }
+
   Future<Map<String, dynamic>> _get(String endpoint, {Map<String, String>? query, String? overrideBaseUrl}) async {
     final response = await http.get(endpoint, overrideBaseUrl: overrideBaseUrl, queryParameters: query);
     final body = _decode(response, 'Unable to load sportsbook data.');
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception((body is Map ? body['detail'] ?? body['message'] : null) ?? 'Unable to load sportsbook data.');
+      throw Exception(_serverMessage(body, 'Unable to load sportsbook data.'));
     }
     return Map<String, dynamic>.from(body as Map);
   }
@@ -57,7 +72,7 @@ class SportsbookRepository {
     final response = await http.post(endpoint, overrideBaseUrl: overrideBaseUrl, body: payload);
     final body = _decode(response, 'Unable to record the bet.');
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception((body is Map ? body['detail'] ?? body['message'] : null) ?? 'Unable to record the bet.');
+      throw Exception(_serverMessage(body, 'Unable to record the bet.'));
     }
     return Map<String, dynamic>.from(body as Map);
   }
