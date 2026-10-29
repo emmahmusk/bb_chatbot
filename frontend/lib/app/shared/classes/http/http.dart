@@ -28,6 +28,7 @@ class HTTP {
 
   String _baseUrl = "";
   String _chatbotBaseUrl = "";
+  String _sportsbookMode = "live";
 
   void setBaseUrl(String url) {
     _baseUrl = url;
@@ -37,6 +38,12 @@ class HTTP {
 
   void setChatbotBaseUrl(String url) {
     _chatbotBaseUrl = url;
+  }
+
+  String get sportsbookMode => _sportsbookMode;
+
+  void setSportsbookMode(String mode) {
+    _sportsbookMode = mode.trim().toLowerCase();
   }
 
   Map<String, String> get getHeaders {

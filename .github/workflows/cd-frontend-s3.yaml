@@ -31,7 +31,7 @@ jobs:
 
       - name: Build Flutter Web App (Release)
         working-directory: frontend
-        run: flutter build web --release
+        run: flutter build web --release --dart-define=ENV=prod --dart-define=SPORTSBOOK_MODE=${{ vars.SPORTSBOOK_MODE || 'live' }}
 
       - name: Strip Source Maps and Debug Symbols
         working-directory: frontend

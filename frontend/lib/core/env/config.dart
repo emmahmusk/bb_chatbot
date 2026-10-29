@@ -24,11 +24,13 @@ enum Environment {
 class Config {
   final String baseUrl;
   final String chatbotBaseUrl;
+  final String sportsbookMode;
   final Environment environment;
 
   Config({
     required this.baseUrl,
     this.chatbotBaseUrl = '',
+    this.sportsbookMode = 'live',
     required this.environment,
   });
 }
@@ -41,6 +43,7 @@ Future<Config> loadConfig(Environment env) async {
   return Config(
     baseUrl: configJson['baseUrl'],
     chatbotBaseUrl: (configJson['chatbotBaseUrl'] ?? '').toString(),
+    sportsbookMode: const String.fromEnvironment('SPORTSBOOK_MODE', defaultValue: 'live'),
     environment: env,
   );
 }
