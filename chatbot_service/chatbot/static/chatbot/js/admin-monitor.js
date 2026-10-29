@@ -4,6 +4,9 @@
   const settingsState = { providers: [], selected: [], saved: [], weights: {}, savedWeights: {}, loaded: false };
   const api = () => {
     const params = new URLSearchParams({ page: state.page, page_size: state.pageSize, status: state.status });
+    // Some managed proxies ignore response cache headers. The timestamp makes
+    // each polling request unambiguously fresh without changing the API data.
+    params.set('_ts', String(Date.now()));
     if (state.query) params.set('q', state.query);
     return fetch(`/api/admin-monitor/?${params}`, { cache: 'no-store' }).then(async (response) => {
       const body = await response.json().catch(() => ({}));
