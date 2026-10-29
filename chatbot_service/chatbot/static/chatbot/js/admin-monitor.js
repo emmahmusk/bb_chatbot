@@ -15,6 +15,17 @@
     });
   };
   const money = (value) => value == null ? '—' : Number(value).toFixed(2);
+  const compDecimal = (bet) => {
+    if (bet.aggregate_comp_decimal_odds != null) return Number(bet.aggregate_comp_decimal_odds);
+    if (bet.fair_decimal != null) return Number(bet.fair_decimal);
+    const probability = Number(bet.aggregate_comp_odds);
+    return Number.isFinite(probability) && probability > 0 ? 1 / probability : null;
+  };
+  const slipCompDecimal = (bet) => {
+    if (bet.slip_aggregate_comp_decimal_odds != null) return Number(bet.slip_aggregate_comp_decimal_odds);
+    const probability = Number(bet.slip_aggregate_comp_odds);
+    return Number.isFinite(probability) && probability > 0 ? 1 / probability : null;
+  };
   const evOdds = (value) => value == null ? '—' : `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(6)}`;
   const evAmount = (value) => value == null ? '—' : `$${Number(value).toFixed(2)}`;
   const date = (value) => value ? new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Unknown time';
@@ -60,16 +71,22 @@
   }
   const cleanNote = (bet) => {
     const isParlay = Number(bet.slip_leg_count || 1) > 1;
+    const aggregateDecimal = isParlay ? slipCompDecimal(bet) : compDecimal(bet);
     if (bet.note) {
       // A parlay is evaluated as one combined position in the primary feed.
       // Keep the per-leg values in the API/database, but avoid showing them
       // beside the combined parlay EV where they can be mistaken for totals.
-      return isParlay ? bet.note.replace(/\s*\|\s*EV_ODDS:[^|]+(?=\s*\|)/, '') : bet.note;
+      let note = isParlay ? bet.note.replace(/\s*\|\s*EV_ODDS:[^|]+(?=\s*\|)/, '') : bet.note;
+      if (aggregateDecimal != null) {
+        note = note.replace(/Aggregate comp(?: decimal)? odds:\s*[^|]+/i, `Aggregate comp decimal odds: ${money(aggregateDecimal)}`);
+      }
+      return note;
     }
     const providerLines = Object.entries(bet.provider_odds || {}).map(([book, line]) => `${bookName(book)}: ${money(line.decimal)}`).join(', ');
     const probability = bet.weighted_implied_probability == null ? '' : ` | Weighted implied probability: ${(Number(bet.weighted_implied_probability) * 100).toFixed(2)}%`;
     const audit = bet.is_potentially_bad ? ` | Audit: POTENTIALLY BAD — ${bet.audit_reason}` : ' | Audit: within selected market range';
-    return `${bet.event || bet.selection} | ${money(bet.primary_decimal)} vs. ${providerLines}${probability}${audit}`;
+    const aggregate = aggregateDecimal == null ? '' : ` | Aggregate comp decimal odds: ${money(aggregateDecimal)}`;
+    return `${bet.event || bet.selection} | ${money(bet.primary_decimal)} vs. ${providerLines}${aggregate}${probability}${audit}`;
   };
   function render(body) {
     const bets = body.bets || [];
@@ -88,15 +105,15 @@
     $('next').disabled = !pagination.has_next;
     if (!bets.length) { $('monitorList').innerHTML = '<div class="empty panel"><div>✓</div><h3>No matching records</h3><p>Try another search or status filter.</p></div>'; return; }
     const providerLines = (bet) => Object.entries(bet.provider_odds || {}).map(([book, line]) => `<span><b>${bookName(book)}</b> ${money(line.decimal)}</span>`).join('');
-    const singleFooter = (bet) => `<div class="monitor-foot">${providerLines(bet)}${bet.aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(bet.aggregate_comp_odds).toFixed(6)}</b></span>` : ''}<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div>`;
-    const parlayLeg = (bet, index) => `<div class="parlay-leg"><div class="parlay-leg-head"><div><span class="parlay-leg-index">LEG ${index + 1}</span><b>${escapeHtml(bet.event || bet.selection)}</b><small>${escapeHtml(`${bet.market || 'Market'} · ${bet.selection || ''}`)}</small></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="parlay-leg-foot">${providerLines(bet)}${bet.aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(bet.aggregate_comp_odds).toFixed(6)}</b></span>` : ''}<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div><p class="parlay-leg-audit">${escapeHtml(bet.audit_reason || 'Comparison captured for this leg.')}</p></div>`;
+    const singleFooter = (bet) => `<div class="monitor-foot">${providerLines(bet)}${compDecimal(bet) != null ? `<span>comp decimal odds <b>${money(compDecimal(bet))}</b></span>` : ''}<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div>`;
+    const parlayLeg = (bet, index) => `<div class="parlay-leg"><div class="parlay-leg-head"><div><span class="parlay-leg-index">LEG ${index + 1}</span><b>${escapeHtml(bet.event || bet.selection)}</b><small>${escapeHtml(`${bet.market || 'Market'} · ${bet.selection || ''}`)}</small></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="parlay-leg-foot">${providerLines(bet)}${compDecimal(bet) != null ? `<span>comp decimal odds <b>${money(compDecimal(bet))}</b></span>` : ''}<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div><p class="parlay-leg-audit">${escapeHtml(bet.audit_reason || 'Comparison captured for this leg.')}</p></div>`;
     const singleCard = (bet) => `<article class="monitor-card panel ${bet.is_potentially_bad ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(bet.created_at)} · ${bet.sport || 'sport'}${bet.league ? ` · ${bet.league}` : ''}</div><h3>${escapeHtml(bet.event || bet.selection)}</h3><div class="meta">${escapeHtml(`${bet.market || ''} · ${bet.selection || ''}`)}</div></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(bet))}</div>${singleFooter(bet)}</article>`;
     const parlayCard = (legs) => {
       const first = legs[0];
       const legCount = Number(first.slip_leg_count || legs.length);
       const flagged = legs.some((leg) => leg.is_potentially_bad);
       const detailsLabel = `View individual legs · ${legCount} leg${legCount === 1 ? '' : 's'}`;
-      return `<article class="monitor-card panel parlay-card ${flagged ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(first.created_at)} · ${first.sport || 'sport'}${first.league ? ` · ${first.league}` : ''}</div><h3>Parlay · ${legCount} legs</h3><div class="meta">Sportsbook comparison · Slip #${escapeHtml(first.slip_id || '—')}</div></div><span class="${flagged ? 'flag' : 'clear'}">${flagged ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(first))}</div><div class="monitor-foot"><span>DraftKings parlay</span><span>combined odds <b>${money(first.slip_combined_decimal_odds)}</b></span>${first.slip_aggregate_comp_odds != null ? `<span>aggregate comp <b>${Number(first.slip_aggregate_comp_odds).toFixed(6)}</b></span>` : ''}<span>stake <b>${evAmount(first.slip_stake)}</b></span><span>parlay EV_ODDS <b>${evOdds(first.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(first.slip_ev_amount)}</b></span></div><details class="parlay-details" data-slip-id="${escapeHtml(first.slip_id)}"><summary>${detailsLabel}<span>⌄</span></summary><div class="parlay-leg-list">${legs.map(parlayLeg).join('')}</div></details></article>`;
+      return `<article class="monitor-card panel parlay-card ${flagged ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(first.created_at)} · ${first.sport || 'sport'}${first.league ? ` · ${first.league}` : ''}</div><h3>Parlay · ${legCount} legs</h3><div class="meta">Sportsbook comparison · Slip #${escapeHtml(first.slip_id || '—')}</div></div><span class="${flagged ? 'flag' : 'clear'}">${flagged ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(first))}</div><div class="monitor-foot"><span>DraftKings parlay</span><span>combined odds <b>${money(first.slip_combined_decimal_odds)}</b></span>${slipCompDecimal(first) != null ? `<span>comp decimal odds <b>${money(slipCompDecimal(first))}</b></span>` : ''}<span>stake <b>${evAmount(first.slip_stake)}</b></span><span>parlay EV_ODDS <b>${evOdds(first.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(first.slip_ev_amount)}</b></span></div><details class="parlay-details" data-slip-id="${escapeHtml(first.slip_id)}"><summary>${detailsLabel}<span>⌄</span></summary><div class="parlay-leg-list">${legs.map(parlayLeg).join('')}</div></details></article>`;
     };
     const grouped = [];
     const parlays = new Map();

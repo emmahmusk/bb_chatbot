@@ -202,7 +202,8 @@ def _leg_payload(leg, result, event="", wager_amount=Decimal("0"), primary=None)
     ev_amount = (wager_amount * Decimal(str(ev_odds_raw))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if ev_odds_raw is not None else None
     ev_text = f" | EV_ODDS: {ev_odds:+.6f} · EV_AMT: ${ev_amount:,.2f}" if ev_odds is not None and ev_amount is not None else " | EV unavailable (no peer price)"
     primary_name = "DraftKings" if primary == "draftkings" else primary.replace("_", " ").title()
-    note = f"{event or leg.get('event') or leg.get('selection')} | {primary_name} {result['primary']['decimal']:.2f}{comparison} | Aggregate comp odds: {result.get('aggregate_comp_odds') if result.get('aggregate_comp_odds') is not None else '—'}{ev_text} | {audit}"
+    aggregate_decimal = result.get("fair_decimal")
+    note = f"{event or leg.get('event') or leg.get('selection')} | {primary_name} {result['primary']['decimal']:.2f}{comparison} | Aggregate comp decimal odds: {aggregate_decimal:.2f}{ev_text} | {audit}" if aggregate_decimal is not None else f"{event or leg.get('event') or leg.get('selection')} | {primary_name} {result['primary']['decimal']:.2f}{comparison} | Aggregate comp decimal odds: —{ev_text} | {audit}"
     return {
         "fixture_id": str(leg.get("fixture_id", "")),
         "event": event or leg.get("event") or "",
@@ -217,6 +218,7 @@ def _leg_payload(leg, result, event="", wager_amount=Decimal("0"), primary=None)
         "weighted_implied_probability": result["weighted_implied_probability"],
         "fair_decimal": result["fair_decimal"],
         "aggregate_comp_odds": result["aggregate_comp_odds"],
+        "aggregate_comp_decimal_odds": result["fair_decimal"],
         "ev_odds": ev_odds,
         "ev_amount": float(ev_amount) if ev_amount is not None else None,
         "edge_decimal": result["edge_decimal"],
@@ -260,6 +262,7 @@ def _parlay_comparison(leg_records, baseline=None, weights=None):
         "provider_weights": {provider: round(float(weight), 8) for provider, weight in provider_weights.items()},
         "aggregate_comp_odds_raw": aggregate_raw,
         "aggregate_comp_odds": round(float(aggregate_raw), 6),
+        "aggregate_comp_decimal_odds": round(float(Decimal("1") / aggregate_raw), 4) if aggregate_raw else None,
         "ev_odds_raw": ev_raw,
         "ev_odds": round(float(ev_raw), 6),
     }
@@ -408,7 +411,7 @@ class SportsbookRecordBetSlipView(APIView):
             if len(leg_records) > 1:
                 parlay_text = (
                     f"Parlay comparison ({len(leg_records)} legs) | DraftKings combined odds: {combined:.8f}"
-                    f" | Aggregate comp odds: {parlay_comparison['aggregate_comp_odds']:.6f}"
+                    f" | Aggregate comp decimal odds: {parlay_comparison['aggregate_comp_decimal_odds']:.2f}"
                     f" | Parlay EV_ODDS: {combined_ev_odds:+.6f} · Parlay EV_AMT: ${combined_ev_amount:,.2f}"
                     if parlay_comparison and combined_ev_amount is not None
                     else f"Parlay comparison ({len(leg_records)} legs) | DraftKings combined odds: {combined:.8f} | EV unavailable (one or more providers lack a complete parlay quote)"
@@ -437,6 +440,6 @@ class SportsbookRecordBetSlipView(APIView):
                         is_potentially_bad=leg["is_potentially_bad"], audit_reason=leg["audit_reason"], edge_decimal=leg["edge_decimal"], note=leg["note"], odds_snapshot=leg["odds_snapshot"],
                     )
                     monitor_ids.append(monitor.id)
-            return Response({"status": "recorded", "slip_id": slip.id, "monitor_ids": monitor_ids, "monitor_recorded_count": len(monitor_ids), "recorded_at": slip.created_at, "stake": str(stake), "combined_decimal_odds": str(combined), "aggregate_comp_odds": slip.aggregate_comp_odds, "potential_payout": str(payout), "ev_odds": combined_ev_odds, "ev_amount": str(combined_ev_amount) if combined_ev_amount is not None else None, "leg_ev_odds": leg_ev_odds, "leg_aggregate_comp_odds": leg_aggregate_comp_odds, "leg_count": len(leg_records), "legs": leg_records, "comparison_notes": comparison_notes, "simulation": True}, status=status.HTTP_201_CREATED)
+            return Response({"status": "recorded", "slip_id": slip.id, "monitor_ids": monitor_ids, "monitor_recorded_count": len(monitor_ids), "recorded_at": slip.created_at, "stake": str(stake), "combined_decimal_odds": str(combined), "aggregate_comp_odds": slip.aggregate_comp_odds, "aggregate_comp_decimal_odds": (round(1 / slip.aggregate_comp_odds, 4) if slip.aggregate_comp_odds else None), "potential_payout": str(payout), "ev_odds": combined_ev_odds, "ev_amount": str(combined_ev_amount) if combined_ev_amount is not None else None, "leg_ev_odds": leg_ev_odds, "leg_aggregate_comp_odds": leg_aggregate_comp_odds, "leg_count": len(leg_records), "legs": leg_records, "comparison_notes": comparison_notes, "simulation": True}, status=status.HTTP_201_CREATED)
         except OpticOddsError as exc:
             return _error(exc)
