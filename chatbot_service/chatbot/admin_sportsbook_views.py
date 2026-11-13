@@ -9,7 +9,8 @@ from .models import DemoOddsLabOverride, SportsbookPreference
 from .services.demo_odds import DEMO_BOOKS, DEMO_LEAGUES, DEMO_SPORTS, demo_fixtures, demo_odds, override_payload
 
 
-BASELINE_SPORTSBOOK = "draftkings"
+BASELINE_SPORTSBOOK = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")).strip().lower()
+BASELINE_SPORTSBOOK_LABEL = getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "Operator X")
 DEFAULT_COMPARISON_BOOKS = ["fanduel", "pinnacle", "bet365"]
 
 
@@ -250,7 +251,7 @@ class AdminSportsbookSettingsView(APIView):
         preference = SportsbookPreference.objects.filter(pk=1).first()
         selected = preference.selected_books if preference else DEFAULT_COMPARISON_BOOKS
         weights = preference.provider_weights if preference and preference.provider_weights else _normalise_weights(selected)
-        return Response({"baseline": BASELINE_SPORTSBOOK, "selected_books": selected, "provider_weights": weights})
+        return Response({"baseline": BASELINE_SPORTSBOOK, "baseline_label": BASELINE_SPORTSBOOK_LABEL, "selected_books": selected, "provider_weights": weights})
 
     def post(self, request):
         selected = request.data.get("selected_books")
@@ -265,4 +266,4 @@ class AdminSportsbookSettingsView(APIView):
             pk=1,
             defaults={"selected_books": selected, "provider_weights": weights},
         )
-        return Response({"baseline": BASELINE_SPORTSBOOK, "selected_books": preference.selected_books, "provider_weights": preference.provider_weights, "saved": True})
+        return Response({"baseline": BASELINE_SPORTSBOOK, "baseline_label": BASELINE_SPORTSBOOK_LABEL, "selected_books": preference.selected_books, "provider_weights": preference.provider_weights, "saved": True})

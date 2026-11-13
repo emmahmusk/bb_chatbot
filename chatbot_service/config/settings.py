@@ -88,3 +88,5 @@ ADMIN_SERVER_TIMEOUT_SECONDS = int(os.getenv("ADMIN_SERVER_TIMEOUT_SECONDS", "15
 SPORTSBOOK_MODE = os.getenv("SPORTSBOOK_MODE", "auto").strip().lower()
 if SPORTSBOOK_MODE not in {"auto", "live", "demo"}:
     SPORTSBOOK_MODE = "auto"
+OPTIC_ODDS_PRIMARY_SPORTSBOOK = os.getenv("OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings").strip().lower()
+OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL = os.getenv("OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "Operator X").strip() or "Operator X"

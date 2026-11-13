@@ -200,6 +200,10 @@ except ValueError:
 OPTIC_ODDS_PRIMARY_SPORTSBOOK = environ.get(
     "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings"
 ).strip().lower()
+OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL = (
+    environ.get("OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "Operator X").strip()
+    or "Operator X"
+)
 OPTIC_ODDS_COMPARISON_SPORTSBOOKS = [
     book.strip().lower()
     for book in environ.get(

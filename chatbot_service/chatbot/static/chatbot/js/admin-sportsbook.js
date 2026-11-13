@@ -1,10 +1,10 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { sports: [], leagues: [], fixtures: [], rows: [], books: ['draftkings', 'fanduel', 'pinnacle'], selectedFixture: null, demo: false };
+  const state = { sports: [], leagues: [], fixtures: [], rows: [], books: ['draftkings', 'fanduel', 'pinnacle'], primary: 'draftkings', primaryLabel: 'Operator X', selectedFixture: null, demo: false };
   const names = { hardrockbet: 'Hard Rock', hardrock: 'Hard Rock', draftkings: 'DraftKings', fanduel: 'FanDuel', pinnacle: 'Pinnacle', betmgm: 'BetMGM', caesars: 'Caesars', bet365: 'bet365', fanatics: 'Fanatics' };
   const api = (path, options = {}) => fetch(`/api/admin-sportsbook/${path}`, { cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }).then(async (response) => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(`${body.detail || body.error || 'The admin server returned an error.'} (HTTP ${response.status})`); return body; });
   const setError = (message = '') => { $('error').textContent = message; };
-  const setDemoNotice = (demo) => { $('boardNoticeTitle').textContent = demo ? 'Demo sportsbook mode' : 'DraftKings baseline'; $('boardNoticeText').textContent = demo ? 'OpticOdds is unavailable, so these deterministic sample prices are for testing only and are not live betting odds.' : 'Prices are shown like a sportsbook. Selecting a DraftKings line records its comparison snapshot.'; };
+  const setDemoNotice = (demo) => { $('boardNoticeTitle').textContent = demo ? 'Demo sportsbook mode' : `${state.primaryLabel} baseline`; $('boardNoticeText').textContent = demo ? 'OpticOdds is unavailable, so these deterministic sample prices are for testing only and are not live betting odds.' : `Prices are shown like a sportsbook. Selecting a ${state.primaryLabel} line records its comparison snapshot.`; };
   const bookName = (id) => names[String(id).toLowerCase()] || String(id).replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const american = (value) => { if (value === null || value === undefined || value === '') return '—'; const number = Number(value); return Number.isFinite(number) ? `${number > 0 ? '+' : ''}${number}` : String(value); };
   const money = (value) => value == null ? '—' : Number(value).toFixed(2);
@@ -25,10 +25,12 @@
   async function loadSettings() {
     try {
       const body = await api('settings/');
+      state.primary = String(body.baseline || 'draftkings').toLowerCase();
+      state.primaryLabel = body.baseline_label || 'Operator X';
       const peers = Array.isArray(body.selected_books) ? body.selected_books : ['fanduel', 'pinnacle'];
-      state.books = ['draftkings', ...peers.filter((book) => !['draftkings', 'hardrockbet', 'hardrock'].includes(book)).slice(0, 4)];
+      state.books = [state.primary, ...peers.filter((book) => String(book).toLowerCase() !== state.primary).slice(0, 4)];
     } catch (error) {
-      state.books = ['draftkings', 'fanduel', 'pinnacle'];
+      state.books = [state.primary, 'fanduel', 'pinnacle'];
     }
   }
 
@@ -109,18 +111,19 @@
     rows.forEach((row) => { const key = `${row.market}|${row.selection}|${row.points ?? ''}`; (groups[key] ||= []).push(row); });
     const providers = state.books;
     const cards = Object.values(groups).sort((a, b) => outcomeRank(a[0]?.selection) - outcomeRank(b[0]?.selection)).map((group) => {
-      const baseline = group.find((row) => String(row.sportsbook).toLowerCase() === 'draftkings');
+      const baseline = group.find((row) => String(row.sportsbook).toLowerCase() === state.primary);
       if (!baseline) return '';
       const byBook = Object.fromEntries(group.map((row) => [String(row.sportsbook).toLowerCase(), row]));
       const prices = providers.map((book) => {
         const row = byBook[book];
-        if (!row) return `<div class="price-cell unavailable"><span>${bookName(book)}</span><b>—</b></div>`;
-        const content = `<span>${bookName(book)}</span><b>${money(row.decimal)}</b><small>${american(row.price)}</small>`;
-        return book === 'draftkings' ? `<button class="price-cell selectable" data-selection="${encodeURIComponent(baseline.selection)}" data-market="${encodeURIComponent(baseline.market)}">${content}</button>` : `<div class="price-cell">${content}</div>`;
+        const displayName = book === state.primary ? state.primaryLabel : bookName(book);
+        if (!row) return `<div class="price-cell unavailable"><span>${displayName}</span><b>—</b></div>`;
+        const content = `<span>${displayName}</span><b>${money(row.decimal)}</b><small>${american(row.price)}</small>`;
+        return book === state.primary ? `<button class="price-cell selectable" data-selection="${encodeURIComponent(baseline.selection)}" data-market="${encodeURIComponent(baseline.market)}">${content}</button>` : `<div class="price-cell">${content}</div>`;
       }).join('');
       return `<article class="market-row"><div class="outcome"><small>${baseline.event || state.selectedFixture?.event || 'Selected fixture'}</small><strong>${baseline.selection || 'Selection'}</strong><span>${baseline.market}${baseline.points != null ? ` · ${baseline.points}` : ''}</span></div><div class="price-grid">${prices}</div></article>`;
     }).join('');
-    $('oddsGrid').innerHTML = cards ? `<div class="market-board"><div class="market-board-head"><span>OUTCOME</span><div>${providers.map((book) => `<span>${bookName(book)}</span>`).join('')}</div></div>${cards}</div>` : '<div class="empty"><div>—</div><h3>No DraftKings lines found</h3><p>Try another market or fixture.</p></div>';
+    $('oddsGrid').innerHTML = cards ? `<div class="market-board"><div class="market-board-head"><span>OUTCOME</span><div>${providers.map((book) => `<span>${book === state.primary ? state.primaryLabel : bookName(book)}</span>`).join('')}</div></div>${cards}</div>` : `<div class="empty"><div>—</div><h3>No ${state.primaryLabel} lines found</h3><p>Try another market or fixture.</p></div>`;
     $('oddsGrid').querySelectorAll('.selectable').forEach((button) => button.addEventListener('click', () => recordBet(decodeURIComponent(button.dataset.selection), decodeURIComponent(button.dataset.market), button)));
   }
 
@@ -153,7 +156,7 @@
     button.classList.add('saving');
     button.querySelector('b').textContent = 'Saving…';
     try {
-      const body = await api('bets/', { method: 'POST', body: JSON.stringify({ fixture_id: $('fixture').value, event: state.selectedFixture?.event || '', sport: $('sport').value, league: $('league').value, market, selection, sportsbook: 'draftkings', sportsbooks: state.books, odds_snapshot: state.rows }) });
+      const body = await api('bets/', { method: 'POST', body: JSON.stringify({ fixture_id: $('fixture').value, event: state.selectedFixture?.event || '', sport: $('sport').value, league: $('league').value, market, selection, sportsbook: state.primary, sportsbooks: state.books, odds_snapshot: state.rows }) });
       $('ticket').classList.remove('hidden');
       $('ticketNote').textContent = body.note || 'The selection and provider snapshot were recorded.';
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
@@ -162,7 +165,7 @@
     } finally {
       button.disabled = false;
       button.classList.remove('saving');
-      button.querySelector('b').textContent = money(state.rows.find((row) => String(row.sportsbook).toLowerCase() === 'draftkings' && row.selection === selection)?.decimal);
+      button.querySelector('b').textContent = money(state.rows.find((row) => String(row.sportsbook).toLowerCase() === state.primary && row.selection === selection)?.decimal);
     }
   }
 

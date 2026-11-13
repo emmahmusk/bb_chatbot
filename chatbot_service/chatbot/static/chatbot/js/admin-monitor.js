@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const state = { page: 1, pageSize: 20, query: '', status: 'all', pages: 1, total: null, openParlays: new Set() };
-  const settingsState = { providers: [], selected: [], saved: [], weights: {}, savedWeights: {}, loaded: false };
+  const settingsState = { providers: [], selected: [], saved: [], weights: {}, savedWeights: {}, loaded: false, baseline: '', baselineLabel: 'Operator X' };
   const api = () => {
     const params = new URLSearchParams({ page: state.page, page_size: state.pageSize, status: state.status });
     // Some managed proxies ignore response cache headers. The timestamp makes
@@ -30,6 +30,7 @@
   const evAmount = (value) => value == null ? '—' : `$${Number(value).toFixed(2)}`;
   const date = (value) => value ? new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Unknown time';
   const bookName = (book) => ({ hardrockbet: 'Hard Rock', hardrock: 'Hard Rock', draftkings: 'DraftKings', fanduel: 'FanDuel', pinnacle: 'Pinnacle', betmgm: 'BetMGM', caesars: 'Caesars', bet365: 'bet365' }[String(book).toLowerCase()] || book);
+  const primaryName = (bet) => bet?.primary_sportsbook_label || settingsState.baselineLabel || 'Operator X';
   const settingsApi = (path, options = {}) => fetch(path, { cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }).then(async (response) => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.detail || body.error || `Request failed (HTTP ${response.status})`); return body; });
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
   function updateSettingsSummary() {
@@ -44,7 +45,7 @@
   }
   function renderProviderSettings() {
     const list = $('providerOptions');
-    const peers = settingsState.providers.filter((provider) => !['draftkings', 'hardrockbet', 'hardrock'].includes(String(provider.id || provider.key || '').toLowerCase()));
+    const peers = settingsState.providers.filter((provider) => String(provider.id || provider.key || '').toLowerCase() !== settingsState.baseline);
     if (!peers.length) { list.innerHTML = '<div class="settings-loading">No comparison books are available right now.</div>'; return; }
     list.innerHTML = peers.map((provider) => { const id = String(provider.id || provider.key).toLowerCase(); const label = provider.name || bookName(id); const checked = settingsState.selected.includes(id) ? ' checked' : ''; const weight = settingsState.weights[id] == null ? '' : Number(settingsState.weights[id] * 100).toFixed(2); return `<label class="provider-option"><input class="provider-check" type="checkbox" value="${escapeHtml(id)}"${checked}><span class="provider-mark">${escapeHtml(label.slice(0, 2).toUpperCase())}</span><span class="provider-option-copy"><b>${escapeHtml(label)}</b><small>OpticOdds provider</small></span><span class="provider-weight-wrap"><input class="provider-weight-input" data-provider-weight="${escapeHtml(id)}" type="number" min="0" max="100" step="1" value="${weight}" aria-label="${escapeHtml(label)} weight percentage"><small>%</small></span><i></i></label>`; }).join('');
     list.querySelectorAll('.provider-check').forEach((input) => input.addEventListener('change', () => { settingsState.selected = [...list.querySelectorAll('.provider-check:checked')].map((item) => item.value); if (input.checked && settingsState.weights[input.value] == null) { settingsState.weights[input.value] = 1 / settingsState.selected.length; const field = list.querySelector(`[data-provider-weight="${input.value}"]`); if (field) field.value = (settingsState.weights[input.value] * 100).toFixed(2); } updateSettingsButton(); }));
@@ -58,6 +59,11 @@
     try {
       const [catalog, preference] = await Promise.all([settingsApi('/api/odds/providers/'), settingsApi('/api/admin-sportsbook/settings/')]);
       settingsState.providers = catalog.providers || [];
+      settingsState.baseline = String(preference.baseline || catalog.primary_sportsbook || '').toLowerCase();
+      settingsState.baselineLabel = preference.baseline_label || catalog.primary_sportsbook_label || 'Operator X';
+      if ($('baselineBookLabel')) $('baselineBookLabel').textContent = settingsState.baselineLabel;
+      if ($('baselineMetric')) $('baselineMetric').textContent = settingsState.baselineLabel;
+      if ($('baselineMetricSub')) $('baselineMetricSub').textContent = 'Primary pricing reference';
       settingsState.selected = Array.isArray(preference.selected_books) ? preference.selected_books : ['fanduel', 'pinnacle', 'bet365'];
       settingsState.saved = [...settingsState.selected];
       settingsState.weights = preference.provider_weights && typeof preference.provider_weights === 'object' ? { ...preference.provider_weights } : Object.fromEntries(settingsState.selected.map((id) => [id, 1 / settingsState.selected.length]));
@@ -76,16 +82,20 @@
       // A parlay is evaluated as one combined position in the primary feed.
       // Keep the per-leg values in the API/database, but avoid showing them
       // beside the combined parlay EV where they can be mistaken for totals.
-      let note = isParlay ? bet.note.replace(/\s*\|\s*EV_ODDS:[^|]+(?=\s*\|)/, '') : bet.note;
+      let note = isParlay ? bet.note.replace(/\s*\|\s*(?:EV_ODDS|PRIME Risk Margin):[^|]+(?=\s*\|)/, '') : bet.note;
+      note = note.replace(/EV_ODDS/g, 'PRIME Risk Margin').replace(/EV_AMT/g, 'PRIME Risk Dollar Value').replace(/Aggregate comp decimal odds/gi, 'BullBear Comp Price');
+      if (bet.primary_sportsbook) note = note.replace(new RegExp(bookName(bet.primary_sportsbook).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), primaryName(bet));
+      const margin = bet.prime_risk_margin != null ? Number(bet.prime_risk_margin) : (bet.ev_odds != null ? Number(bet.ev_odds) * 100 : null);
+      if (!isParlay && margin != null) note = note.replace(/PRIME Risk Margin:\s*[+-]?[\d.]+%?/i, `PRIME Risk Margin: ${margin >= 0 ? '+' : ''}${margin.toFixed(2)}%`);
       if (aggregateDecimal != null) {
-        note = note.replace(/Aggregate comp(?: decimal)? odds:\s*[^|]+/i, `Aggregate comp decimal odds: ${money(aggregateDecimal)}`);
+        note = note.replace(/(?:Aggregate comp(?: decimal)? odds|BullBear Comp Price):\s*[^|]+/i, `BullBear Comp Price: ${money(aggregateDecimal)}`);
       }
       return note;
     }
     const providerLines = Object.entries(bet.provider_odds || {}).map(([book, line]) => `${bookName(book)}: ${money(line.decimal)}`).join(', ');
     const probability = bet.weighted_implied_probability == null ? '' : ` | Weighted implied probability: ${(Number(bet.weighted_implied_probability) * 100).toFixed(2)}%`;
     const audit = bet.is_potentially_bad ? ` | Audit: POTENTIALLY BAD — ${bet.audit_reason}` : ' | Audit: within selected market range';
-    const aggregate = aggregateDecimal == null ? '' : ` | Aggregate comp decimal odds: ${money(aggregateDecimal)}`;
+    const aggregate = aggregateDecimal == null ? '' : ` | BullBear Comp Price: ${money(aggregateDecimal)}`;
     return `${bet.event || bet.selection} | ${money(bet.primary_decimal)} vs. ${providerLines}${aggregate}${probability}${audit}`;
   };
   function render(body) {
@@ -98,22 +108,32 @@
     state.total = pagination.total ?? bets.length;
     $('total').textContent = pagination.total ?? bets.length;
     $('flagged').textContent = pagination.flagged_total ?? bets.filter((bet) => bet.is_potentially_bad).length;
+    if (body.primary_sportsbook_label) {
+      settingsState.baselineLabel = body.primary_sportsbook_label;
+      if ($('baselineBookLabel')) $('baselineBookLabel').textContent = body.primary_sportsbook_label;
+      if ($('baselineMetric')) $('baselineMetric').textContent = body.primary_sportsbook_label;
+    }
     $('alertCount').textContent = bets.some((bet) => bet.is_potentially_bad) ? '!' : '';
     $('updated').textContent = `Updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
     $('pageLabel').textContent = `Page ${pagination.page || state.page} of ${state.pages}`;
     $('previous').disabled = !pagination.has_previous;
     $('next').disabled = !pagination.has_next;
     if (!bets.length) { $('monitorList').innerHTML = '<div class="empty panel"><div>✓</div><h3>No matching records</h3><p>Try another search or status filter.</p></div>'; return; }
-    const providerLines = (bet) => Object.entries(bet.provider_odds || {}).map(([book, line]) => `<span><b>${bookName(book)}</b> ${money(line.decimal)}</span>`).join('');
-    const singleFooter = (bet) => `<div class="monitor-foot">${providerLines(bet)}${compDecimal(bet) != null ? `<span>comp decimal odds <b>${money(compDecimal(bet))}</b></span>` : ''}<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div>`;
-    const parlayLeg = (bet, index) => `<div class="parlay-leg"><div class="parlay-leg-head"><div><span class="parlay-leg-index">LEG ${index + 1}</span><b>${escapeHtml(bet.event || bet.selection)}</b><small>${escapeHtml(`${bet.market || 'Market'} · ${bet.selection || ''}`)}</small></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="parlay-leg-foot">${providerLines(bet)}${compDecimal(bet) != null ? `<span>comp decimal odds <b>${money(compDecimal(bet))}</b></span>` : ''}<span>EV_ODDS <b>${evOdds(bet.ev_odds)}</b></span><span>EV_AMT <b>${evAmount(bet.ev_amount)}</b></span>${bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : ''}</div><p class="parlay-leg-audit">${escapeHtml(bet.audit_reason || 'Comparison captured for this leg.')}</p></div>`;
-    const singleCard = (bet) => `<article class="monitor-card panel ${bet.is_potentially_bad ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(bet.created_at)} · ${bet.sport || 'sport'}${bet.league ? ` · ${bet.league}` : ''}</div><h3>${escapeHtml(bet.event || bet.selection)}</h3><div class="meta">${escapeHtml(`${bet.market || ''} · ${bet.selection || ''}`)}</div></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(bet))}</div>${singleFooter(bet)}</article>`;
+    const providerLines = (bet) => Object.entries(bet.provider_odds || {}).map(([book, line]) => `<span><b>${String(book).toLowerCase() === String(bet.primary_sportsbook || settingsState.baseline).toLowerCase() ? escapeHtml(primaryName(bet)) : escapeHtml(bookName(book))}</b> ${money(line.decimal)}</span>`).join('');
+    const riskMargin = (bet) => bet.prime_risk_margin != null ? Number(bet.prime_risk_margin) : (bet.ev_odds != null ? Number(bet.ev_odds) * 100 : null);
+    const riskValue = (bet) => bet.prime_risk_dollar_value != null ? bet.prime_risk_dollar_value : bet.ev_amount;
+    const patronLine = (bet) => bet.patron_username ? `<div class="patron-line"><span>PATRON</span><b>${escapeHtml(bet.patron_username)}</b></div>` : '';
+    const insightBox = (bet) => `<div class="monitor-insight ${bet.is_potentially_bad ? 'bad' : 'good'}"><small>RISK INSIGHT · RULE BASED</small><strong>${escapeHtml(bet.audit_reason || 'Comparison captured for this selection.')}</strong></div>`;
+    const singleFooter = (bet) => `<div class="monitor-foot">${providerLines(bet)}${compDecimal(bet) != null ? `<span>BullBear Comp Price <b>${money(compDecimal(bet))}</b></span>` : ''}<span>PRIME Risk Margin <b>${riskMargin(bet) == null ? '—' : `${riskMargin(bet) >= 0 ? '+' : ''}${Number(riskMargin(bet)).toFixed(2)}%`}</b></span><span>PRIME Risk Dollar Value <b>${evAmount(riskValue(bet))}</b></span>${bet.edge_percent != null ? `<span>edge <b>${Number(bet.edge_percent).toFixed(2)}%</b></span>` : (bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : '')}</div>`;
+    const parlayLeg = (bet, index) => `<div class="parlay-leg"><div class="parlay-leg-head"><div><span class="parlay-leg-index">LEG ${index + 1}</span><b>${escapeHtml(bet.event || bet.selection)}</b><small>${escapeHtml(`${bet.market || 'Market'} · ${bet.selection || ''}`)}</small></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="parlay-leg-foot">${providerLines(bet)}${compDecimal(bet) != null ? `<span>BullBear Comp Price <b>${money(compDecimal(bet))}</b></span>` : ''}<span>PRIME Risk Margin <b>${riskMargin(bet) == null ? '—' : `${riskMargin(bet) >= 0 ? '+' : ''}${Number(riskMargin(bet)).toFixed(2)}%`}</b></span><span>PRIME Risk Dollar Value <b>${evAmount(riskValue(bet))}</b></span>${bet.edge_percent != null ? `<span>edge <b>${Number(bet.edge_percent).toFixed(2)}%</b></span>` : (bet.edge_decimal != null ? `<span>edge <b>${money(bet.edge_decimal)}</b></span>` : '')}</div><p class="parlay-leg-audit">${escapeHtml(bet.audit_reason || 'Comparison captured for this leg.')}</p></div>`;
+    const singleCard = (bet) => `<article class="monitor-card panel ${bet.is_potentially_bad ? 'flagged' : ''}"><div class="monitor-card-head"><div>${patronLine(bet)}<div class="meta">${date(bet.created_at)} · ${bet.sport || 'sport'}${bet.league ? ` · ${bet.league}` : ''}</div><h3>${escapeHtml(bet.event || bet.selection)}</h3><div class="meta">${escapeHtml(`${bet.market || ''} · ${bet.selection || ''}`)}</div></div><span class="${bet.is_potentially_bad ? 'flag' : 'clear'}">${bet.is_potentially_bad ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(bet))}</div>${insightBox(bet)}${singleFooter(bet)}</article>`;
     const parlayCard = (legs) => {
       const first = legs[0];
       const legCount = Number(first.slip_leg_count || legs.length);
       const flagged = legs.some((leg) => leg.is_potentially_bad);
       const detailsLabel = `View individual legs · ${legCount} leg${legCount === 1 ? '' : 's'}`;
-      return `<article class="monitor-card panel parlay-card ${flagged ? 'flagged' : ''}"><div class="monitor-card-head"><div><div class="meta">${date(first.created_at)} · ${first.sport || 'sport'}${first.league ? ` · ${first.league}` : ''}</div><h3>Parlay · ${legCount} legs</h3><div class="meta">Sportsbook comparison · Slip #${escapeHtml(first.slip_id || '—')}</div></div><span class="${flagged ? 'flag' : 'clear'}">${flagged ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(first))}</div><div class="monitor-foot"><span>DraftKings parlay</span><span>combined odds <b>${money(first.slip_combined_decimal_odds)}</b></span>${slipCompDecimal(first) != null ? `<span>comp decimal odds <b>${money(slipCompDecimal(first))}</b></span>` : ''}<span>stake <b>${evAmount(first.slip_stake)}</b></span><span>parlay EV_ODDS <b>${evOdds(first.slip_ev_odds)}</b></span><span>parlay EV_AMT <b>${evAmount(first.slip_ev_amount)}</b></span></div><details class="parlay-details" data-slip-id="${escapeHtml(first.slip_id)}"><summary>${detailsLabel}<span>⌄</span></summary><div class="parlay-leg-list">${legs.map(parlayLeg).join('')}</div></details></article>`;
+      const parlayMargin = first.slip_prime_risk_margin != null ? Number(first.slip_prime_risk_margin) : (first.slip_ev_odds != null ? Number(first.slip_ev_odds) * 100 : null);
+      return `<article class="monitor-card panel parlay-card ${flagged ? 'flagged' : ''}"><div class="monitor-card-head"><div>${patronLine(first)}<div class="meta">${date(first.created_at)} · ${first.sport || 'sport'}${first.league ? ` · ${first.league}` : ''}</div><h3>Parlay · ${legCount} legs</h3><div class="meta">Sportsbook comparison · Slip #${escapeHtml(first.slip_id || '—')}</div></div><span class="${flagged ? 'flag' : 'clear'}">${flagged ? 'REVIEW' : 'WITHIN RANGE'}</span></div><div class="monitor-note">${escapeHtml(cleanNote(first))}</div>${insightBox(first)}<div class="monitor-foot"><span>${escapeHtml(primaryName(first))} parlay</span><span>combined odds <b>${money(first.slip_combined_decimal_odds)}</b></span>${slipCompDecimal(first) != null ? `<span>BullBear Comp Price <b>${money(slipCompDecimal(first))}</b></span>` : ''}<span>stake <b>${evAmount(first.slip_stake)}</b></span><span>PRIME Risk Margin <b>${parlayMargin == null ? '—' : `${parlayMargin >= 0 ? '+' : ''}${parlayMargin.toFixed(2)}%`}</b></span><span>PRIME Risk Dollar Value <b>${evAmount(first.slip_prime_risk_dollar_value ?? first.slip_ev_amount)}</b></span></div><details class="parlay-details" data-slip-id="${escapeHtml(first.slip_id)}"><summary>${detailsLabel}<span>⌄</span></summary><div class="parlay-leg-list">${legs.map(parlayLeg).join('')}</div></details></article>`;
     };
     const grouped = [];
     const parlays = new Map();

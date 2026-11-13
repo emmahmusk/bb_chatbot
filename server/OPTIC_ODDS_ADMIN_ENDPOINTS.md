@@ -29,6 +29,7 @@ GET /admin_panel/optic-odds/leagues/?sport=baseball
 GET /admin_panel/optic-odds/fixtures/?sport=baseball&league=mlb
 GET /admin_panel/optic-odds/fixtures/?sport=baseball&live_only=true
 GET /admin_panel/optic-odds/fixtures/<fixture_id>/odds/?sportsbooks=draftkings,fanduel,pinnacle&market=moneyline
+GET /admin_panel/optic-odds/patrons/<user_id>/notes/
 ```
 
 Pass at least `sport` or `league`. The fixture endpoint merges OpticOdds' live feed with scheduled fixtures and
@@ -57,21 +58,32 @@ Content-Type: application/json
 ```
 
 The endpoint fetches a fresh snapshot, records the bet and returns a monitor
-note such as `Dodgers ML | DraftKings 1.91 vs. fanduel: 1.95,
-pinnacle: 1.99, bet365: 1.97 | Aggregate comp: 0.5136`. It also sets
-`is_potentially_bad` when the DraftKings price is higher than every selected
+note such as `Dodgers ML | Operator X 1.91 vs. fanduel: 1.95,
+pinnacle: 1.99, bet365: 1.97 | BullBear Comp Price: 1.95 | PRIME Risk Margin: +1.08% · PRIME Risk Dollar Value: $0.27`. The internal
+provider slug remains configurable through `OPTIC_ODDS_PRIMARY_SPORTSBOOK`,
+while `OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL` controls this display label. It also sets
+`is_potentially_bad` when the Operator X price is higher than every selected
 peer, or is at least 0.20 decimal points and 10% above the lowest peer. The
 thresholds are configurable with `OPTIC_ODDS_AUDIT_MIN_DECIMAL_GAP` and
 `OPTIC_ODDS_AUDIT_MIN_RELATIVE_GAP`. Comparison providers are equally weighted.
 The aggregate formula is `average(1/peer_decimal)`. For parlays, each provider's
 leg prices are multiplied first, then `average(1/provider_combined_decimal)` is
 used. Providers without a valid quote for the market or every parlay leg are
-excluded from the calculation.
+excluded from the calculation. Demo prices are used only when demo mode is
+enabled or the live OpticOdds request fails; a successful live response with a
+missing provider is never filled with a synthetic quote.
 
 ```text
-GET /admin_panel/optic-odds/bets/monitor/?limit=50
+GET /admin_panel/optic-odds/bets/monitor/?page=1&page_size=50
 ```
 
 This returns the timestamped snapshots for an admin monitoring screen. These
-endpoints record an internal POC only; they do not place or settle a wager with
-DraftKings or another sportsbook.
+records include `patron_id`, `patron_username`, `primary_sportsbook_label`,
+`prime_risk_margin` (percentage), `prime_risk_dollar_value`, and a rule-based
+`insight` object. The patron notes endpoint returns the complete slip history
+plus cumulative `prime_edge_percent` and `prime_exposure`. Cumulative PRIME
+Edge is calculated as `sum(evaluated wager risk dollar value) / sum(evaluated
+wager stake) * 100`; PRIME Exposure is the sum of evaluated wager risk dollar
+values. Parlays are counted once at slip level, so their legs are not
+double-counted. These endpoints record an internal POC only; they do not place
+or settle a wager with Operator X or another sportsbook.

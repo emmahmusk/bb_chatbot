@@ -6,16 +6,41 @@ from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.contrib.auth import get_user_model
+from django.db.models import Q, Sum
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from admin_panel.models import DemoOddsOverride, OpticOddsBetMonitor
+from admin_panel.models import DemoOddsOverride, OpticOddsBetMonitor, SportsbookBetSlip
 from admin_panel.optic_odds import OpticOddsClient, OpticOddsError, default_sportsbooks, DEMO_SPORTS, DEMO_LEAGUES, demo_fixtures, demo_odds
 from admin_panel.permissions import IsAdminOrServiceKey
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
+
+
+def _primary_sportsbook() -> str:
+    return str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings") or "draftkings").strip().lower()
+
+
+def _primary_label() -> str:
+    return str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "Operator X") or "Operator X").strip() or "Operator X"
+
+
+EDGE_METHODOLOGY = (
+    "Edge is the baseline decimal price minus the lowest valid peer decimal price. "
+    "A note is flagged when the baseline is above every valid peer, or at least "
+    "the configured decimal and relative thresholds above the lowest peer."
+)
+
+
+def _risk_fields(ev_odds, ev_amount):
+    return {
+        "prime_risk_margin": (float(ev_odds) * 100) if ev_odds is not None else None,
+        "prime_risk_margin_decimal": float(ev_odds) if ev_odds is not None else None,
+        "prime_risk_dollar_value": str(ev_amount) if ev_amount is not None else None,
+    }
 
 
 def _error(exc: OpticOddsError) -> Response:
@@ -223,7 +248,7 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
         missing = [key for key in required if not data.get(key)]
         if missing:
             return Response({"detail": f"Missing required fields: {', '.join(missing)}"}, status=status.HTTP_400_BAD_REQUEST)
-        primary = str(data.get("sportsbook") or settings.OPTIC_ODDS_PRIMARY_SPORTSBOOK).lower()
+        primary = str(data.get("sportsbook") or _primary_sportsbook()).lower()
         books = _books(request, data)
         if primary not in books:
             books.insert(0, primary)
@@ -243,7 +268,7 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
         provider_odds, probability, fair_decimal = _weighted(matching, weights)
         primary_line = provider_odds.get(primary)
         if not primary_line:
-            return Response({"detail": f"No {primary} price is available for this selection."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response({"detail": f"No {_primary_label()} price is available for this selection."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         peer_lines = {book: line["decimal"] for book, line in provider_odds.items() if book != primary}
         normalised_weights = _normalise_peer_weights(peer_lines, weights)
         peer_decimals = list(peer_lines.values())
@@ -272,10 +297,11 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
         weight_text = ", ".join(f"{book} {normalised_weights.get(book, 0):.2%}" for book in normalised_weights)
         formula = " + ".join(f"{book} {normalised_weights.get(book, 0):.2%} × 1/{values['decimal']:.2f}" for book, values in provider_odds.items() if book != primary)
         audit_note = f" | Audit: POTENTIALLY BAD — {audit_reason}" if is_potentially_bad else " | Audit: within selected market range"
-        ev_note = f" | EV_ODDS: {ev_odds:+.6f} · EV_AMT: ${ev_amount:,.2f}" if ev_odds is not None and ev_amount is not None else " | EV unavailable (no peer price)"
+        risk_margin_pct = (ev_odds * 100) if ev_odds is not None else None
+        ev_note = f" | PRIME Risk Margin: {risk_margin_pct:+.2f}% · PRIME Risk Dollar Value: ${ev_amount:,.2f}" if risk_margin_pct is not None and ev_amount is not None else " | PRIME risk unavailable (no peer price)"
         probability_text = f"{probability:.2%}" if probability is not None else "—"
         aggregate_decimal_text = f"{fair_decimal:.2f}" if fair_decimal is not None else "—"
-        note = f"{label} | {primary_line['decimal']:.2f} vs. {comparison} | Aggregate comp decimal odds: {aggregate_decimal_text}{ev_note} | Weighted implied probability: {probability_text}{audit_note}"
+        note = f"{label} | {_primary_label()} {primary_line['decimal']:.2f} vs. {comparison} | BullBear Comp Price: {aggregate_decimal_text}{ev_note} | Weighted implied probability: {probability_text}{audit_note}"
         # Service-key calls authenticate the application, not an individual
         # Django user. AnonymousUser cannot be assigned to a User FK, so keep
         # admin_user NULL for those records; JWT-authenticated admin calls keep
@@ -293,7 +319,67 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
             is_potentially_bad=is_potentially_bad, audit_reason=audit_reason, edge_decimal=edge_decimal,
             note=note, odds_snapshot=matching,
         )
-        return Response({"id": record.id, "created_at": record.created_at, "note": note, "primary": primary_line, "provider_odds": provider_odds, "provider_weights": normalised_weights, "weighted_implied_probability": probability, "fair_decimal": fair_decimal, "aggregate_comp_odds": aggregate_comp_odds, "aggregate_comp_decimal_odds": (round(1 / aggregate_comp_odds, 4) if aggregate_comp_odds else None), "ev_odds": ev_odds, "ev_amount": ev_amount, "formula": formula, "is_potentially_bad": is_potentially_bad, "audit_reason": audit_reason, "edge_decimal": edge_decimal}, status=status.HTTP_201_CREATED)
+        return Response({"id": record.id, "created_at": record.created_at, "patron_id": admin_user.id if admin_user else None, "patron_username": admin_user.username if admin_user else None, "note": note, "primary": primary_line, "primary_sportsbook": primary, "primary_sportsbook_label": _primary_label(), "provider_odds": provider_odds, "provider_weights": normalised_weights, "weighted_implied_probability": probability, "fair_decimal": fair_decimal, "aggregate_comp_odds": aggregate_comp_odds, "aggregate_comp_decimal_odds": (round(1 / aggregate_comp_odds, 4) if aggregate_comp_odds else None), "ev_odds": ev_odds, "ev_amount": ev_amount, **_risk_fields(ev_odds, ev_amount), "formula": formula, "is_potentially_bad": is_potentially_bad, "audit_reason": audit_reason, "edge_decimal": edge_decimal, "edge_percent": (round((edge_decimal / lowest_peer) * 100, 4) if edge_decimal is not None and lowest_peer else None)}, status=status.HTTP_201_CREATED)
+
+
+def _monitor_payload(row):
+    """Serialize one monitor leg with patron and CEO-facing risk terminology."""
+    slip = row.sportsbook_slip
+    patron = row.admin_user or (slip.user if slip else None)
+    provider_odds = row.provider_odds or {}
+    primary = str(row.primary_sportsbook or _primary_sportsbook()).strip().lower()
+    peer_decimals = [
+        float(line.get("decimal"))
+        for book, line in provider_odds.items()
+        if book != primary and isinstance(line, dict) and line.get("decimal") not in (None, "")
+    ]
+    edge_percent = None
+    if row.edge_decimal is not None and peer_decimals and min(peer_decimals) > 0:
+        edge_percent = round(float(row.edge_decimal) / min(peer_decimals) * 100, 4)
+    risk = _risk_fields(row.ev_odds, row.ev_amount)
+    slip_risk = _risk_fields(slip.ev_odds, slip.ev_amount) if slip else _risk_fields(None, None)
+    return {
+        "id": row.id,
+        "created_at": row.created_at,
+        "fixture_id": row.fixture_id,
+        "event": row.event,
+        "sport": row.sport,
+        "league": row.league,
+        "market": row.market,
+        "selection": row.selection,
+        "patron_id": patron.id if patron else None,
+        "patron_username": patron.username if patron else None,
+        "primary_sportsbook": primary,
+        "primary_sportsbook_label": _primary_label(),
+        "primary_decimal": row.primary_decimal,
+        "provider_odds": provider_odds,
+        "provider_weights": row.provider_weights,
+        "weighted_implied_probability": row.weighted_implied_probability,
+        "fair_decimal": row.fair_decimal,
+        "aggregate_comp_odds": row.aggregate_comp_odds,
+        "aggregate_comp_decimal_odds": (round(1 / row.aggregate_comp_odds, 4) if row.aggregate_comp_odds else None),
+        "ev_odds": row.ev_odds,
+        "ev_amount": str(row.ev_amount) if row.ev_amount is not None else None,
+        **risk,
+        "slip_id": row.sportsbook_slip_id,
+        "slip_stake": str(slip.stake) if slip else None,
+        "slip_combined_decimal_odds": float(slip.combined_decimal_odds) if slip else None,
+        "slip_aggregate_comp_odds": slip.aggregate_comp_odds if slip else None,
+        "slip_aggregate_comp_decimal_odds": (round(1 / slip.aggregate_comp_odds, 4) if slip and slip.aggregate_comp_odds else None),
+        "slip_potential_payout": str(slip.potential_payout) if slip else None,
+        "slip_leg_count": slip.leg_count if slip else 1,
+        "slip_ev_odds": slip.ev_odds if slip else None,
+        "slip_ev_amount": str(slip.ev_amount) if slip and slip.ev_amount is not None else None,
+        "slip_prime_risk_margin": slip_risk["prime_risk_margin"],
+        "slip_prime_risk_dollar_value": slip_risk["prime_risk_dollar_value"],
+        "is_potentially_bad": row.is_potentially_bad,
+        "audit_reason": row.audit_reason,
+        "insight": {"message": row.audit_reason, "source": "rule_based", "review_required": row.is_potentially_bad},
+        "edge_decimal": row.edge_decimal,
+        "edge_percent": edge_percent,
+        "edge_methodology": EDGE_METHODOLOGY,
+        "note": row.note,
+    }
 
 
 class AdminOpticOddsBetMonitorListView(OpticOddsBaseView):
@@ -306,11 +392,13 @@ class AdminOpticOddsBetMonitorListView(OpticOddsBaseView):
         # Do not rely on database/default-manager ordering here. New records
         # must always appear first in the monitoring feed, even when several
         # bets share the same timestamp precision.
-        queryset = OpticOddsBetMonitor.objects.select_related("admin_user", "sportsbook_slip").order_by("-created_at", "-id")
+        queryset = OpticOddsBetMonitor.objects.select_related("admin_user", "sportsbook_slip", "sportsbook_slip__user").order_by("-created_at", "-id")
         query = str(request.query_params.get("q", "")).strip()
         status_filter = str(request.query_params.get("status", "all")).lower()
         sport = str(request.query_params.get("sport", "")).strip()
         league = str(request.query_params.get("league", "")).strip()
+        patron_id = str(request.query_params.get("patron_id", "")).strip()
+        patron_username = str(request.query_params.get("patron_username", "")).strip()
         if query:
             queryset = queryset.filter(Q(event__icontains=query) | Q(selection__icontains=query) | Q(market__icontains=query) | Q(fixture_id__icontains=query))
         if status_filter == "flagged":
@@ -321,8 +409,79 @@ class AdminOpticOddsBetMonitorListView(OpticOddsBaseView):
             queryset = queryset.filter(sport__iexact=sport)
         if league:
             queryset = queryset.filter(league__iexact=league)
+        if patron_id:
+            try:
+                patron_pk = int(patron_id)
+                queryset = queryset.filter(Q(admin_user_id=patron_pk) | Q(sportsbook_slip__user_id=patron_pk))
+            except ValueError:
+                queryset = queryset.none()
+        if patron_username:
+            queryset = queryset.filter(Q(admin_user__username__iexact=patron_username) | Q(sportsbook_slip__user__username__iexact=patron_username))
         flagged_total = queryset.filter(is_potentially_bad=True).count()
         paginator = Paginator(queryset, page_size)
         page_obj = paginator.get_page(page)
         records = page_obj.object_list
-        return Response({"bets": [{"id": row.id, "created_at": row.created_at, "fixture_id": row.fixture_id, "event": row.event, "sport": row.sport, "league": row.league, "market": row.market, "selection": row.selection, "primary_sportsbook": row.primary_sportsbook, "primary_decimal": row.primary_decimal, "provider_odds": row.provider_odds, "provider_weights": row.provider_weights, "weighted_implied_probability": row.weighted_implied_probability, "fair_decimal": row.fair_decimal, "aggregate_comp_odds": row.aggregate_comp_odds, "aggregate_comp_decimal_odds": (round(1 / row.aggregate_comp_odds, 4) if row.aggregate_comp_odds else None), "ev_odds": row.ev_odds, "ev_amount": str(row.ev_amount) if row.ev_amount is not None else None, "slip_id": row.sportsbook_slip_id, "slip_stake": str(row.sportsbook_slip.stake) if row.sportsbook_slip else None, "slip_combined_decimal_odds": float(row.sportsbook_slip.combined_decimal_odds) if row.sportsbook_slip else None, "slip_aggregate_comp_odds": row.sportsbook_slip.aggregate_comp_odds if row.sportsbook_slip else None, "slip_aggregate_comp_decimal_odds": (round(1 / row.sportsbook_slip.aggregate_comp_odds, 4) if row.sportsbook_slip and row.sportsbook_slip.aggregate_comp_odds else None), "slip_potential_payout": str(row.sportsbook_slip.potential_payout) if row.sportsbook_slip else None, "slip_leg_count": row.sportsbook_slip.leg_count if row.sportsbook_slip else 1, "slip_ev_odds": row.sportsbook_slip.ev_odds if row.sportsbook_slip else None, "slip_ev_amount": str(row.sportsbook_slip.ev_amount) if row.sportsbook_slip and row.sportsbook_slip.ev_amount is not None else None, "is_potentially_bad": row.is_potentially_bad, "audit_reason": row.audit_reason, "edge_decimal": row.edge_decimal, "note": row.note} for row in records], "pagination": {"page": page_obj.number, "page_size": page_size, "total": paginator.count, "flagged_total": flagged_total, "pages": paginator.num_pages, "has_next": page_obj.has_next(), "has_previous": page_obj.has_previous()}})
+        return Response({"bets": [_monitor_payload(row) for row in records], "primary_sportsbook": _primary_sportsbook(), "primary_sportsbook_label": _primary_label(), "edge_methodology": EDGE_METHODOLOGY, "pagination": {"page": page_obj.number, "page_size": page_size, "total": paginator.count, "flagged_total": flagged_total, "pages": paginator.num_pages, "has_next": page_obj.has_next(), "has_previous": page_obj.has_previous()}})
+
+
+class AdminOpticOddsPatronNotesView(OpticOddsBaseView):
+    """Return one patron's complete sportsbook note history and risk totals."""
+
+    def get(self, request, user_id):
+        try:
+            patron = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "Patron profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            page = max(int(request.query_params.get("page", 1)), 1)
+            page_size = min(max(int(request.query_params.get("page_size", 20)), 1), 100)
+        except (TypeError, ValueError):
+            page, page_size = 1, 20
+
+        slips = SportsbookBetSlip.objects.filter(user=patron).order_by("-created_at", "-id")
+        evaluated = slips.filter(ev_amount__isnull=False)
+        totals = evaluated.aggregate(total_stake=Sum("stake"), total_ev=Sum("ev_amount"))
+        total_stake = totals["total_stake"] or Decimal("0")
+        total_ev = totals["total_ev"] or Decimal("0")
+        prime_edge = (total_ev / total_stake * Decimal("100")) if total_stake else None
+        paginator = Paginator(slips, page_size)
+        page_obj = paginator.get_page(page)
+
+        notes = []
+        for slip in page_obj.object_list:
+            risk = _risk_fields(slip.ev_odds, slip.ev_amount)
+            notes.append({
+                "slip_id": slip.id,
+                "created_at": slip.created_at,
+                "stake": str(slip.stake),
+                "combined_decimal_odds": float(slip.combined_decimal_odds),
+                "potential_payout": str(slip.potential_payout),
+                "leg_count": slip.leg_count,
+                "primary_sportsbook": _primary_sportsbook(),
+                "primary_sportsbook_label": _primary_label(),
+                "aggregate_comp_odds": slip.aggregate_comp_odds,
+                "aggregate_comp_decimal_odds": (round(1 / slip.aggregate_comp_odds, 4) if slip.aggregate_comp_odds else None),
+                "ev_odds": slip.ev_odds,
+                "ev_amount": str(slip.ev_amount) if slip.ev_amount is not None else None,
+                **risk,
+                "comparison_notes": slip.comparison_notes or [],
+                "legs": slip.legs or [],
+                "status": slip.status,
+            })
+        return Response({
+            "patron": {"id": patron.id, "username": patron.username},
+            "summary": {
+                "prime_edge": round(float(prime_edge), 4) if prime_edge is not None else None,
+                "prime_edge_percent": round(float(prime_edge), 4) if prime_edge is not None else None,
+                "prime_exposure": str(total_ev),
+                "total_stake": str(total_stake),
+                "evaluated_wagers": evaluated.count(),
+                "total_wagers": slips.count(),
+                "edge_methodology": EDGE_METHODOLOGY,
+            },
+            "notes": notes,
+            "primary_sportsbook": _primary_sportsbook(),
+            "primary_sportsbook_label": _primary_label(),
+            "pagination": {"page": page_obj.number, "page_size": page_size, "total": paginator.count, "pages": paginator.num_pages, "has_next": page_obj.has_next(), "has_previous": page_obj.has_previous()},
+        })
