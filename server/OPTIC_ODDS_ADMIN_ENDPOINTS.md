@@ -58,11 +58,11 @@ Content-Type: application/json
 ```
 
 The endpoint fetches a fresh snapshot, records the bet and returns a monitor
-note such as `Dodgers ML | Operator X 1.91 vs. fanduel: 1.95,
+note such as `Dodgers ML | DraftKings 1.91 vs. fanduel: 1.95,
 pinnacle: 1.99, bet365: 1.97 | BullBear Comp Price: 1.95 | PRIME Risk Margin: +1.08% · PRIME Risk Dollar Value: $0.27`. The internal
 provider slug remains configurable through `OPTIC_ODDS_PRIMARY_SPORTSBOOK`,
 while `OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL` controls this display label. It also sets
-`is_potentially_bad` when the Operator X price is higher than every selected
+`is_potentially_bad` when the DraftKings price is higher than every selected
 peer, or is at least 0.20 decimal points and 10% above the lowest peer. The
 thresholds are configurable with `OPTIC_ODDS_AUDIT_MIN_DECIMAL_GAP` and
 `OPTIC_ODDS_AUDIT_MIN_RELATIVE_GAP`. Comparison providers are equally weighted.
@@ -86,4 +86,4 @@ Edge is calculated as `sum(evaluated wager risk dollar value) / sum(evaluated
 wager stake) * 100`; PRIME Exposure is the sum of evaluated wager risk dollar
 values. Parlays are counted once at slip level, so their legs are not
 double-counted. These endpoints record an internal POC only; they do not place
-or settle a wager with Operator X or another sportsbook.
+or settle a wager with DraftKings or another sportsbook.

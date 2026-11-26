@@ -25,7 +25,14 @@ def _error(exc: OpticOddsError) -> Response:
     return Response({"detail": str(exc)}, status=getattr(exc, "status_code", 502))
 
 
+from admin_panel.odds_preferences import preference_payload, saved_preference
+
+
 def _configured_books() -> list[str]:
+    preference = saved_preference()
+    if preference:
+        payload = preference_payload(preference)
+        return [payload["baseline"], *payload["selected_books"]]
     configured = getattr(settings, "OPTIC_ODDS_COMPARISON_SPORTSBOOKS", []) or default_sportsbooks()
     primary = getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")
     return list(dict.fromkeys([str(primary).lower(), *[str(book).lower() for book in configured]]))[:5]
@@ -36,8 +43,8 @@ def _primary_sportsbook() -> str:
 
 
 def _primary_label(primary: str | None = None) -> str:
-    configured = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "Operator X") or "Operator X").strip()
-    return configured or "Operator X"
+    configured = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "DraftKings") or "DraftKings").strip()
+    return configured or "DraftKings"
 
 
 def _books(request, body=None) -> list[str]:
@@ -121,6 +128,15 @@ def _demo_fallback_rows(rows, fixture_id, books, market, selection, primary):
         # Demo fallback must remain usable even if an older deployment has not
         # applied the optional demo-override migration yet.
         generated = []
+    # A saved server override takes precedence over stale browser/chatbot
+    # demo snapshots, including a primary line already present in the slip.
+    moved = {str(row.get("sportsbook", "")).strip().lower(): row for row in generated if row.get("demo_override")}
+    output = [row for row in output if not (
+        str(row.get("sportsbook", "")).strip().lower() in moved
+        and row in matching
+    )]
+    output.extend(moved.values())
+    present.update(moved)
     generated_by_book = {str(row.get("sportsbook", "")).strip().lower(): row for row in generated}
     baseline = next((row for row in matching if str(row.get("sportsbook", "")).strip().lower() == primary), None)
     try:
@@ -367,8 +383,14 @@ class SportsbookRecordBetSlipView(APIView):
         if stake <= 0:
             return Response({"detail": "Stake must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
 
-        books = _books(request, data)
-        provider_weights = data.get("provider_weights") if isinstance(data.get("provider_weights"), dict) else {}
+        preference = saved_preference()
+        if preference:
+            configured = preference_payload(preference)
+            books = [configured["baseline"], *configured["selected_books"]]
+            provider_weights = configured["provider_weights"]
+        else:
+            books = _books(request, data)
+            provider_weights = data.get("provider_weights") if isinstance(data.get("provider_weights"), dict) else {}
         primary = _primary_sportsbook()
         client = OpticOddsClient()
         demo_mode = str(getattr(settings, "SPORTSBOOK_MODE", "auto")).lower() == "demo" or str(data.get("demo", "")).lower() == "true"

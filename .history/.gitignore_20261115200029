@@ -4,5 +4,6 @@
 __pycache__/
 *.py[cod]
 .env
+.venv
 chatbot_service/db.sqlite3
 chatbot_service/staticfiles/

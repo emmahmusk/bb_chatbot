@@ -17,7 +17,19 @@ from admin_panel.views.competition import (
 from admin_panel.api import AdminMarketOverrideAPIView, UpdateUserCRSView, UpdatePlatformSettingsView, AnalyticsDashboardAPIView, AnalyticsUserDashboardAPIView, AdminAnalyticsAPIView, DeleteExpiringMarketsView, KYCFileReviewListAPIView, TotalGGRAPIView, AdminSettleBetView, AdminUserListView, SignupAPIView, LoginAPIView, AdminBetFeedView, AdminKYCViewSet, AdminUserListAPIView, AnalyticsDashboardAPIViewNew
 from admin_panel.optic_odds_api import AdminOpticOddsSportsView, AdminOpticOddsLeaguesView, AdminOpticOddsFixturesView, AdminOpticOddsFixtureOddsView, AdminOpticOddsBetMonitorView, AdminOpticOddsBetMonitorListView, AdminOpticOddsPatronNotesView, AdminDemoOddsOverrideView
 
+from admin_panel.odds_lab_api import (
+    AdminComparisonSettingsView, AdminComparisonProvidersView,
+    AdminDemoLabSportsView, AdminDemoLabLeaguesView,
+    AdminDemoLabFixturesView, AdminDemoLabOddsView,
+)
+
 urlpatterns = [
+    path("optic-odds/settings/", AdminComparisonSettingsView.as_view(), name="optic-odds-settings"),
+    path("optic-odds/providers/", AdminComparisonProvidersView.as_view(), name="optic-odds-providers"),
+    path("optic-odds/demo-lab/sports/", AdminDemoLabSportsView.as_view(), name="optic-odds-demo-lab-sports"),
+    path("optic-odds/demo-lab/leagues/", AdminDemoLabLeaguesView.as_view(), name="optic-odds-demo-lab-leagues"),
+    path("optic-odds/demo-lab/fixtures/", AdminDemoLabFixturesView.as_view(), name="optic-odds-demo-lab-fixtures"),
+    path("optic-odds/demo-lab/fixtures/<str:fixture_id>/odds/", AdminDemoLabOddsView.as_view(), name="optic-odds-demo-lab-odds"),
     path("optic-odds/sports/", AdminOpticOddsSportsView.as_view(), name="optic-odds-sports"),
     path("optic-odds/leagues/", AdminOpticOddsLeaguesView.as_view(), name="optic-odds-leagues"),
     path("optic-odds/fixtures/", AdminOpticOddsFixturesView.as_view(), name="optic-odds-fixtures"),

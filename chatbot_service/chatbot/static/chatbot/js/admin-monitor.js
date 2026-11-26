@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const state = { page: 1, pageSize: 20, query: '', status: 'all', pages: 1, total: null, openParlays: new Set() };
-  const settingsState = { providers: [], selected: [], saved: [], weights: {}, savedWeights: {}, loaded: false, baseline: '', baselineLabel: 'Operator X' };
+  const settingsState = { providers: [], selected: [], saved: [], weights: {}, savedWeights: {}, loaded: false, baseline: '', baselineLabel: 'DraftKings' };
   const api = () => {
     const params = new URLSearchParams({ page: state.page, page_size: state.pageSize, status: state.status });
     // Some managed proxies ignore response cache headers. The timestamp makes
@@ -30,7 +30,7 @@
   const evAmount = (value) => value == null ? '—' : `$${Number(value).toFixed(2)}`;
   const date = (value) => value ? new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Unknown time';
   const bookName = (book) => ({ hardrockbet: 'Hard Rock', hardrock: 'Hard Rock', draftkings: 'DraftKings', fanduel: 'FanDuel', pinnacle: 'Pinnacle', betmgm: 'BetMGM', caesars: 'Caesars', bet365: 'bet365' }[String(book).toLowerCase()] || book);
-  const primaryName = (bet) => bet?.primary_sportsbook_label || settingsState.baselineLabel || 'Operator X';
+  const primaryName = (bet) => bet?.primary_sportsbook_label || settingsState.baselineLabel || 'DraftKings';
   const settingsApi = (path, options = {}) => fetch(path, { cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }).then(async (response) => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.detail || body.error || `Request failed (HTTP ${response.status})`); return body; });
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
   function updateSettingsSummary() {
@@ -60,7 +60,7 @@
       const [catalog, preference] = await Promise.all([settingsApi('/api/odds/providers/'), settingsApi('/api/admin-sportsbook/settings/')]);
       settingsState.providers = catalog.providers || [];
       settingsState.baseline = String(preference.baseline || catalog.primary_sportsbook || '').toLowerCase();
-      settingsState.baselineLabel = preference.baseline_label || catalog.primary_sportsbook_label || 'Operator X';
+      settingsState.baselineLabel = preference.baseline_label || catalog.primary_sportsbook_label || 'DraftKings';
       if ($('baselineBookLabel')) $('baselineBookLabel').textContent = settingsState.baselineLabel;
       if ($('baselineMetric')) $('baselineMetric').textContent = settingsState.baselineLabel;
       if ($('baselineMetricSub')) $('baselineMetricSub').textContent = 'Primary pricing reference';
@@ -84,6 +84,7 @@
       // beside the combined parlay EV where they can be mistaken for totals.
       let note = isParlay ? bet.note.replace(/\s*\|\s*(?:Parlay\s+)?(?:EV_ODDS|PRIME Risk Margin):[^|]*(?:\|\s*(?:Parlay\s+)?(?:EV_AMT|PRIME Risk Dollar Value):[^|]*)?/i, '') : bet.note;
       note = note.replace(/EV_ODDS/g, 'PRIME Risk Margin').replace(/EV_AMT/g, 'PRIME Risk Dollar Value').replace(/Aggregate comp decimal odds/gi, 'BullBear Comp Price');
+      note = note.replace(/Operator X/gi, primaryName(bet));
       if (bet.primary_sportsbook) note = note.replace(new RegExp(bookName(bet.primary_sportsbook).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), primaryName(bet));
       const margin = bet.prime_risk_margin != null ? Number(bet.prime_risk_margin) : (bet.ev_odds != null ? Number(bet.ev_odds) * 100 : null);
       if (!isParlay && margin != null) note = note.replace(/PRIME Risk Margin:\s*[+-]?[\d.]+%?/i, `PRIME Risk Margin: ${margin >= 0 ? '+' : ''}${margin.toFixed(2)}%`);

@@ -1,6 +1,6 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { sports: [], leagues: [], fixtures: [], rows: [], books: ['draftkings', 'fanduel', 'pinnacle'], primary: 'draftkings', primaryLabel: 'Operator X', selectedFixture: null, demo: false };
+  const state = { sports: [], leagues: [], fixtures: [], rows: [], books: ['draftkings', 'fanduel', 'pinnacle'], primary: 'draftkings', primaryLabel: 'DraftKings', selectedFixture: null, demo: false };
   const names = { hardrockbet: 'Hard Rock', hardrock: 'Hard Rock', draftkings: 'DraftKings', fanduel: 'FanDuel', pinnacle: 'Pinnacle', betmgm: 'BetMGM', caesars: 'Caesars', bet365: 'bet365', fanatics: 'Fanatics' };
   const api = (path, options = {}) => fetch(`/api/admin-sportsbook/${path}`, { cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }).then(async (response) => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(`${body.detail || body.error || 'The admin server returned an error.'} (HTTP ${response.status})`); return body; });
   const setError = (message = '') => { $('error').textContent = message; };
@@ -26,7 +26,7 @@
     try {
       const body = await api('settings/');
       state.primary = String(body.baseline || 'draftkings').toLowerCase();
-      state.primaryLabel = body.baseline_label || 'Operator X';
+      state.primaryLabel = body.baseline_label || 'DraftKings';
       const peers = Array.isArray(body.selected_books) ? body.selected_books : ['fanduel', 'pinnacle'];
       state.books = [state.primary, ...peers.filter((book) => String(book).toLowerCase() !== state.primary).slice(0, 4)];
     } catch (error) {

@@ -10,7 +10,7 @@ from .services.demo_odds import DEMO_BOOKS, DEMO_LEAGUES, DEMO_SPORTS, demo_fixt
 
 
 BASELINE_SPORTSBOOK = str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK", "draftkings")).strip().lower()
-BASELINE_SPORTSBOOK_LABEL = getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "Operator X")
+BASELINE_SPORTSBOOK_LABEL = getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "DraftKings")
 DEFAULT_COMPARISON_BOOKS = ["fanduel", "pinnacle", "bet365"]
 
 

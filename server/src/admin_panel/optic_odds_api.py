@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 from admin_panel.models import DemoOddsOverride, OpticOddsBetMonitor, SportsbookBetSlip
 from admin_panel.optic_odds import OpticOddsClient, OpticOddsError, default_sportsbooks, DEMO_SPORTS, DEMO_LEAGUES, demo_fixtures, demo_odds
 from admin_panel.permissions import IsAdminOrServiceKey
+from admin_panel.odds_preferences import preference_payload, saved_preference
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -25,7 +26,7 @@ def _primary_sportsbook() -> str:
 
 
 def _primary_label() -> str:
-    return str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "Operator X") or "Operator X").strip() or "Operator X"
+    return str(getattr(settings, "OPTIC_ODDS_PRIMARY_SPORTSBOOK_LABEL", "DraftKings") or "DraftKings").strip() or "DraftKings"
 
 
 EDGE_METHODOLOGY = (
@@ -249,7 +250,9 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
         if missing:
             return Response({"detail": f"Missing required fields: {', '.join(missing)}"}, status=status.HTTP_400_BAD_REQUEST)
         primary = str(data.get("sportsbook") or _primary_sportsbook()).lower()
-        books = _books(request, data)
+        preference = saved_preference()
+        configured = preference_payload(preference) if preference else None
+        books = [configured["baseline"], *configured["selected_books"]] if configured else _books(request, data)
         if primary not in books:
             books.insert(0, primary)
         rows = list(data.get("odds_snapshot") or [])
@@ -259,12 +262,14 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
                 rows = OpticOddsClient().odds(str(data["fixture_id"]), books, market=str(data["market"]))
             except OpticOddsError:
                 rows.extend(row for row in demo_odds(str(data["fixture_id"]), books, str(data["market"])) if row["sportsbook"] not in snapshot_books)
+        if str(data["fixture_id"]).startswith("demo-"):
+            rows = demo_odds(str(data["fixture_id"]), books, str(data["market"]))
         wanted_market = str(data["market"]).lower()
         wanted_selection = str(data["selection"]).lower()
         matching = [row for row in rows if str(row.get("market", "")).lower() == wanted_market and str(row.get("selection", "")).lower() == wanted_selection]
         if not matching:
             return Response({"detail": "The selected market/selection was not found for the requested fixture."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        weights = data.get("provider_weights") or {}
+        weights = configured["provider_weights"] if configured else (data.get("provider_weights") or {})
         provider_odds, probability, fair_decimal = _weighted(matching, weights)
         primary_line = provider_odds.get(primary)
         if not primary_line:
@@ -325,7 +330,10 @@ class AdminOpticOddsBetMonitorView(OpticOddsBaseView):
 def _monitor_payload(row):
     """Serialize one monitor leg with patron and CEO-facing risk terminology."""
     slip = row.sportsbook_slip
-    patron = row.admin_user or (slip.user if slip else None)
+    # The patron is the account that owns the recorded betslip. ``admin_user``
+    # is the user who submitted the admin-only comparison endpoint and can be
+    # a staff account; prefer the betslip owner whenever one is linked.
+    patron = (slip.user if slip else None) or row.admin_user
     provider_odds = row.provider_odds or {}
     primary = str(row.primary_sportsbook or _primary_sportsbook()).strip().lower()
     peer_decimals = [

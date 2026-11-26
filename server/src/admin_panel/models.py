@@ -342,6 +342,14 @@ class SportsbookBetSlip(models.Model):
         return f"Sportsbook slip #{self.pk} · {self.leg_count} leg(s)"
 
 
+class SportsbookComparisonSettings(models.Model):
+    """Shared monitor preferences used by all sportsbook placement routes."""
+
+    selected_books = models.JSONField(default=list)
+    provider_weights = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
 class DemoOddsOverride(models.Model):
     """Admin-controlled price override used by the deterministic demo feed."""
 
