@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:frontend/app/shared/classes/http/http.dart';
+import 'package:frontend/app/shared/classes/preferences/preferences.dart';
 import 'package:http/http.dart' as dart_http;
 
 import 'sportsbook_models.dart';
@@ -165,6 +166,18 @@ class SportsbookRepository {
   }
 
   Future<Map<String, dynamic>> recordBetSlip({required double stake, required List<SportsbookSelection> selections}) {
+    // The server derives the patron from this JWT; never trust a client-supplied username.
+    http.addTokenFromCache();
+    final storedToken = Preferences.getString('access_token')?.trim();
+    final token = (storedToken?.isNotEmpty ?? false)
+        ? storedToken
+        : http.getToken()?.trim();
+    if (token == null || token.split('.').length != 3 || token.split('.').any((part) => part.isEmpty)) {
+      throw Exception('Log in through BullBear before placing a sportsbook bet.');
+    }
+    // The backend's JWTAuthentication accepts Bearer tokens. The login form
+    // briefly stores the same JWT with the legacy Token scheme, so normalize it.
+    http.addHeader(key: 'Authorization', value: 'Bearer $token');
     // When configured, route placement through the chatbot service. It reads
     // the comparison books saved in the monitor settings and forwards the
     // authenticated betslip to the EC2 API. The direct server route remains a

@@ -4,6 +4,8 @@ import 'package:frontend/app/modules/auth/data/login_response_model.dart';
 import 'package:frontend/app/modules/auth/presentation/widgets/login_dialog.dart';
 import 'package:frontend/app/shared/functions/dialog_functions.dart';
 import 'package:frontend/app/shared/classes/http/http.dart';
+import 'package:frontend/app/shared/classes/preferences/preferences.dart';
+import 'package:frontend/app/shared/classes/preferences/preferences_strings.dart';
 import 'package:frontend/app/shared/presentation/widgets/custom_button.dart';
 import 'package:frontend/core/framework/theme/colors/app_theme_provider.dart';
 import 'package:go_router/go_router.dart';
@@ -11,14 +13,112 @@ import 'package:go_router/go_router.dart';
 import '../data/sportsbook_models.dart';
 import '../data/sportsbook_repository.dart';
 
-class SportsbookPage extends ConsumerStatefulWidget {
+bool _isJwtAccessToken(String? value) {
+  final parts = (value ?? '').trim().split('.');
+  return parts.length == 3 && parts.every((part) => part.isNotEmpty);
+}
+
+bool _hasSportsbookSession(WidgetRef ref, Profile? user) {
+  if (user == null) return false;
+
+  try {
+    final session = Preferences.getModel<LoginResponseModel>(
+      key: PreferencesStrings.loginResponseModel,
+      creator: (map) => LoginResponseModel.fromJson(map),
+    );
+    if (session != null) {
+      return session.profile.user == user.user && _isJwtAccessToken(session.access);
+    }
+  } catch (_) {
+    // A malformed cached session must not expose the sportsbook.
+  }
+
+  final access = Preferences.getString('access_token')?.trim();
+  final headerToken = ref.read(httpProvider).getToken()?.trim();
+  return _isJwtAccessToken(access) || _isJwtAccessToken(headerToken);
+}
+
+class SportsbookPage extends ConsumerWidget {
   const SportsbookPage({super.key});
 
   @override
-  ConsumerState<SportsbookPage> createState() => _SportsbookPageState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    if (!_hasSportsbookSession(ref, user)) {
+      return const _SportsbookLoginGate();
+    }
+    return const _SportsbookContent();
+  }
 }
 
-class _SportsbookPageState extends ConsumerState<SportsbookPage> {
+class _SportsbookLoginGate extends ConsumerWidget {
+  const _SportsbookLoginGate();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = ref.watch(appThemeProvider).colors;
+    return Scaffold(
+      backgroundColor: colors.primary,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.lock_outline_rounded,
+                    size: 42,
+                    color: colors.always27D07F,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Sign in to access the sportsbook',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: colors.alwaysWhite,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Log in through BullBear to load your account and secure the bet with your user session.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: colors.always8B949E),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: () => showCenterDialog(
+                      context,
+                      child: const LoginDialog(),
+                    ),
+                    child: const Text('Log in'),
+                  ),
+                  TextButton(
+                    onPressed: () => context.go('/dashboard/trending'),
+                    child: const Text('Return to BullBear'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SportsbookContent extends ConsumerStatefulWidget {
+  const _SportsbookContent();
+
+  @override
+  ConsumerState<_SportsbookContent> createState() => _SportsbookPageState();
+}
+
+class _SportsbookPageState extends ConsumerState<_SportsbookContent> {
   late final SportsbookRepository _repository;
   List<SportsbookSport> _sports = [];
   List<SportsbookProvider> _providers = [];
@@ -105,7 +205,7 @@ class _SportsbookPageState extends ConsumerState<SportsbookPage> {
 
   Future<void> _placeBetslip() async {
     if (_slip.isEmpty || _stake <= 0) return;
-    if (ref.read(currentUserProvider) == null) {
+    if (!_hasSportsbookSession(ref, ref.read(currentUserProvider))) {
       setState(() => _error = '');
       showCenterDialog(context, child: const LoginDialog());
       return;
@@ -137,14 +237,11 @@ class _SportsbookPageState extends ConsumerState<SportsbookPage> {
   @override
   Widget build(BuildContext context) {
     final colors = ref.watch(appThemeProvider).colors;
-    final requiresLogin = ref.watch(currentUserProvider) == null;
     return Scaffold(backgroundColor: colors.primary, body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
       final wide = constraints.maxWidth >= 1050;
       return Column(children: [
         _buildHeader(colors),
         Expanded(child: SingleChildScrollView(padding: EdgeInsets.symmetric(horizontal: wide ? 52 : 16, vertical: 24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (requiresLogin) _loginRequiredNotice(colors),
-          if (requiresLogin) const SizedBox(height: 14),
           _buildIntro(colors),
           const SizedBox(height: 22),
           if (wide) Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: _buildMain(colors)), const SizedBox(width: 20), SizedBox(width: 360, child: _buildSlip(colors))]) else Column(children: [_buildMain(colors), const SizedBox(height: 18), _buildSlip(colors)]),
@@ -155,7 +252,6 @@ class _SportsbookPageState extends ConsumerState<SportsbookPage> {
   }
 
   Widget _buildHeader(dynamic colors) => Padding(padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12), child: Row(children: [IconButton(onPressed: () => context.go('/dashboard/trending'), icon: Icon(Icons.arrow_back_rounded, color: colors.alwaysWhite)), const SizedBox(width: 8), Text('ODDS LAB', style: TextStyle(color: colors.alwaysWhite, fontWeight: FontWeight.w700, letterSpacing: 3)), const Spacer(), Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9), decoration: BoxDecoration(border: Border.all(color: colors.always30363D), borderRadius: BorderRadius.circular(22)), child: Row(children: [Icon(Icons.circle, size: 8, color: colors.always27D07F), const SizedBox(width: 8), Text('Sportsbook feed', style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 12))]))]));
-  Widget _loginRequiredNotice(dynamic colors) => Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14), decoration: BoxDecoration(color: colors.always1F242C, border: Border.all(color: colors.alwaysFF4C4C.withOpacity(.65)), borderRadius: BorderRadius.circular(13)), child: Row(children: [Icon(Icons.lock_outline_rounded, color: colors.alwaysFF4C4C, size: 20), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Log in before placing a sportsbook bet', style: TextStyle(color: colors.alwaysWhite, fontSize: 13, fontWeight: FontWeight.w700)), const SizedBox(height: 3), Text('You can browse the available lines now. Sign in when you are ready to add a selection to your bet slip.', style: TextStyle(color: colors.alwaysE6EDF3, fontSize: 10, height: 1.4))])), TextButton(onPressed: () => showCenterDialog(context, child: const LoginDialog()), child: Text('Log in', style: TextStyle(color: colors.alwaysWhite, fontWeight: FontWeight.w700, fontSize: 12)))]));
   Widget _buildIntro(dynamic colors) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('SPORTSBOOK', style: TextStyle(color: colors.always27D07F, letterSpacing: 3, fontSize: 11, fontWeight: FontWeight.w700)), const SizedBox(height: 10), Text('Shop the line.\nBet with context.', style: TextStyle(color: colors.alwaysWhite, fontSize: 34, height: 1.05, fontWeight: FontWeight.w700)), const SizedBox(height: 10), Text('DraftKings is the betting line. Comparison books are checked automatically in the monitoring panel after placement.', style: TextStyle(color: colors.always8B949E, fontSize: 13, height: 1.5))]);
 
   Widget _buildMain(dynamic colors) => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: colors.always161B22, border: Border.all(color: colors.always30363D), borderRadius: BorderRadius.circular(18)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: _dropdown<SportsbookSport>(label: 'Sport', value: _sport, items: _sports, getValue: (item) => item.id, getLabel: (item) => item.name, onChanged: _selectSport)), const SizedBox(width: 10), Expanded(child: _dropdown<SportsbookLeague>(label: 'League', value: _league, items: _leagues, getValue: (item) => item.id, getLabel: (item) => item.name, onChanged: _selectLeague))]), const SizedBox(height: 12), if (_fixtures.isNotEmpty) _fixtureDropdown(colors), if (_fixtures.isNotEmpty) const SizedBox(height: 12), Row(children: [Expanded(child: _dropdown<String>(label: 'Market', value: _market, items: const ['moneyline', 'point_spread', 'total_points'], getValue: (item) => item, getLabel: (item) => _pretty(item), onChanged: (value) { if (value != null) { setState(() => _market = value); for (final fixture in _visibleFixtures) { _oddsByFixture.remove(fixture.id); _loadOdds(fixture); } } })), const SizedBox(width: 10), Expanded(child: Align(alignment: Alignment.bottomRight, child: Text(_status, style: TextStyle(color: colors.always8B949E, fontSize: 11))))]), const SizedBox(height: 18), if (_loading) const Center(child: Padding(padding: EdgeInsets.all(28), child: CircularProgressIndicator())) else if (_fixtures.isEmpty) _emptyState(colors, _league == null ? 'Choose a sport and league' : 'No upcoming fixtures found') else ..._visibleFixtures.map((fixture) => _fixtureCard(colors, fixture))]));
