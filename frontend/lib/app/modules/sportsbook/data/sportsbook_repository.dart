@@ -190,10 +190,10 @@ class SportsbookRepository {
       'patron_username': Preferences.getString('username')?.trim(),
       'legs': selections.map((selection) => selection.toJson()).toList(),
     };
-    final bridgeBase = http.chatbotBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
-    if (bridgeBase.isNotEmpty) {
-      return _post('api/admin-sportsbook/betslips', payload, overrideBaseUrl: bridgeBase);
-    }
+    // Bet ownership and monitor records belong to the main BullBear API.
+    // Always post directly there so the patron JWT reaches the endpoint that
+    // persists SportsbookBetSlip.user and the linked monitor rows. The
+    // chatbot bridge remains in use for demo catalog and odds data only.
     return _post('bet/sportsbook/betslips', payload);
   }
 
