@@ -294,6 +294,7 @@ class _CreateAccountStep2State extends ConsumerState<CreateAccountStep2> {
                   // Save in SharedPreferences
                     final prefs = await SharedPreferences.getInstance();
                     prefs.setInt('user_id', d.profile.user);
+                    prefs.setString('username', d.profile.username);
                     prefs.setBool('email_verified', d.profile.emailVerified);
                     prefs.setInt('profile_id', d.profile.id);
                     prefs.setString('access_token', d.access);

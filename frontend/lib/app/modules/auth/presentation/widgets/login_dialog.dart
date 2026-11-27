@@ -186,6 +186,7 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
                   // Save in SharedPreferences
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setInt('user_id', d.profile.user);
+                  await prefs.setString('username', d.profile.username);
                   await prefs.setBool('email_verified', d.profile.emailVerified);
                   await prefs.setInt('profile_id', d.profile.id);
                   await prefs.setString('access_token', d.access);

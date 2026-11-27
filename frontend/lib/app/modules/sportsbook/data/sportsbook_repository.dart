@@ -166,7 +166,7 @@ class SportsbookRepository {
   }
 
   Future<Map<String, dynamic>> recordBetSlip({required double stake, required List<SportsbookSelection> selections}) {
-    // The server derives the patron from this JWT; never trust a client-supplied username.
+    // The server derives the patron from this JWT; the username below is context only.
     http.addTokenFromCache();
     final storedToken = Preferences.getString('access_token')?.trim();
     final token = (storedToken?.isNotEmpty ?? false)
@@ -185,6 +185,9 @@ class SportsbookRepository {
     final payload = {
       'stake': stake,
       'demo': _demoMode,
+      // Informational request context only; the backend derives the patron
+      // from the verified JWT and must not trust this client-supplied value.
+      'patron_username': Preferences.getString('username')?.trim(),
       'legs': selections.map((selection) => selection.toJson()).toList(),
     };
     final bridgeBase = http.chatbotBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');

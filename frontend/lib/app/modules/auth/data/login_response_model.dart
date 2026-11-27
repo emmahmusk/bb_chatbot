@@ -33,6 +33,7 @@ class LoginResponseModel extends Cachable {
 class Profile extends Cachable {
   final int id;
   final int user;
+  final String username;
   final bool emailVerified;
   final String fullName;
   final String email;
@@ -45,6 +46,7 @@ class Profile extends Cachable {
   Profile({
     required this.id,
     required this.user,
+    this.username = '',
     required this.emailVerified,
     required this.fullName,
     required this.email,
@@ -58,7 +60,8 @@ class Profile extends Cachable {
   factory Profile.fromJson(Map<String, dynamic> json) {
     return Profile(
       id: json['id'] as int,
-      user: json['user'] as int,
+      user: (json['user'] as num?)?.toInt() ?? (json['user_id'] as num?)?.toInt() ?? 0,
+      username: (json['username'] ?? '').toString().trim(),
       emailVerified: json['email_verified'] as bool,
       fullName: json['full_name'] ?? "N/A",
       email: json['email'] ?? "N/A",
@@ -74,6 +77,7 @@ class Profile extends Cachable {
   Map<String, dynamic> toMap() => {
         'id': id,
         'user': user,
+        'username': username,
         'email_verified': emailVerified,
         'full_name': fullName,
         'email': email,
